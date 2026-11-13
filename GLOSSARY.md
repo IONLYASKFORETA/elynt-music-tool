@@ -34,3 +34,12 @@ _Avoid_: "theme", "style" (a vision is made for one track, not reused as-is).
 
 **House style**: the single visual world every vision lives inside; for the Visualizer, the spectral, glitch, holographic-chrome poster aesthetic. Tracks differ within it, never outside it.
 _Avoid_: "theme" (a vision is per track; the house style is shared by all of them).
+
+**Brief**: the owner's own idea for a track's visuals, given up front in their words, before the Visualizer asks anything.
+
+**Remix**: a fresh take on a chosen vision, steered by a note or by a part borrowed from another vision.
+_Avoid_: confusing with a musical remix; a remix here only ever changes visuals.
+
+**Taste profile**: what the Visualizer has learned about the owner's preferences from past picks and overrides; the owner can see and edit it.
+
+**Series**: tracks deliberately linked (such as an EP) so their visions share a family look instead of avoiding each other.

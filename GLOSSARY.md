@@ -59,3 +59,7 @@ _Avoid_: "genre" (always EDM here), "style".
 
 **Mastering Set**: a separate Live Set, built from a track's bounced mixdown, where the master chain lives.
 _Avoid_: mastering on the mix's Main track.
+
+**Space**: one region of a mix, defined by a frequency band (sub, low, low-mid, presence, air) and by where it sits in mid/side.
+
+**Space map**: the grid of every space in a mix, showing which Live track fills each one and where they collide.

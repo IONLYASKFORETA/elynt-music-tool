@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import type { Track } from '../../shared/track'
 import { ApiKeysPanel } from './ApiKeysPanel'
 import { BackupSettings } from './BackupSettings'
+import { ProfileScreen } from './ProfileScreen'
 
 const TOOLS = [
   { id: 'visualizer', name: 'Visualizer', nav: 'Visualizer', blurb: 'Turn a track into reactive visuals and render the video.' },
@@ -10,7 +11,7 @@ const TOOLS = [
 ] as const
 
 type ToolId = (typeof TOOLS)[number]['id']
-type View = ToolId | 'settings'
+type View = ToolId | 'profile' | 'settings'
 
 export function App() {
   const [active, setActive] = useState<View>('visualizer')
@@ -54,6 +55,13 @@ export function App() {
           </button>
         ))}
         <button
+          className={active === 'profile' ? 'nav-item nav-profile active' : 'nav-item nav-profile'}
+          aria-current={active === 'profile' ? 'page' : undefined}
+          onClick={() => setActive('profile')}
+        >
+          Artist profile
+        </button>
+        <button
           className={active === 'settings' ? 'nav-item nav-settings active' : 'nav-item nav-settings'}
           aria-current={active === 'settings' ? 'page' : undefined}
           onClick={() => setActive('settings')}
@@ -62,7 +70,17 @@ export function App() {
         </button>
       </nav>
 
-      {!tool ? (
+      {active === 'profile' ? (
+        <main className="tool">
+          <header className="tool-head">
+            <div>
+              <h1>Artist profile</h1>
+              <p>Tell the suite about yourself once. Every tool reads it.</p>
+            </div>
+          </header>
+          <ProfileScreen />
+        </main>
+      ) : !tool ? (
         <main className="tool">
           <header className="tool-head">
             <div>

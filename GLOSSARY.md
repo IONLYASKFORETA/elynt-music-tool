@@ -52,6 +52,8 @@ _Avoid_: confusing with a musical remix; a remix here only ever changes visuals.
 
 **Media shelf**: the owner's own reusable images, clips and logo, available to any track's visuals.
 
+**Export queue**: the Visualizer's list of videos waiting to be rendered, including clips other tools have asked for.
+
 **Artist profile**: what the owner tells the suite once, so every tool fits them: artist name and links, subgenres, audience snapshot, budget, distributor and platforms, past releases, reference artists, voice, and default goal. Shared by all three tools.
 
 **Release**: one track put out to the public on a release day. In v1 a release is always a single.

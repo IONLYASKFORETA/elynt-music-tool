@@ -43,3 +43,5 @@ _Avoid_: confusing with a musical remix; a remix here only ever changes visuals.
 **Taste profile**: what the Visualizer has learned about the owner's preferences from past picks and overrides; the owner can see and edit it.
 
 **Series**: tracks deliberately linked (such as an EP) so their visions share a family look instead of avoiding each other.
+
+**Layer library**: the fixed set of layer kinds a vision can be built from; the house style's whole vocabulary.

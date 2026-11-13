@@ -31,3 +31,23 @@ _Avoid_: using "layer" for audio parts; those are stems.
 _Avoid_: "theme", "style" (a vision is made for one track, not reused as-is).
 
 **Reactivity**: how a layer responds to the audio.
+
+**Live Set**: the owner's Ableton Live project for a track, as saved in its .als file.
+_Avoid_: "session", "project file" (when the musical content is meant).
+
+**Bounce**: audio rendered out of a Live Set, either a mixdown or stems, so it can be measured.
+_Avoid_: "export" alone (it can also mean a video export).
+
+**Stepping stone**: one concrete, ordered move the Mix & Master Assistant suggests, naming the track, the move, where to make it in Live, and why. The owner ticks it off when done.
+_Avoid_: "tip", "suggestion", "feedback".
+
+**Mix mode**: the first stage of the Mix & Master Assistant, working on the balance between tracks in a Live Set.
+
+**Master mode**: the second stage of the Mix & Master Assistant, working on the final chain and loudness of the whole track.
+_Avoid_: "mastering" for the mode (mastering is the craft; master mode is the tool's stage).
+
+**Reference track**: a released song by another artist that the owner picks for a track, to compare the mix or master against.
+_Avoid_: "reference" alone when a visual reference is meant (see the Visualizer).
+
+**Subgenre**: the EDM style the owner tags a track with (e.g. house, dubstep, DnB). It sets the targets the Mix & Master Assistant aims for.
+_Avoid_: "genre" (always EDM here), "style".

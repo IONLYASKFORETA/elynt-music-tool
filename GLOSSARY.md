@@ -1,0 +1,24 @@
+# Glossary
+
+**Elynt Music Tool**: the suite as a whole; one app, personal to its owner (an EDM producer working in Ableton Live), made of three tools.
+_Avoid_: "the visualizer" when the whole suite is meant.
+
+**Visualizer**: the tool that turns one of the owner's tracks into reactive visuals, designed with a live preview and delivered as a rendered video.
+
+**Mix & Master Assistant**: the tool that reads the owner's open Ableton Live project and suggests next steps for mixing and mastering it.
+
+**Release Assistant**: the tool that guides the owner through a marketing strategy for a finished track.
+
+**Track**: one finished or in-progress song by the owner. The unit every tool works on.
+
+**Mixdown**: the single stereo audio file of a whole track.
+
+**Stem**: an audio file holding one part of a track (e.g. kick, bass, lead), rendered separately so it can drive visuals on its own.
+_Avoid_: "channel", "layer" (a layer is visual).
+
+**Preset**: a saved set of settings for a visualizer, reusable across tracks.
+
+**Layer**: one visual element in a scene, such as a spectrum, particles, or artwork.
+_Avoid_: using "layer" for audio parts; those are stems.
+
+**Scene**: a stack of layers composed together into one look.

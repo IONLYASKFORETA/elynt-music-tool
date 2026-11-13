@@ -32,6 +32,28 @@ _Avoid_: "theme", "style" (a vision is made for one track, not reused as-is).
 
 **Reactivity**: how a layer responds to the audio.
 
+**House style**: the single visual world every vision lives inside; for the Visualizer, the spectral, glitch, holographic-chrome poster aesthetic. Tracks differ within it, never outside it.
+_Avoid_: "theme" (a vision is per track; the house style is shared by all of them).
+
+**Brief**: the owner's own idea for a track's visuals, given up front in their words, before the Visualizer asks anything.
+
+**Remix**: a fresh take on a chosen vision, steered by a note or by a part borrowed from another vision.
+_Avoid_: confusing with a musical remix; a remix here only ever changes visuals.
+
+**Taste profile**: what the Visualizer has learned about the owner's preferences from past picks and overrides; the owner can see and edit it.
+
+**Series**: tracks deliberately linked (such as an EP) so their visions share a family look instead of avoiding each other.
+
+**Layer library**: the fixed set of layer kinds a vision can be built from; the house style's whole vocabulary.
+
+**Moment**: a visual event pinned to an exact bar or beat of a track, on top of what its section's scene already does.
+
+**Transition**: how one section's scene hands over to the next.
+
+**Media shelf**: the owner's own reusable images, clips and logo, available to any track's visuals.
+
+**Export queue**: the Visualizer's list of videos waiting to be rendered, including clips other tools have asked for.
+
 **Live Set**: the owner's Ableton Live project for a track, as saved in its .als file.
 _Avoid_: "session", "project file" (when the musical content is meant).
 

@@ -40,3 +40,20 @@ h2 { font-size: 12px; letter-spacing: 0.3em; text-transform: uppercase; color: v
 
 .empty { color: var(--muted); }
 .error { color: #ff6b8b; }
+
+.nav-settings { margin-top: auto; }
+.add:disabled { opacity: 0.4; cursor: default; }
+.ghost { border: 1px solid var(--line); border-radius: 6px; padding: 10px 14px; font: inherit; background: none; color: var(--text); cursor: pointer; }
+.ghost:hover { background: #16161d; }
+.ghost:disabled { color: var(--muted); cursor: default; }
+.keys { max-width: 720px; }
+.key { padding: 16px; margin-top: 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; }
+.key label { font-weight: 700; }
+.key .hint { color: var(--muted); font-size: 13px; margin: 4px 0 12px; }
+.key-row { display: flex; gap: 8px; }
+.key-row input { flex: 1; min-width: 0; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; color: var(--text); font: inherit; font-family: ui-monospace, monospace; }
+.key-row input:focus { outline: none; border-color: #3db8ff; }
+.badge { margin-left: 8px; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 99px; background: #1a1a22; color: var(--muted); }
+.badge.set { color: #3dffb4; }
+.ok { color: #3dffb4; }
+.tool[hidden] { display: none; }

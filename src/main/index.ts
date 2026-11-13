@@ -2,6 +2,10 @@ import { app, BrowserWindow, dialog, ipcMain } from 'electron'
 import { join } from 'node:path'
 import { channels } from '../shared/api'
 import { openSuiteDatabase } from './db/database'
+import { isKeyName } from '../shared/keys'
+import { ClaudeError, createClaudeClient, createUsageLog } from './claude'
+import { createApiKeys } from './keys/api-keys'
+import { createCredentialVault } from './keys/key-vault'
 import { createTrackLibrary } from './tracks'
 
 const MIXDOWN_EXTENSIONS = ['wav', 'aif', 'aiff', 'flac', 'mp3']
@@ -50,6 +54,33 @@ function start(): void {
     const result = parent ? await dialog.showOpenDialog(parent, options) : await dialog.showOpenDialog(options)
     const [path] = result.filePaths
     return result.canceled || !path ? null : tracks.addFromMixdown(path)
+  })
+
+  // Keys stay in the Windows credential vault (ADR 0001). The Claude client is
+  // shared by all three tools and logs the cost of every call to api_usage.
+  const keys = createApiKeys(createCredentialVault())
+  const claude = createClaudeClient({ keys, usage: createUsageLog(db) })
+
+  const keyName = (name: unknown) => {
+    if (!isKeyName(name)) throw new Error(`Unknown key: ${String(name)}`)
+    return name
+  }
+  ipcMain.handle(channels.keyStatus, () => keys.status())
+  ipcMain.handle(channels.saveKey, async (_event, name: unknown, value: unknown) => {
+    await keys.save(keyName(name), String(value ?? ''))
+    return keys.status()
+  })
+  ipcMain.handle(channels.removeKey, async (_event, name: unknown) => {
+    await keys.remove(keyName(name))
+    return keys.status()
+  })
+  ipcMain.handle(channels.testAnthropicKey, async () => {
+    try {
+      await claude.text({ tool: 'suite', tier: 'fast', prompt: 'Reply with the word ok.', maxTokens: 64 })
+      return { ok: true }
+    } catch (error) {
+      return { ok: false, message: error instanceof ClaudeError ? error.message : String(error) }
+    }
   })
 
   app.on('will-quit', () => db.close())

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { Track } from '../../shared/track'
+import { ApiKeysPanel } from './ApiKeysPanel'
 
 const TOOLS = [
   { id: 'visualizer', name: 'Visualizer', nav: 'Visualizer', blurb: 'Turn a track into reactive visuals and render the video.' },
@@ -11,6 +12,7 @@ type ToolId = (typeof TOOLS)[number]['id']
 
 export function App() {
   const [active, setActive] = useState<ToolId>('visualizer')
+  const [view, setView] = useState<'tool' | 'settings'>('tool')
   const [tracks, setTracks] = useState<Track[]>([])
   const [error, setError] = useState<string | null>(null)
 
@@ -43,16 +45,38 @@ export function App() {
         {TOOLS.map((s) => (
           <button
             key={s.id}
-            className={s.id === active ? 'nav-item active' : 'nav-item'}
-            aria-current={s.id === active ? 'page' : undefined}
-            onClick={() => setActive(s.id)}
+            className={view === 'tool' && s.id === active ? 'nav-item active' : 'nav-item'}
+            aria-current={view === 'tool' && s.id === active ? 'page' : undefined}
+            onClick={() => {
+              setActive(s.id)
+              setView('tool')
+            }}
           >
             {s.nav}
           </button>
         ))}
+        <button
+          className={view === 'settings' ? 'nav-item nav-settings active' : 'nav-item nav-settings'}
+          aria-current={view === 'settings' ? 'page' : undefined}
+          onClick={() => setView('settings')}
+        >
+          Settings
+        </button>
       </nav>
 
-      <main className="tool">
+      {view === 'settings' && (
+        <main className="tool">
+          <header className="tool-head">
+            <div>
+              <h1>Settings</h1>
+              <p>Shared by all three tools.</p>
+            </div>
+          </header>
+          <ApiKeysPanel />
+        </main>
+      )}
+
+      <main className="tool" hidden={view !== 'tool'}>
         <header className="tool-head">
           <div>
             <h1>{tool.name}</h1>

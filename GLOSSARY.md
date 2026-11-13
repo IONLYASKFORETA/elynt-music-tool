@@ -85,3 +85,18 @@ _Avoid_: mastering on the mix's Main track.
 **Space**: one region of a mix, defined by a frequency band (sub, low, low-mid, presence, air) and by where it sits in mid/side.
 
 **Space map**: the grid of every space in a mix, showing which Live track fills each one and where they collide.
+
+**Artist profile**: what the owner tells the suite once, so every tool fits them: artist name and links, subgenres, audience snapshot, budget, distributor and platforms, past releases, reference artists, voice, and default goal. Shared by all three tools.
+
+**Release**: one track put out to the public on a release day. In v1 a release is always a single.
+_Avoid_: "drop" (a drop is a section).
+
+**Release day**: the date a release goes live everywhere. Every step of a release plan is dated from it.
+
+**Release plan**: the dated list of steps the Release Assistant builds for one release, counting back from release day and running until the last check-in.
+
+**Playbook**: the fixed set of steps and timings that ships with the Release Assistant. A release plan is built from the playbook and then personalized.
+
+**Draft**: text the Release Assistant writes for the owner to post or send themselves, such as a caption, a pitch, or an email. The suite never posts or sends a draft on its own.
+
+**Check-in**: a point after release day (7 and 28 days) where the owner types in a few numbers and the release plan adapts.

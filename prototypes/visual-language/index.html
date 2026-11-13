@@ -1,0 +1,443 @@
+<title>Visual Language Sketches</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=JetBrains+Mono:wght@400;600&display=swap">
+<!--
+  PROTOTYPE, throwaway. Answers the question in "Prototype the visual language on one of Aden's tracks"
+  (elynt-music-tool #10): which of four rough looks feel hand-made and intentional for an Aden track?
+  Four variants, switchable via the URL hash (#bleed #accent #chrome #ember) and the bottom bar,
+  all driven by the same pre-computed track analysis of the "flip" excerpt.
+-->
+<style>
+  /* Layout: full-bleed canvas stage; a quiet HUD in the top corners; one control dock pinned to the bottom. */
+  :root {
+    color-scheme: dark;
+    --ink: #0b0a0d;           /* stage black, slightly warm-violet */
+    --panel: rgba(14, 13, 18, 0.72);
+    --line: rgba(236, 232, 244, 0.14);
+    --fg: #ece8f4;
+    --dim: #9a94a8;
+    --hot: #ff4d3d;           /* drop marker */
+    --build: #f2b84b;         /* build band */
+    --intro: #5b5670;         /* intro band */
+    --mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+    --display: "Anton", "Impact", "Arial Narrow", sans-serif;
+  }
+  html, body { height: 100%; }
+  body { background: var(--ink); color: var(--fg); font-family: var(--mono); font-size: 12px; overflow: hidden; }
+  canvas#stage { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+
+  .hud { position: fixed; top: calc(env(safe-area-inset-top, 0px) + 14px); display: grid; gap: 6px; pointer-events: none;
+         max-width: min(44ch, 46vw); }
+  .hud.left { left: max(16px, env(safe-area-inset-left, 0px)); }
+  .hud.right { right: max(16px, env(safe-area-inset-right, 0px)); text-align: right; justify-items: end; }
+  .tag { font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--dim); }
+  .name { font-family: var(--display); font-size: clamp(28px, 5vw, 46px); line-height: .95; letter-spacing: .01em; text-wrap: balance; }
+  .idea { color: var(--fg); opacity: .82; line-height: 1.5; }
+  .read { font-variant-numeric: tabular-nums; line-height: 1.6; }
+  .read b { font-weight: 600; }
+  .meters { display: grid; grid-template-columns: auto 90px; gap: 3px 8px; align-items: center; }
+  .meter { height: 4px; background: var(--line); position: relative; overflow: hidden; }
+  .meter i { position: absolute; inset: 0 auto 0 0; background: var(--fg); width: 0; }
+
+  .dock { position: fixed; left: 0; right: 0; bottom: 0; background: var(--panel); backdrop-filter: blur(10px);
+          -webkit-backdrop-filter: blur(10px); border-top: 1px solid var(--line);
+          padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+          padding-block: 10px calc(10px + env(safe-area-inset-bottom, 0px)); display: grid; gap: 10px; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .row.top { justify-content: space-between; }
+  button { font: inherit; color: var(--fg); background: transparent; border: 1px solid var(--line); padding: 7px 11px;
+           cursor: pointer; letter-spacing: .04em; }
+  button:hover { border-color: var(--fg); }
+  button:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
+  button.on { background: var(--fg); color: var(--ink); border-color: var(--fg); }
+  button.play { min-width: 92px; font-weight: 600; }
+  .variants { display: flex; flex-wrap: wrap; gap: 6px; }
+  .variants button { display: grid; text-align: left; gap: 1px; }
+  .variants small { font-size: 9px; letter-spacing: .12em; text-transform: uppercase; opacity: .7; }
+  .time { font-variant-numeric: tabular-nums; color: var(--dim); }
+
+  .timeline { position: relative; height: 22px; cursor: pointer; touch-action: none; }
+  .timeline .band { position: absolute; top: 6px; height: 10px; }
+  .timeline .band span { position: absolute; top: -12px; left: 2px; font-size: 9px; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); white-space: nowrap; }
+  .timeline .drop { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--hot); }
+  .timeline .head { position: absolute; top: 2px; bottom: 2px; width: 2px; background: var(--fg); box-shadow: 0 0 8px var(--fg); }
+  .note { color: var(--dim); }
+  @media (max-width: 560px) {
+    .hud.right { display: none; }
+    .hud.left { max-width: calc(100vw - 32px); }
+    .variants button { padding: 6px 8px; }
+  }
+</style>
+
+<canvas id="stage" aria-label="Audio-reactive visual sketch"></canvas>
+
+<div class="hud left">
+  <div class="tag" id="ref">Reference</div>
+  <div class="name" id="vname">Loading</div>
+  <div class="idea" id="videa"></div>
+</div>
+<div class="hud right">
+  <div class="tag">Track analysis · flip excerpt</div>
+  <div class="read" id="readout"></div>
+  <div class="meters">
+    <span class="tag">kick</span><div class="meter"><i id="mK"></i></div>
+    <span class="tag">sub</span><div class="meter"><i id="mS"></i></div>
+    <span class="tag">snare</span><div class="meter"><i id="mN"></i></div>
+    <span class="tag">energy</span><div class="meter"><i id="mE"></i></div>
+  </div>
+</div>
+
+<div class="dock">
+  <div class="timeline" id="timeline" role="slider" aria-label="Position in track" tabindex="0"></div>
+  <div class="row top">
+    <div class="row">
+      <button class="play" id="play">▶ Play</button>
+      <button id="jump">Drop − 8 s</button>
+      <span class="time" id="time">0:00 / 1:12</span>
+    </div>
+    <div class="variants" id="variants"></div>
+  </div>
+</div>
+
+<script>
+(() => {
+"use strict";
+const VARIANTS = [
+  { id: "bleed",  name: "Color Bleed",  ref: "after maysgrafx",
+    idea: "A pale bust on black. The visor is a band of spectrum that drips down the frame, growing through the build. At the drop it smears and datamoshes on every kick." },
+  { id: "accent", name: "One Accent",   ref: "after levitate_av",
+    idea: "A near-black corridor with one red light. The light breathes on the sub, flickers harder on snares as the build tightens, then floods the fog at the drop. Hi-hats are ignored on purpose." },
+  { id: "chrome", name: "Holo Chrome",  ref: "after maysgrafx",
+    idea: "Iridescent liquid chrome on a pastel gradient. It grows spikes through the build. At the drop the room goes black and a light pillar slams down on each kick." },
+  { id: "ember",  name: "Ember Type",   ref: "type idea from _cortexdesign_",
+    idea: "The title as heated metal. It warms from dull red to white-hot across the build, embers rise on snares, and at the drop the letters slice apart on the kick." },
+];
+
+// ---------- shaders ----------
+const HEAD = `precision highp float;
+uniform vec2 R; uniform float T,K,SN,SUB,BA,MI,HI,RMS,BP,BAR,BUILD,DT,RM; uniform sampler2D TX;
+#define PI 3.14159265
+float h11(float p){p=fract(p*.1031);p*=p+33.33;p*=p+p;return fract(p);}
+float h21(vec2 p){vec3 q=fract(vec3(p.xyx)*.1031);q+=dot(q,q.yzx+33.33);return fract((q.x+q.y)*q.z);}
+float n2(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(h21(i),h21(i+vec2(1,0)),f.x),mix(h21(i+vec2(0,1)),h21(i+1.),f.x),f.y);}
+float fbm(vec2 p){float s=0.,a=.5;for(int i=0;i<5;i++){s+=a*n2(p);p=p*2.03+7.1;a*=.5;}return s;}
+vec3 spec(float x){return .5+.5*cos(6.28318*(x+vec3(0.,.33,.67)));}
+float grain(){return h21(gl_FragCoord.xy+fract(T*13.)*91.)-.5;}
+float dropOn(){return step(0.,DT);}
+float impact(){return dropOn()*exp(-max(DT,0.)*5.)*mix(1.,.35,RM);}
+float downbeat(){return dropOn()*exp(-fract(BAR)*4.*4.);} /* decays over the first beat of each bar */
+`;
+
+const FRAG = {
+bleed: `
+float bust(vec2 p){
+  float head=length((p-vec2(0.,.1))/vec2(.17,.22))-1.;
+  float neck=max(abs(p.x)-.07,abs(p.y+.17)-.1)/.1;
+  float sh=length((p-vec2(0.,-.5))/vec2(.46,.26))-1.;
+  return min(min(head,neck),sh);
+}
+void main(){
+  vec2 uv=gl_FragCoord.xy/R; vec2 p=(gl_FragCoord.xy-.5*R)/R.y;
+  float d=dropOn();
+  // datamosh: horizontal blocks shove sideways on kicks, only after the drop
+  float rows=mix(14.,46.,d); float row=floor(uv.y*rows);
+  float beatIdx=floor((T-0.)*134./60.);
+  float r=h21(vec2(row,beatIdx));
+  p.x+=(r-.5)*.35*K*d*step(.55,r)*mix(1.,.4,RM);
+  float px=R.y/220.; float col=floor(gl_FragCoord.x/px);
+  float rc=h11(col*1.37+floor(T*.25));
+  // spectrum band across the eyes
+  float bandTop=.17, bandBot=.06+(-.015*K);
+  float inHeadX=step(abs(p.x),.19);
+  float drip=(.04+.55*pow(rc,2.))*(.15+BUILD*.85+d*.9)*(1.+.6*SUB);
+  float below=bandBot-p.y;
+  float streak=inHeadX*step(0.,below)*step(below,drip);
+  float band=step(p.y,bandTop)*step(bandBot,p.y)*inHeadX;
+  float m=bust(p); float fill=smoothstep(.02,-.02,m);
+  // palette: off-white poster in the intro/build, black after the drop
+  vec3 bg=mix(vec3(.93,.92,.9),vec3(.035,.03,.04),d);
+  bg*=1.-.25*length(p);
+  vec3 skin=mix(vec3(.80,.79,.82),vec3(.97,.95,.98),smoothstep(-.6,.4,p.y));
+  skin*=.9+.1*fbm(p*6.);
+  vec3 c=mix(bg,skin*mix(.92,1.05,RMS),fill);
+  float hue=p.y*1.6+rc*.12+T*.04+K*.25*d;
+  vec3 rb=spec(hue)*1.15;
+  float a=max(band,streak*(.65+.35*smoothstep(drip,0.,below)));
+  c=mix(c,rb,a);
+  // RGB split on kicks after the drop
+  if(d>0.){ float s=.012*K*mix(1.,.3,RM); vec2 q=p+vec2(s,0.); float mr=smoothstep(.02,-.02,bust(q));
+    c.r=mix(c.r,max(c.r,mr*.9),.6*K); }
+  // thin poster frame that tightens with the build
+  vec2 fr=abs(uv-.5); float inset=mix(.06,.035,BUILD);
+  float frame=step(abs(max(fr.x/(R.y/R.x)*.0+fr.x,fr.y*0.+fr.y)-(.5-inset)),.0015);
+  c=mix(c,mix(vec3(.1),vec3(.25,1.,.35),d),frame*.9);
+  c+=impact()*vec3(.8);
+  c+=grain()*.04;
+  gl_FragColor=vec4(c,1.);
+}`,
+
+accent: `
+void main(){
+  vec2 p=(gl_FragCoord.xy-.5*R)/R.y;
+  float d=dropOn();
+  // camera shake only on downbeats of the drop
+  float sh=downbeat()*K*.03*mix(1.,.2,RM);
+  p+=sh*vec2(h11(floor(T*30.))-.5,h11(floor(T*30.)+5.)-.5);
+  float r=max(abs(p.x)*.85,abs(p.y));
+  float speed=.25+BUILD*1.2+d*2.2;
+  float z=.35/max(r,.02)+T*speed;
+  float ang=atan(p.y,p.x);
+  // concrete walls: dim, wet, barely there
+  float wall=fbm(vec2(ang*3.,z*.8))*smoothstep(.02,.5,r);
+  vec3 c=vec3(.025,.026,.03)+wall*vec3(.09,.085,.1)*(.6+.4*RMS);
+  // the one accent
+  vec3 acc=vec3(1.,.09,.05);
+  float flick=mix(1.,step(.35,h11(floor(T*24.))),BUILD*SN*.9);
+  float core=exp(-length(p)*mix(26.,9.,SUB*.6+BUILD*.4+d*.5))*(.35+.9*SUB)*flick;
+  c+=acc*core*1.6;
+  // fog that only shows where the light reaches
+  float fog=fbm(p*3.+vec2(T*.15,-T*.08));
+  float fogLit=fog*exp(-length(p)*mix(4.,1.2,d*K))*(.25+.5*BUILD+1.3*d*K);
+  c+=acc*fogLit*.6;
+  // light shafts burst on drop kicks
+  float rays=pow(n2(vec2(ang*9.,T*.6)),6.)*smoothstep(.0,.6,r)*d*K;
+  c+=acc*rays*1.4;
+  c+=acc*impact()*.9;
+  // grade: crush blacks, vignette, grain
+  c*=1.-.6*smoothstep(.3,.9,length(p));
+  c=pow(c,vec3(1.1));
+  c+=grain()*.05;
+  gl_FragColor=vec4(c,1.);
+}`,
+
+chrome: `
+float smin(float a,float b,float k){float h=clamp(.5+.5*(b-a)/k,0.,1.);return mix(b,a,h)-k*h*(1.-h);}
+float map(vec3 q){
+  float d=dropOn(); float t=T*.35;
+  float spread=.25+.35*d;
+  vec3 a=vec3(sin(t)*spread,cos(t*1.3)*.15,0.);
+  vec3 b=vec3(sin(t+2.1)*spread,cos(t*.9+1.)*.2,sin(t)*.2);
+  vec3 c=vec3(sin(t+4.2)*spread*.8,sin(t*1.1)*.25,cos(t)*.2);
+  float r=.32+.06*SUB+.05*K*d;
+  float s=smin(smin(length(q-a)-r,length(q-b)-r*.85,.35),length(q-c)-r*.7,.35);
+  float spikes=pow(max(0.,sin(q.x*22.)*sin(q.y*22.+T)*sin(q.z*22.)),3.)*(.03+.12*BUILD*(1.-d)+.06*K*d);
+  return s-spikes;
+}
+vec3 nor(vec3 p){vec2 e=vec2(.002,0.);return normalize(vec3(map(p+e.xyy)-map(p-e.xyy),map(p+e.yxy)-map(p-e.yxy),map(p+e.yyx)-map(p-e.yyx)));}
+void main(){
+  vec2 p=(gl_FragCoord.xy-.5*R)/R.y;
+  float d=dropOn();
+  vec3 bg=mix(mix(vec3(.98,.72,.86),vec3(.62,.78,1.),smoothstep(-.5,.5,p.y+.2*sin(p.x*2.+T*.2))),vec3(.03,.02,.05),d);
+  // light pillar: vertical beam, hits on each kick after the drop
+  float pillar=exp(-abs(p.x)*mix(60.,18.,K))*d*(.25+1.2*K);
+  vec3 ro=vec3(0.,0.,2.2), rd=normalize(vec3(p,-1.6));
+  float t=0.; float hit=0.;
+  for(int i=0;i<72;i++){ float h=map(ro+rd*t); if(h<.001){hit=1.;break;} t+=h*.8; if(t>5.)break; }
+  vec3 c=bg+vec3(.75,.85,1.)*pillar;
+  if(hit>.5){
+    vec3 q=ro+rd*t; vec3 n=nor(q); vec3 v=-rd;
+    float fr=pow(1.-max(dot(n,v),0.),2.);
+    vec3 film=spec(dot(n,v)*1.4+T*.05+fr*.6);
+    vec3 refl=reflect(rd,n);
+    vec3 env=mix(vec3(.98,.72,.86),vec3(.62,.78,1.),refl.y*.5+.5);
+    env=mix(env,vec3(.02)+vec3(.8,.9,1.)*exp(-abs(refl.x)*8.)*(.4+K),d);
+    c=mix(env,film,.45+.25*fr)*(.75+.35*fr);
+    c+=pow(max(dot(refl,normalize(vec3(.3,.8,.6))),0.),40.)*1.2;
+  }
+  c+=impact()*vec3(.9,.95,1.);
+  c+=grain()*.03;
+  gl_FragColor=vec4(c,1.);
+}`,
+
+ember: `
+vec3 heat(float t){ t=clamp(t,0.,1.6); return vec3(1.4*t, pow(t,1.8)*1.1, pow(t,4.)*1.1); }
+float txt(vec2 uv){ if(uv.x<0.||uv.x>1.||uv.y<0.||uv.y>1.) return 0.; return texture2D(TX,uv).r; }
+void main(){
+  vec2 uv=gl_FragCoord.xy/R; vec2 p=(gl_FragCoord.xy-.5*R)/R.y;
+  float d=dropOn();
+  float asp=R.x/R.y;
+  // text box: fit 2:1 texture into the frame
+  vec2 tuv=vec2(p.x/min(asp*.9,1.8)+.5, p.y/min(asp*.45,.9)+.5);
+  // after the drop: horizontal slices shove apart on the kick
+  float slice=floor(tuv.y*9.);
+  float beatIdx=floor(T*134./60.);
+  tuv.x+=(h21(vec2(slice,beatIdx))-.5)*.12*K*d*mix(1.,.3,RM);
+  // heat haze, stronger as the build climbs
+  tuv+=(vec2(fbm(tuv*5.+vec2(0.,-T*.8)),fbm(tuv*5.+9.+vec2(0.,-T*.8)))-.5)*(.004+.012*BUILD+.01*d);
+  float m=txt(tuv);
+  float glow=0.;
+  for(int i=0;i<10;i++){ float a=float(i)*.628; glow+=txt(tuv+vec2(cos(a),sin(a))*.012*(1.+K)); }
+  glow/=10.;
+  float temp=(.18+.5*BUILD+.2*d+.25*K*d+.12*SUB)*(.85+.15*fbm(tuv*14.+T*.5));
+  vec3 c=vec3(.015,.012,.012);
+  c+=heat(temp*.9)*glow*.55;
+  c=mix(c,heat(temp+.15),m);
+  // embers: three layers of rising sparks, denser on snares and through the build
+  for(int L=0;L<3;L++){
+    float fl=float(L); vec2 g=uv*vec2(asp,1.)*(18.+fl*10.); g.y-=T*(1.2+fl*.6+BUILD*1.5+d*2.);
+    g.x+=sin(g.y*.3+fl)*.6;
+    vec2 id=floor(g), f=fract(g)-.5;
+    float rnd=h21(id+fl*17.);
+    float on=step(1.-(.03+.08*BUILD+.15*SN+.1*d),rnd);
+    float spark=on*exp(-length(f-vec2(rnd-.5,h11(rnd*9.)-.5)*.6)*18.);
+    c+=heat(.5+.3*rnd)*spark*(.4+.6*SN);
+  }
+  c+=heat(1.)*impact()*.5;
+  c*=1.-.5*smoothstep(.4,1.,length(p));
+  c+=grain()*.04;
+  gl_FragColor=vec4(c,1.);
+}`,
+};
+
+// ---------- WebGL ----------
+const canvas = document.getElementById("stage");
+const gl = canvas.getContext("webgl", { antialias: false, preserveDrawingBuffer: true });
+const VS = "attribute vec2 a;void main(){gl_Position=vec4(a,0.,1.);}";
+function compile(type, src) {
+  const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) { console.error(gl.getShaderInfoLog(s)); }
+  return s;
+}
+const programs = {};
+for (const v of VARIANTS) {
+  const pr = gl.createProgram();
+  gl.attachShader(pr, compile(gl.VERTEX_SHADER, VS));
+  gl.attachShader(pr, compile(gl.FRAGMENT_SHADER, HEAD + FRAG[v.id]));
+  gl.bindAttribLocation(pr, 0, "a"); gl.linkProgram(pr);
+  if (!gl.getProgramParameter(pr, gl.LINK_STATUS)) console.error(v.id, gl.getProgramInfoLog(pr));
+  const u = {}; for (const n of ["R","T","K","SN","SUB","BA","MI","HI","RMS","BP","BAR","BUILD","DT","RM","TX"]) u[n] = gl.getUniformLocation(pr, n);
+  programs[v.id] = { pr, u };
+}
+const buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 3,-1, -1,3]), gl.STATIC_DRAW);
+gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+
+// title texture for Ember Type
+const tex = gl.createTexture();
+function drawTitle() {
+  const c = document.createElement("canvas"); c.width = 2048; c.height = 1024;
+  const x = c.getContext("2d"); x.fillStyle = "#000"; x.fillRect(0, 0, c.width, c.height);
+  x.fillStyle = "#fff"; x.textAlign = "center"; x.textBaseline = "middle";
+  x.font = '880px Anton, Impact, "Arial Narrow", sans-serif'; x.fillText("FLIP", 1024, 560);
+  gl.bindTexture(gl.TEXTURE_2D, tex);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, c);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+}
+drawTitle();
+if (document.fonts) document.fonts.load('880px Anton').then(drawTitle).catch(() => {});
+
+// ---------- state ----------
+const audio = new Audio("flip.mp3"); audio.preload = "auto";
+let A = null;               // analysis
+let variant = "bleed";
+let restT = 44.6;           // position shown before anything plays: just after the drop
+const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches ? 1 : 0;
+
+function fromHash() { const h = location.hash.slice(1); if (VARIANTS.some(v => v.id === h)) variant = h; }
+fromHash(); addEventListener("hashchange", () => { fromHash(); paintChrome(); });
+
+const vbox = document.getElementById("variants");
+for (const [i, v] of VARIANTS.entries()) {
+  const b = document.createElement("button"); b.id = "v-" + v.id; b.dataset.id = v.id;
+  b.innerHTML = `<span>${i + 1} · ${v.name}</span><small>${v.ref}</small>`;
+  b.onclick = () => { location.hash = v.id; };
+  vbox.appendChild(b);
+}
+function paintChrome() {
+  const v = VARIANTS.find(x => x.id === variant);
+  document.getElementById("vname").textContent = v.name;
+  document.getElementById("ref").textContent = "Sketch " + (VARIANTS.indexOf(v) + 1) + " of 4 · " + v.ref;
+  document.getElementById("videa").textContent = v.idea;
+  for (const b of vbox.children) b.classList.toggle("on", b.dataset.id === variant);
+}
+paintChrome();
+
+const playBtn = document.getElementById("play");
+function setPlayLabel() { playBtn.textContent = audio.paused ? "▶ Play" : "❚❚ Pause"; }
+playBtn.onclick = () => { if (audio.paused) { if (audio.currentTime < 0.05 && restT) audio.currentTime = 0; audio.play().catch(() => {}); } else audio.pause(); };
+audio.addEventListener("play", () => { restT = null; setPlayLabel(); });
+audio.addEventListener("pause", setPlayLabel);
+document.getElementById("jump").onclick = () => { if (!A) return; restT = null; audio.currentTime = Math.max(0, A.drop - 8); audio.play().catch(() => {}); };
+addEventListener("keydown", e => {
+  if (e.key === " ") { e.preventDefault(); playBtn.click(); }
+  const n = parseInt(e.key, 10); if (n >= 1 && n <= 4) location.hash = VARIANTS[n - 1].id;
+  if (e.key === "d") document.getElementById("jump").click();
+});
+
+const tl = document.getElementById("timeline");
+let headEl = null;
+function buildTimeline() {
+  const dur = A.n / A.fps;
+  for (const s of A.sections) {
+    const b = document.createElement("div"); b.className = "band";
+    b.style.left = (s.start / dur * 100) + "%"; b.style.width = ((s.end - s.start) / dur * 100) + "%";
+    b.style.background = `var(--${s.name === "drop" ? "hot" : s.name})`; b.style.opacity = s.name === "drop" ? .55 : .5;
+    b.innerHTML = `<span>${s.name}</span>`; tl.appendChild(b);
+  }
+  const dm = document.createElement("div"); dm.className = "drop"; dm.style.left = (A.drop / dur * 100) + "%"; tl.appendChild(dm);
+  headEl = document.createElement("div"); headEl.className = "head"; tl.appendChild(headEl);
+  const seek = e => { const r = tl.getBoundingClientRect(); const f = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)); restT = null; audio.currentTime = f * dur; };
+  let drag = false;
+  tl.addEventListener("pointerdown", e => { drag = true; tl.setPointerCapture(e.pointerId); seek(e); });
+  tl.addEventListener("pointermove", e => { if (drag) seek(e); });
+  tl.addEventListener("pointerup", () => { drag = false; });
+  tl.addEventListener("keydown", e => { if (e.key === "ArrowRight") audio.currentTime += 2; if (e.key === "ArrowLeft") audio.currentTime -= 2; restT = null; });
+}
+
+function sample(arr, t) {
+  const f = t * A.fps; const i = Math.max(0, Math.min(A.n - 2, Math.floor(f))); const k = Math.min(1, Math.max(0, f - i));
+  return arr[i] * (1 - k) + arr[i + 1] * k;
+}
+const fmt = s => Math.floor(s / 60) + ":" + String(Math.floor(s % 60)).padStart(2, "0");
+
+function resize() {
+  const heavy = variant === "chrome" || variant === "accent";
+  const scale = Math.min(devicePixelRatio || 1, 1.5) * (heavy ? .7 : 1);
+  const w = Math.round(innerWidth * scale), h = Math.round(innerHeight * scale);
+  if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
+}
+
+function frame() {
+  requestAnimationFrame(frame);
+  if (!A) return;
+  resize();
+  const t = restT != null ? restT : audio.currentTime;
+  const dur = A.n / A.fps;
+  const build = A.sections.find(s => s.name === "build");
+  const beats = (t - A.drop) * A.bpm / 60;
+  const U = {
+    K: sample(A.kick, t), SN: sample(A.snare, t), SUB: sample(A.sub, t), BA: sample(A.bass, t),
+    MI: sample(A.mid, t), HI: sample(A.high, t), RMS: sample(A.rms, t),
+    BP: ((beats % 1) + 1) % 1, BAR: (((beats / 4) % 1) + 1) % 1,
+    BUILD: t >= A.drop ? 1 : Math.min(1, Math.max(0, (t - build.start) / (build.end - build.start))),
+    DT: t - A.drop,
+  };
+  const { pr, u } = programs[variant];
+  gl.viewport(0, 0, canvas.width, canvas.height); gl.useProgram(pr);
+  gl.uniform2f(u.R, canvas.width, canvas.height); gl.uniform1f(u.T, t); gl.uniform1f(u.RM, reduce);
+  for (const k of Object.keys(U)) gl.uniform1f(u[k], U[k]);
+  gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, tex); gl.uniform1i(u.TX, 0);
+  gl.drawArrays(gl.TRIANGLES, 0, 3);
+
+  const sec = t >= A.drop ? "drop" : t >= build.start ? "build" : "intro";
+  const barN = Math.floor(beats / 4), beatN = Math.floor(((beats % 4) + 4) % 4) + 1;
+  document.getElementById("readout").innerHTML =
+    `section <b>${sec}</b><br>bar ${barN >= 0 ? "+" : ""}${barN}.${beatN} from drop<br>${A.bpm.toFixed(0)} bpm · ${t.toFixed(2)} s`;
+  document.getElementById("mK").style.width = (U.K * 100) + "%";
+  document.getElementById("mS").style.width = (U.SUB * 100) + "%";
+  document.getElementById("mN").style.width = (U.SN * 100) + "%";
+  document.getElementById("mE").style.width = (U.RMS * 100) + "%";
+  document.getElementById("time").textContent = fmt(t) + " / " + fmt(dur);
+  if (headEl) headEl.style.left = (t / dur * 100) + "%";
+}
+
+fetch("analysis.json").then(r => r.json()).then(j => { A = j; buildTimeline(); }).catch(e => console.error("analysis", e));
+requestAnimationFrame(frame);
+window.__seek = s => { restT = s; };
+})();
+</script>

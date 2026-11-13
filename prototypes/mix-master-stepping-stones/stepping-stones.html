@@ -90,13 +90,28 @@ details[open] summary { margin-bottom: 8px; }
 .seg button { border: 1px solid var(--line); background: var(--bg); border-radius: 9px; padding: 8px 4px; cursor: pointer; font-size: .85rem; font-weight: 600; }
 .seg button[aria-pressed="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
 .seg-hint { font-size: .75rem; color: var(--muted); text-align: center; }
+.space { display: grid; gap: 8px; }
+.hint-sm { font-size: .78rem; color: var(--muted); margin: 0; }
+.grid-wrap { overflow-x: auto; }
+.sgrid { display: grid; grid-template-columns: 52px repeat(5, minmax(58px, 1fr)); gap: 4px; font-size: .74rem; }
+.sgrid .h { color: var(--muted); font-weight: 600; text-align: center; padding: 2px 0; }
+.sgrid .z { color: var(--muted); font-weight: 600; display: flex; align-items: center; }
+.cell { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 6px 5px; display: grid; gap: 3px; cursor: pointer; text-align: left; min-width: 0; }
+.cell.flag { border-color: var(--accent); background: var(--accent-soft); }
+.cell[aria-pressed="true"] { outline: 2px solid var(--fg); outline-offset: 1px; }
+.cell b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cell .sh { height: 4px; background: var(--line); border-radius: 2px; overflow: hidden; }
+.cell .sh i { display: block; height: 100%; background: var(--fg); opacity: .6; }
+.cell .n { color: var(--muted); font-family: var(--font-mono); }
+.space-tags { display: flex; gap: 4px; flex-wrap: wrap; }
+.stag { font-size: .7rem; font-family: var(--font-mono); color: var(--muted); border: 1px dashed var(--line); border-radius: 4px; padding: 0 5px; }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 
 <div class="wrap">
   <header style="display:grid;gap:8px">
     <span class="eyebrow">Mix &amp; Master Assistant · Mix mode · Prototype</span>
-    <h1>Neon Drop: 8 stepping stones</h1>
+    <h1>Neon Drop: 13 stepping stones</h1>
     <div class="runline">
       <span class="chip">Live Set saved in Live 11.1.5</span>
       <span class="chip">Mixdown + 4 stems</span>
@@ -107,7 +122,12 @@ details[open] summary { margin-bottom: 8px; }
 
   <p class="note"><strong>This is a demo, not your track.</strong> The Live Set is a public Ableton test project with its tracks renamed to EDM parts. Its devices and settings are real. The audio is synthetic, with problems planted on purpose. Code parsed the Set and measured the bounces, and Claude then wrote these stones from those numbers, which is how the app would work. Every number below was measured.</p>
 
-  <div class="progress"><span id="count">0 of 8 done</span><div class="bar"><i id="fill"></i></div></div>
+  <section class="space" aria-labelledby="space-h">
+    <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap"><h2 id="space-h">Space map</h2><span class="hint-sm" id="filter-note">Tap a cell to see the stones for it.</span></div>
+    <div class="grid-wrap"><div class="sgrid" id="sgrid"></div></div>
+    <p class="hint-sm">Each cell names the part that fills most of that space. Mid cells show its share. Side cells show how loud the sides are against the mid, in your mix and in the reference. Amber cells have a problem.</p>
+  </section>
+  <div class="progress"><span id="count">0 of 13 done</span><div class="bar"><i id="fill"></i></div></div>
 
   <main id="view"></main>
 
@@ -116,15 +136,16 @@ details[open] summary { margin-bottom: 8px; }
     <p><span>Nothing is limiting or squashing your Main track (no devices on it), which is right for mix mode.</span></p>
     <p><span><b>Drums</b> has a Compressor at 8:1 that looks heavy on paper, but the drum stem keeps <span class="num">15.1 dB</span> between its peaks and its average, so the punch survives. Left alone.</span></p>
     <p><span>Sub bass level against the reference is close: <span class="num">+0.2 dB</span> under 60 Hz and <span class="num">+0.3 dB</span> from 60 to 250 Hz.</span></p>
+    <p><span><b>Return A</b>'s Reverb already has its input low cut on, so sends won't push low end into the sides.</span></p>
+    <p><span>Side space above 250 Hz matches the reference within <span class="num">0.7 dB</span> in every band, and the vocal sits fully in the centre.</span></p>
   </section>
 
   <section class="ask">
     <h2>Tell me in the thread</h2>
     <ol>
-      <li>Which view would you actually work from: Checklist, Coach, or Numbers?</li>
-      <li>Are the moves specific enough to do without thinking?</li>
-      <li>Is the order right, and are 8 stones too many or too few?</li>
-      <li>Does the "why" read the way you think about a mix?</li>
+      <li>Does the space map match how you picture a mix?</li>
+      <li>Is grouping the stones by space (low, mid, top, sides) the right order?</li>
+      <li>Is 13 closer to the right amount, or do you want every small thing listed?</li>
     </ol>
   </section>
 </div>
@@ -142,66 +163,117 @@ details[open] summary { margin-bottom: 8px; }
 
 <script>
 const STONES = [
-  { step: "Headroom", track: "Main track", conf: "measured",
-    move: "Turn the whole mix down about 4 dB before you bounce.",
-    where: "Main track › add Utility as the last device › Gain −4 dB",
+  { step: "Headroom", track: "Main track", conf: "measured", space: [],
+    move: "Turn the whole mix down 4 dB before you bounce.",
+    where: "Main track › add Utility as the last device › Gain −4.0 dB",
     heard: "The mix is already at the ceiling, so there's no room left for mastering.",
+    spaceWhy: "Headroom is the room every other space sits in.",
     measured: "Mixdown peaks at −0.2 dBTP. Mix mode aims for −6 to −3 dBTP.",
     check: "Re-bounce. Peaks should land between −6 and −3 dBTP.",
     meter: { label: "Mixdown true peak", unit: "dBTP", min: -12, max: 1, you: -0.2, lo: -6, hi: -3 } },
-  { step: "Low end", track: "Sub Bass", conf: "measured",
+  { step: "Low space", track: "Sub Bass", conf: "guess", space: ["sub-side", "low-side"],
     move: "Switch off the Reverb on Sub Bass.",
-    where: "Sub Bass › Reverb (Decay 6.22 s) › device on/off button",
+    where: "Sub Bass › Reverb (Decay 6.22 s, Stereo 88%) › device on/off button",
     heard: "The bass sounds wide and blurry instead of a solid centre.",
-    measured: "Below 120 Hz, the bass stem's left and right are unrelated (correlation 0.00), and it loses 3.0 dB in mono. Its Reverb has a 6.22 s decay and 88% stereo spread.",
-    check: "Bass correlation below 120 Hz should be close to 1.00.",
-    note: "The Reverb is the likely cause: the settings were read from the Set, the effect on sound is inferred.",
-    meter: { label: "Bass correlation under 120 Hz", unit: "", min: -1, max: 1, you: 0.00, lo: 0.9, hi: 1, ref: 1.0 } },
-  { step: "Low end", track: "Sub Bass", conf: "measured",
+    spaceWhy: "Sub and low belong in the mid. Right now the sides under 60 Hz are almost as loud as the mid (−0.7 dB), against −46 dB in the reference.",
+    measured: "Below 120 Hz the bass stem's left and right are unrelated (correlation 0.00), and it loses 3.0 dB in mono. Sub Bass makes 100% of the side energy under 250 Hz.",
+    check: "Side energy under 60 Hz should drop at least 30 dB below the mid.",
+    note: "Best guess on the cause. This Reverb's input filter already cuts below about 90 Hz, so a detuned or chorused patch in the instrument could also be widening the bass. The next stone fixes it either way.",
+    meter: { label: "Sub side vs mid", unit: "dB", min: -50, max: 2, you: -0.7, lo: -50, hi: -30, ref: -46.3 } },
+  { step: "Low space", track: "Sub Bass", conf: "measured", space: ["sub-side", "low-side"],
     move: "Force everything under 120 Hz on Sub Bass to mono.",
-    where: "Sub Bass › add Utility at the end › Bass Mono on › 120 Hz",
+    where: "Sub Bass › add Utility at the end of the chain › Bass Mono on › Freq 120 Hz",
     heard: "In mono, on a club system or a phone, the low end drops away.",
-    measured: "The whole mix loses 2.2 dB below 120 Hz in mono (low-end correlation 0.19). The reference loses 0.0 dB (correlation 1.00).",
-    check: "Mix correlation below 120 Hz near 1.00, with no loss in mono.",
+    spaceWhy: "This locks the bass's sides shut under 120 Hz, even if a wide patch comes back later.",
+    measured: "The mix loses 2.2 dB under 120 Hz in mono (correlation 0.19). The reference loses 0.0 dB (correlation 1.00).",
+    check: "Mix correlation under 120 Hz near 1.00, with no loss in mono.",
     meter: { label: "Mix mono loss under 120 Hz", unit: "dB", min: -4, max: 0.5, you: -2.2, lo: -0.5, hi: 0, ref: 0.0 } },
-  { step: "Balance", track: "Sub Bass", conf: "guess",
-    move: "Make the bass duck under every kick, using the Compressor already on Sub Bass.",
-    where: "Sub Bass › Compressor › Sidechain on › Audio From: Drums › Ratio 4:1 › Attack 0.1 ms › Release 80 ms › lower Threshold until 4–6 dB of reduction on each kick",
+  { step: "Low space", track: "Sub Bass", conf: "guess", space: ["sub-mid", "low-mid-zone"],
+    move: "Make the bass duck under every kick with the Compressor already on Sub Bass.",
+    where: "Sub Bass › Compressor › Sidechain on › Audio From: Drums › Ratio 4:1 › Attack 0.10 ms › Release 80 ms › lower Threshold until 4–6 dB of reduction on each kick",
     heard: "Kick and bass fight for the same spot, so the kick loses its thump in the drop.",
+    spaceWhy: "Sub Bass owns the sub (86%) and Drums own 60–250 Hz (87%), which is a good split. They still overlap at 40–100 Hz, where the kick's body lives, so the two have to share that space in time.",
     measured: "The bass doesn't move when the kick hits (0.0 dB change), and it sits 4.1 dB above the kick between 40 and 100 Hz.",
-    check: "The bass should dip 4–6 dB on each kick. Watch the Compressor's reduction meter.",
-    note: "Clash detection is a best guess. Right now this Compressor squeezes the bass on its own (−13 dB threshold, 3.6:1).",
+    check: "The bass dips 4–6 dB on each kick. Watch the Compressor's gain reduction meter.",
+    note: "Clash detection is a best guess. This Compressor currently squeezes the bass on its own (−13.0 dB threshold, 3.6:1).",
     meter: { label: "Bass dip on each kick", unit: "dB", min: -10, max: 1, you: 0.0, lo: -6, hi: -4 } },
-  { step: "Tone", track: "Vocal Chop", conf: "guess",
-    move: "Bring the Vocal Chop up about 3 dB.",
+  { step: "Mid space", track: "Lead Synth", conf: "guess", space: ["lowmid-mid"],
+    move: "Carve a pocket for the vocal in the middle of the lead only, leaving its sides alone.",
+    where: "Lead Synth › add EQ Eight › Mode: M/S › edit Mid › band 3 bell › 1.0 kHz › −3.0 dB › Q 1.0",
+    heard: "The vocal chop is buried behind the lead.",
+    spaceWhy: "In the mid from 250 Hz to 2 kHz, the lead takes 88% and the vocal only 10%. The vocal is fully mono, so cutting only the lead's mid opens room in the centre and keeps the lead wide.",
+    measured: "Lead Synth: 88% of mid low-mid energy. Vocal Chop: 10%, with 0% in the sides.",
+    check: "Vocal Chop's share of the mid low-mid should rise to 25% or more.",
+    meter: { label: "Vocal share of mid 250 Hz–2 kHz", unit: "%", min: 0, max: 60, you: 10, lo: 25, hi: 60 } },
+  { step: "Mid space", track: "Lead Synth", conf: "measured", space: ["presence-mid"],
+    move: "Cut the lead's harsh spot around 3.5 kHz, in the same EQ Eight.",
+    where: "Lead Synth › EQ Eight (from the previous stone) › Mode: M/S › Mid › band 4 bell › 3.5 kHz › −3.0 dB › Q 1.4",
+    heard: "The lead is sharp and tiring at volume.",
+    spaceWhy: "The lead owns 94% of the mid's presence band, so it alone decides how harsh the centre is.",
+    measured: "The mix has 2.0 dB more presence (2–6 kHz) than the reference.",
+    check: "Presence within 1 dB of the reference.",
+    meter: { label: "Presence (2–6 kHz) vs reference", unit: "dB", min: -6, max: 6, you: 2.0, lo: -1, hi: 1, ref: 0 } },
+  { step: "Mid space", track: "Vocal Chop", conf: "guess", space: ["lowmid-mid"],
+    move: "Bring the Vocal Chop up 3 dB.",
     where: "Vocal Chop › track volume 0.0 dB → +3.0 dB",
     heard: "The middle of the mix feels hollow next to the reference.",
-    measured: "The mix has 2.6 dB less low-mid (250 Hz to 2 kHz) than the reference. Vocal Chop is the only part living there, and it's 22 dB quieter than Sub Bass (−38.4 vs −16.3 dBFS average).",
-    check: "Low-mid should come within 1 dB of the reference.",
+    spaceWhy: "Once the lead's pocket is open, the vocal needs the level to fill it.",
+    measured: "The mix has 2.6 dB less low-mid (250 Hz–2 kHz) than the reference. Vocal Chop averages −38.4 dBFS, 22.1 dB under Sub Bass.",
+    check: "Low-mid within 1 dB of the reference.",
     meter: { label: "Low-mid vs reference", unit: "dB", min: -6, max: 6, you: -2.6, lo: -1, hi: 1, ref: 0 } },
-  { step: "Tone", track: "Drums", conf: "measured",
+  { step: "Mid space", track: "Vocal Chop", conf: "measured", space: [],
+    move: "Lower the Vocal Chop Compressor's threshold. It never kicks in.",
+    where: "Vocal Chop › Compressor › Threshold −13.0 dB → about −24 dB (aim for 2–3 dB of reduction)",
+    heard: "The chops jump in and out instead of sitting steady.",
+    spaceWhy: "A steady vocal holds its spot in the centre, while one that jumps around keeps losing it to the lead.",
+    measured: "The threshold is −13.0 dB but the stem peaks at −16.0 dBFS, so the Compressor does nothing.",
+    check: "The Compressor's gain reduction meter moves 2–3 dB on the loudest chops.",
+    meter: { label: "Stem peak vs threshold", unit: "dB", min: -30, max: 0, you: -16.0, lo: -30, hi: -13.0 } },
+  { step: "Mid space", track: "Lead Synth", conf: "measured", space: [],
+    move: "Lower the Lead Synth Compressor's threshold, or remove the Compressor. It never kicks in either.",
+    where: "Lead Synth › Compressor › Threshold −13.0 dB → about −22 dB, or switch it off",
+    heard: "Nothing you'd hear yet. It's a device doing nothing.",
+    spaceWhy: "None directly. It's a tidy-up so the chain does what it looks like it does.",
+    measured: "The threshold is −13.0 dB, and the stem peaks at −14.2 dBFS.",
+    check: "Either the gain reduction meter moves, or the device is gone.",
+    meter: { label: "Stem peak vs threshold", unit: "dB", min: -30, max: 0, you: -14.2, lo: -30, hi: -13.0 } },
+  { step: "Top space", track: "Drums", conf: "measured", space: ["air-mid"],
     move: "Add a gentle high shelf on the drums for air.",
-    where: "Drums › add EQ Eight at the end › band 8 high shelf › 8 kHz › +2 dB",
+    where: "Drums › add EQ Eight at the end › band 8 high shelf › 8.0 kHz › +2.0 dB",
     heard: "The top end is duller than the reference.",
+    spaceWhy: "Drums own 64% of the mid's air band, so they're the right place to add it. Brightening the lead would make it harsher.",
     measured: "The mix has 2.8 dB less air above 6 kHz than the reference.",
     check: "Air above 6 kHz within 1 dB of the reference, without the hats getting spitty.",
     meter: { label: "Air (>6 kHz) vs reference", unit: "dB", min: -6, max: 6, you: -2.8, lo: -1, hi: 1, ref: 0 } },
-  { step: "Stereo", track: "Lead Synth, Vocal Chop", conf: "setting",
-    move: "Swap the two inserted Reverbs for a send to Return A.",
-    where: "Lead Synth and Vocal Chop › Reverb (6.22 s) › switch off › raise Send A to taste (start around −15 dB)",
-    heard: "Long reverbs on each part pile up and wash out the drop.",
-    measured: "Lead Synth and Vocal Chop each have their own Reverb with a 6.22 s decay, while Return A already has a Reverb set up.",
-    check: "A/B the drop. The parts should sound closer and clearer.",
-    note: "Space can't be measured reliably, so this stone comes from settings alone.",
+  { step: "Top space", track: "Lead Synth", conf: "guess", space: ["air-side"],
+    move: "Open up or remove the Auto Filter on Lead Synth. It may be shaving off the very top.",
+    where: "Lead Synth › Auto Filter › Cutoff 127 → 135, or delete it",
+    heard: "The lead could feel slightly closed-in at the very top.",
+    spaceWhy: "The lead owns 99% of the side air. If its filter trims the top, the sides lose sparkle the reference has.",
+    measured: "Cutoff 127 of 135 with no modulation. The mix has 2.8 dB less air above 6 kHz than the reference.",
+    check: "A/B with the filter off. Keep it only if you liked it.",
+    note: "Best guess. Mapping Live's cutoff value to an exact frequency needs checking in Live.",
     meter: null },
-  { step: "Harshness", track: "Lead Synth", conf: "measured",
-    move: "Cut the lead's harsh spot around 3.5 kHz.",
-    where: "Lead Synth › add EQ Eight › bell › 3.5 kHz › −3 dB › Q 1.4",
-    heard: "The lead is sharp and tiring at volume.",
-    measured: "The mix has 2.0 dB more presence (2 to 6 kHz) than the reference, and Lead Synth puts more energy there than any other stem.",
-    check: "Presence within 1 dB of the reference.",
-    meter: { label: "Presence (2–6 kHz) vs reference", unit: "dB", min: -6, max: 6, you: 2.0, lo: -1, hi: 1, ref: 0 } }
+  { step: "Side space", track: "Lead Synth, Vocal Chop", conf: "setting", space: ["lowmid-side", "presence-side", "air-side"],
+    move: "Swap the two inserted Reverbs for one send to Return A.",
+    where: "Lead Synth and Vocal Chop › Reverb (Decay 6.22 s) › switch off › raise Send A (start at −15 dB)",
+    heard: "Long reverbs on each part pile up and wash out the drop.",
+    spaceWhy: "One shared reverb puts both parts in the same room and keeps the sides clean.",
+    measured: "Lead Synth and Vocal Chop each have their own Reverb with a 6.22 s decay. Return A already has a Reverb.",
+    check: "A/B the drop. The parts should sound closer and clearer.",
+    note: "Depth can't be measured reliably, so this stone comes from settings only.",
+    meter: null },
+  { step: "Tidy-up", track: "Sub Bass", conf: "setting", space: [],
+    move: "Remove the Auto Filter on Sub Bass. It's set near the top of its range, far above anything the bass plays.",
+    where: "Sub Bass › Auto Filter (Cutoff 127 of 135, LFO 0) › delete",
+    heard: "Nothing. It's dead weight in the chain.",
+    spaceWhy: "None.",
+    measured: "The Auto Filter's cutoff is 127 (the top is 135) and its LFO amount is 0. Sub Bass has no energy above 2 kHz.",
+    check: "The chain shows only the devices that change the sound.",
+    note: "Read from the Set. Delete it only if you don't automate it later.",
+    meter: null }
 ];
+const SPACE = {"bands": ["sub", "low", "low-mid", "presence", "air"], "cells": [{"zone": "mid", "band": "sub", "share_pct": {"Vocal Chop": 0, "Lead Synth": 0, "Sub Bass": 86, "Drums": 14}, "mix_side_minus_mid_db": null, "ref_side_minus_mid_db": null}, {"zone": "mid", "band": "low", "share_pct": {"Vocal Chop": 0, "Lead Synth": 0, "Sub Bass": 13, "Drums": 87}, "mix_side_minus_mid_db": null, "ref_side_minus_mid_db": null}, {"zone": "mid", "band": "low-mid", "share_pct": {"Vocal Chop": 10, "Lead Synth": 88, "Sub Bass": 0, "Drums": 1}, "mix_side_minus_mid_db": null, "ref_side_minus_mid_db": null}, {"zone": "mid", "band": "presence", "share_pct": {"Vocal Chop": 6, "Lead Synth": 94, "Sub Bass": 0, "Drums": 0}, "mix_side_minus_mid_db": null, "ref_side_minus_mid_db": null}, {"zone": "mid", "band": "air", "share_pct": {"Vocal Chop": 0, "Lead Synth": 36, "Sub Bass": 0, "Drums": 64}, "mix_side_minus_mid_db": null, "ref_side_minus_mid_db": null}, {"zone": "side", "band": "sub", "share_pct": {"Vocal Chop": 0, "Lead Synth": 0, "Sub Bass": 100, "Drums": 0}, "mix_side_minus_mid_db": -0.7, "ref_side_minus_mid_db": -46.3}, {"zone": "side", "band": "low", "share_pct": {"Vocal Chop": 0, "Lead Synth": 0, "Sub Bass": 100, "Drums": 0}, "mix_side_minus_mid_db": -8.9, "ref_side_minus_mid_db": -44.4}, {"zone": "side", "band": "low-mid", "share_pct": {"Vocal Chop": 0, "Lead Synth": 99, "Sub Bass": 1, "Drums": 0}, "mix_side_minus_mid_db": -20.5, "ref_side_minus_mid_db": -21.0}, {"zone": "side", "band": "presence", "share_pct": {"Vocal Chop": 0, "Lead Synth": 100, "Sub Bass": 0, "Drums": 0}, "mix_side_minus_mid_db": -20.2, "ref_side_minus_mid_db": -20.9}, {"zone": "side", "band": "air", "share_pct": {"Vocal Chop": 0, "Lead Synth": 99, "Sub Bass": 1, "Drums": 0}, "mix_side_minus_mid_db": -24.4, "ref_side_minus_mid_db": -24.9}]};
 const CONF = { measured: "Measured", guess: "Best guess", setting: "From settings" };
 const HINT = { list: "Everything at once, details folded away.", coach: "One stone at a time, with the full why.", num: "Your numbers against the target zone." };
 let view = "list", idx = 0;
@@ -210,9 +282,35 @@ try { const s = localStorage.getItem("nd-view"); if (s && HINT[s]) view = s; } c
 
 const esc = s => s.replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
 const tick = i => `<button type="button" class="tick" id="tick-${view}-${i}" aria-pressed="${done.has(i)}" aria-label="Mark stone ${i + 1} done" data-i="${i}">${done.has(i) ? "✓" : ""}</button>`;
-const head = s => `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="step-tag">${s.step}</span><span class="conf ${s.conf}">${CONF[s.conf]}</span></div>`;
-const why = s => `<dl class="why"><dt>Heard</dt><dd>${esc(s.heard)}</dd><dt>Measured</dt><dd>${esc(s.measured)}</dd><dt>Check</dt><dd>${esc(s.check)}</dd>${s.note ? `<dt>Note</dt><dd>${esc(s.note)}</dd>` : ""}</dl>`;
+const head = s => `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="step-tag">${s.step}</span><span class="conf ${s.conf}">${CONF[s.conf]}</span><span class="space-tags">${stoneKeys(s).map(k => `<span class="stag">${tagLabel(k)}</span>`).join("")}</span></div>`;
+const why = s => `<dl class="why"><dt>Heard</dt><dd>${esc(s.heard)}</dd><dt>Space</dt><dd>${esc(s.spaceWhy)}</dd><dt>Measured</dt><dd>${esc(s.measured)}</dd><dt>Check</dt><dd>${esc(s.check)}</dd>${s.note ? `<dt>Note</dt><dd>${esc(s.note)}</dd>` : ""}</dl>`;
 
+
+const BAND_LABEL = { sub: "Sub", low: "Low", "low-mid": "Low-mid", presence: "Presence", air: "Air" };
+const BAND_KEY = { sub: "sub", low: "low", "low-mid": "lowmid", presence: "presence", air: "air" };
+let filter = null;
+const PROBLEM = new Set(["sub-side", "low-side", "low-mid", "lowmid-mid", "presence-mid", "air-mid"]);
+const SHORT = { "Sub Bass": "Bass", "Drums": "Drums", "Lead Synth": "Lead", "Vocal Chop": "Vox" };
+const tagLabel = k => { const i = k.lastIndexOf("-"); const b = k.slice(0, i); return ({ sub: "sub", low: "low", lowmid: "low-mid", presence: "presence", air: "air" }[b]) + " · " + k.slice(i + 1); };
+function cellKey(c) { return BAND_KEY[c.band] + "-" + c.zone; }
+function stoneKeys(st) { return st.space.map(k => k === "low-mid-zone" ? "low-mid" : k); }
+function renderMap() {
+  const g = document.getElementById("sgrid");
+  let h = '<span></span>' + SPACE.bands.map(b => `<span class="h">${BAND_LABEL[b]}</span>`).join("");
+  for (const zone of ["mid", "side"]) {
+    h += `<span class="z">${zone === "mid" ? "Mid" : "Side"}</span>`;
+    for (const c of SPACE.cells.filter(c => c.zone === zone)) {
+      const top = Object.entries(c.share_pct).sort((a, b) => b[1] - a[1])[0];
+      const key = cellKey(c);
+      const flagged = PROBLEM.has(key);
+      const extra = zone === "side" && c.mix_side_minus_mid_db !== null ? `<span class="n">${c.mix_side_minus_mid_db} dB</span><span class="n">ref ${c.ref_side_minus_mid_db}</span>` : `<span class="n">${top[1]}%</span>`;
+      h += `<button type="button" class="cell ${flagged ? "flag" : ""}" id="cell-${key}" data-k="${key}" aria-pressed="${filter === key}" title="${Object.entries(c.share_pct).map(e => e[0] + " " + e[1] + "%").join(", ")}"><b>${top[1] ? SHORT[top[0]] || top[0] : "empty"}</b><span class="sh"><i style="width:${top[1]}%"></i></span>${extra}</button>`;
+    }
+  }
+  g.innerHTML = h;
+  g.querySelectorAll(".cell").forEach(b => b.onclick = () => { filter = filter === b.dataset.k ? null : b.dataset.k; idx = 0; render(); });
+  document.getElementById("filter-note").textContent = filter ? "Showing stones for one cell. Tap it again to show all." : "Tap a cell to see the stones for it.";
+}
 function pct(m, v) { return Math.max(0, Math.min(100, (v - m.min) / (m.max - m.min) * 100)); }
 function meter(m) {
   if (!m) return `<p style="margin:0;font-size:.85rem;color:var(--muted)">No meter. This stone comes from the project settings.</p>`;
@@ -222,18 +320,22 @@ function meter(m) {
 }
 
 function render() {
+  renderMap();
   const el = document.getElementById("view");
+  const vis = STONES.map((s, i) => i).filter(i => !filter || stoneKeys(STONES[i]).includes(filter));
+  if (vis.length && !vis.includes(idx)) idx = vis[0];
   if (view === "list") {
-    el.innerHTML = `<div class="list">${STONES.map((s, i) => `<article class="row ${done.has(i) ? "done" : ""}"><div class="row-top">${tick(i)}<div class="row-body">${head(s)}<span class="move">${i + 1}. ${esc(s.move)}</span><span class="where">${esc(s.where)}</span></div></div><details><summary>Why</summary>${why(s)}</details></article>`).join("")}</div>`;
+    el.innerHTML = `<div class="list">${vis.map(i => [STONES[i], i]).map(([s, i]) => `<article class="row ${done.has(i) ? "done" : ""}"><div class="row-top">${tick(i)}<div class="row-body">${head(s)}<span class="move">${i + 1}. ${esc(s.move)}</span><span class="where">${esc(s.where)}</span></div></div><details><summary>Why</summary>${why(s)}</details></article>`).join("")}</div>`;
   } else if (view === "coach") {
     const s = STONES[idx];
     el.innerHTML = `<article class="coach ${done.has(idx) ? "done" : ""}"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span class="eyebrow">Stone ${idx + 1} of ${STONES.length} · ${esc(s.track)}</span>${tick(idx)}</div>${head(s)}<span class="move">${esc(s.move)}</span><span class="where">${esc(s.where)}</span>${why(s)}${meter(s.meter)}
-      <div class="nav"><button type="button" id="prev" ${idx === 0 ? "disabled" : ""}>Back</button><button type="button" id="next" class="primary">${idx === STONES.length - 1 ? "Back to start" : done.has(idx) ? "Next" : "Done, next"}</button></div>
-      <div class="dots">${STONES.map((_, i) => `<i class="${i === idx ? "on" : done.has(i) ? "ok" : ""}"></i>`).join("")}</div></article>`;
-    document.getElementById("prev").onclick = () => { idx = Math.max(0, idx - 1); render(); };
-    document.getElementById("next").onclick = () => { if (idx < STONES.length - 1) { done.add(idx); idx++; } else idx = 0; render(); };
+      <div class="nav"><button type="button" id="prev" ${vis.indexOf(idx) === 0 ? "disabled" : ""}>Back</button><button type="button" id="next" class="primary">${vis.indexOf(idx) === vis.length - 1 ? "Back to start" : done.has(idx) ? "Next" : "Done, next"}</button></div>
+      <div class="dots">${vis.map(i => [0, i]).map(([_, i]) => `<i class="${i === idx ? "on" : done.has(i) ? "ok" : ""}"></i>`).join("")}</div></article>`;
+    const pos = vis.indexOf(idx);
+    document.getElementById("prev").onclick = () => { idx = vis[Math.max(0, pos - 1)]; render(); };
+    document.getElementById("next").onclick = () => { if (pos < vis.length - 1) { done.add(idx); idx = vis[pos + 1]; } else idx = vis[0]; render(); };
   } else {
-    el.innerHTML = `<div class="list"><div class="legend"><span style="--c:var(--ok-soft)">target zone</span><span style="--c:var(--accent)">your mix</span><span style="--c:var(--muted)">reference</span></div>${STONES.map((s, i) => `<article class="num-card ${done.has(i) ? "done" : ""}"><div class="row-top">${tick(i)}<div class="row-body">${head(s)}<span class="move">${i + 1}. ${esc(s.move)}</span></div></div>${meter(s.meter)}<span class="where">${esc(s.where)}</span></article>`).join("")}</div>`;
+    el.innerHTML = `<div class="list"><div class="legend"><span style="--c:var(--ok-soft)">target zone</span><span style="--c:var(--accent)">your mix</span><span style="--c:var(--muted)">reference</span></div>${vis.map(i => [STONES[i], i]).map(([s, i]) => `<article class="num-card ${done.has(i) ? "done" : ""}"><div class="row-top">${tick(i)}<div class="row-body">${head(s)}<span class="move">${i + 1}. ${esc(s.move)}</span></div></div>${meter(s.meter)}<span class="where">${esc(s.where)}</span></article>`).join("")}</div>`;
   }
   el.querySelectorAll(".tick").forEach(b => b.onclick = () => { const i = +b.dataset.i; done.has(i) ? done.delete(i) : done.add(i); render(); });
   document.querySelectorAll(".seg button").forEach(b => b.setAttribute("aria-pressed", b.dataset.v === view));

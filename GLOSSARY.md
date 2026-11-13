@@ -45,3 +45,7 @@ _Avoid_: confusing with a musical remix; a remix here only ever changes visuals.
 **Series**: tracks deliberately linked (such as an EP) so their visions share a family look instead of avoiding each other.
 
 **Layer library**: the fixed set of layer kinds a vision can be built from; the house style's whole vocabulary.
+
+**Moment**: a visual event pinned to an exact bar or beat of a track, on top of what its section's scene already does.
+
+**Transition**: how one section's scene hands over to the next.

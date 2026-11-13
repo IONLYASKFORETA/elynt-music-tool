@@ -1,16 +1,16 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { Track } from '../../shared/track'
 
-const SECTIONS = [
-  { id: 'visualizer', name: 'Visualizer', blurb: 'Turn a track into reactive visuals and render the video.' },
-  { id: 'mix-master', name: 'Mix & Master', blurb: 'Read the open Live Set and get stepping stones for the mix and master.' },
-  { id: 'release', name: 'Release', blurb: 'Plan the release of a finished track, step by step.' }
+const TOOLS = [
+  { id: 'visualizer', name: 'Visualizer', nav: 'Visualizer', blurb: 'Turn a track into reactive visuals and render the video.' },
+  { id: 'mix-master', name: 'Mix & Master Assistant', nav: 'Mix & Master', blurb: 'Read the open Live Set and get stepping stones for the mix and master.' },
+  { id: 'release', name: 'Release Assistant', nav: 'Release', blurb: 'Plan the release of a finished track, step by step.' }
 ] as const
 
-type SectionId = (typeof SECTIONS)[number]['id']
+type ToolId = (typeof TOOLS)[number]['id']
 
 export function App() {
-  const [active, setActive] = useState<SectionId>('visualizer')
+  const [active, setActive] = useState<ToolId>('visualizer')
   const [tracks, setTracks] = useState<Track[]>([])
   const [error, setError] = useState<string | null>(null)
 
@@ -25,14 +25,14 @@ export function App() {
   const addTrack = async () => {
     setError(null)
     try {
-      const added = await window.elynt.tracks.pickMixdown()
+      const added = await window.elynt.tracks.addFromPickedMixdown()
       if (added) await refresh()
     } catch (e) {
       setError(String(e))
     }
   }
 
-  const section = SECTIONS.find((s) => s.id === active)!
+  const tool = TOOLS.find((s) => s.id === active)!
 
   return (
     <div className="shell">
@@ -40,23 +40,23 @@ export function App() {
         <div className="brand">
           ELYNT<span>MUSIC TOOL</span>
         </div>
-        {SECTIONS.map((s) => (
+        {TOOLS.map((s) => (
           <button
             key={s.id}
             className={s.id === active ? 'nav-item active' : 'nav-item'}
             aria-current={s.id === active ? 'page' : undefined}
             onClick={() => setActive(s.id)}
           >
-            {s.name}
+            {s.nav}
           </button>
         ))}
       </nav>
 
-      <main className="section">
-        <header className="section-head">
+      <main className="tool">
+        <header className="tool-head">
           <div>
-            <h1>{section.name}</h1>
-            <p>{section.blurb}</p>
+            <h1>{tool.name}</h1>
+            <p>{tool.blurb}</p>
           </div>
           <button className="add" onClick={addTrack}>
             + Add track

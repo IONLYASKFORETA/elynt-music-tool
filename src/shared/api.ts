@@ -4,12 +4,12 @@ import type { Track } from './track'
 export interface ElyntApi {
   tracks: {
     list(): Promise<Track[]>
-    /** Opens a file picker for a mixdown. Resolves to null if the owner cancels. */
-    pickMixdown(): Promise<Track | null>
+    /** Opens a file picker for a mixdown and adds its track. Resolves to null if the owner cancels. */
+    addFromPickedMixdown(): Promise<Track | null>
   }
 }
 
 export const channels = {
   listTracks: 'tracks:list',
-  pickMixdown: 'tracks:pick-mixdown'
+  addFromPickedMixdown: 'tracks:add-from-picked-mixdown'
 } as const

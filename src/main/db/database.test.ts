@@ -42,6 +42,12 @@ describe('suite database migrations', () => {
     reopened.close()
   })
 
+  it('refuses two migrations with the same version', () => {
+    const clash: Migration = { version: 1, name: 'clash', sql: 'CREATE TABLE other (x INTEGER)' }
+
+    expect(() => openSuiteDatabase(file, [notes, clash])).toThrow(/version 1/)
+  })
+
   it('leaves the file at the last good version when a migration fails', () => {
     openSuiteDatabase(file, [notes]).close()
     const broken: Migration = { version: 2, name: 'broken', sql: 'ALTER TABLE missing ADD COLUMN x INTEGER' }

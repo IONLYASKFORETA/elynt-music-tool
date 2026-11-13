@@ -28,6 +28,16 @@ describe('track library', () => {
     expect(track.mixdownPath).toBe('C:\\Music\\Bounces\\SUPERFLY.wav')
     expect(tracks.list()).toEqual([track])
   })
+  it('treats Windows paths that differ only in letter case as the same mixdown', () => {
+    const tracks = createTrackLibrary(db)
+
+    const first = tracks.addFromMixdown('C:\\Bounces\\flip.wav')
+    const second = tracks.addFromMixdown('c:\\bounces\\FLIP.wav')
+
+    expect(second).toEqual(first)
+    expect(tracks.list()).toHaveLength(1)
+  })
+
   it('keeps tracks after the database is closed and reopened', () => {
     createTrackLibrary(db).addFromMixdown('/music/flip.wav')
     db.close()

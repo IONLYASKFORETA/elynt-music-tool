@@ -4,7 +4,7 @@ import { channels, type ElyntApi } from '../shared/api'
 const api: ElyntApi = {
   tracks: {
     list: () => ipcRenderer.invoke(channels.listTracks),
-    pickMixdown: () => ipcRenderer.invoke(channels.pickMixdown)
+    addFromPickedMixdown: () => ipcRenderer.invoke(channels.addFromPickedMixdown)
   }
 }
 

@@ -29,10 +29,16 @@ export function schemaVersion(db: SuiteDatabase): number {
 }
 
 function migrate(db: SuiteDatabase, migrations: readonly Migration[]): void {
+  const sorted = [...migrations].sort((a, b) => a.version - b.version)
+  sorted.forEach((m, i) => {
+    const previous = sorted[i - 1]
+    if (previous && previous.version === m.version) {
+      throw new Error(`Two migrations share version ${m.version}: ${previous.name} and ${m.name}`)
+    }
+  })
+
   const current = schemaVersion(db)
-  const pending = [...migrations]
-    .sort((a, b) => a.version - b.version)
-    .filter((m) => m.version > current)
+  const pending = sorted.filter((m) => m.version > current)
 
   for (const migration of pending) {
     db.exec('BEGIN')

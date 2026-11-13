@@ -29,20 +29,25 @@ function createWindow(): BrowserWindow {
   return win
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(start).catch((error: unknown) => {
+  dialog.showErrorBox('Elynt Music Tool could not start', error instanceof Error ? error.message : String(error))
+  app.quit()
+})
+
+function start(): void {
   // One SQLite file for the whole suite, in the app's data folder (ADR 0002).
   const db = openSuiteDatabase(join(app.getPath('userData'), 'elynt.sqlite'))
   const tracks = createTrackLibrary(db)
 
   ipcMain.handle(channels.listTracks, () => tracks.list())
-  ipcMain.handle(channels.pickMixdown, async (event) => {
-    const owner = BrowserWindow.fromWebContents(event.sender)
+  ipcMain.handle(channels.addFromPickedMixdown, async (event) => {
+    const parent = BrowserWindow.fromWebContents(event.sender)
     const options: Electron.OpenDialogOptions = {
       title: 'Pick a mixdown',
       properties: ['openFile'],
       filters: [{ name: 'Audio', extensions: MIXDOWN_EXTENSIONS }]
     }
-    const result = owner ? await dialog.showOpenDialog(owner, options) : await dialog.showOpenDialog(options)
+    const result = parent ? await dialog.showOpenDialog(parent, options) : await dialog.showOpenDialog(options)
     const [path] = result.filePaths
     return result.canceled || !path ? null : tracks.addFromMixdown(path)
   })
@@ -53,7 +58,7 @@ app.whenReady().then(() => {
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
-})
+}
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()

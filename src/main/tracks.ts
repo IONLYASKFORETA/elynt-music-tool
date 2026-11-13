@@ -2,7 +2,7 @@ import type { Track } from '../shared/track'
 import type { SuiteDatabase } from './db/database'
 
 export interface TrackLibrary {
-  /** Adds the track a mixdown belongs to. Picking the same file again returns the existing track. */
+  /** Adds the track a mixdown belongs to. Picking the same file again (in any letter case) returns the existing track. */
   addFromMixdown(mixdownPath: string): Track
   /** Every track in the suite, oldest first. Every tool lists the same records. */
   list(): Track[]
@@ -15,7 +15,7 @@ interface TrackRow {
   added_at: string
 }
 
-export function createTrackLibrary(db: SuiteDatabase, now: () => Date = () => new Date()): TrackLibrary {
+export function createTrackLibrary(db: SuiteDatabase): TrackLibrary {
   const insert = db.prepare(
     'INSERT INTO tracks (title, mixdown_path, added_at) VALUES (?, ?, ?) ON CONFLICT (mixdown_path) DO NOTHING'
   )
@@ -24,7 +24,7 @@ export function createTrackLibrary(db: SuiteDatabase, now: () => Date = () => ne
 
   return {
     addFromMixdown(mixdownPath) {
-      insert.run(titleFromFileName(mixdownPath), mixdownPath, now().toISOString())
+      insert.run(titleFromFileName(mixdownPath), mixdownPath, new Date().toISOString())
       return toTrack(byPath.get(mixdownPath) as unknown as TrackRow)
     },
     list() {

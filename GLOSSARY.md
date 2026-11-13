@@ -54,6 +54,38 @@ _Avoid_: confusing with a musical remix; a remix here only ever changes visuals.
 
 **Export queue**: the Visualizer's list of videos waiting to be rendered, including clips other tools have asked for.
 
+**Live Set**: the owner's Ableton Live project for a track, as saved in its .als file.
+_Avoid_: "session", "project file" (when the musical content is meant).
+
+**Live track**: one audio, MIDI, group or return track inside a Live Set.
+_Avoid_: "track" alone (a track is the whole song), "channel".
+
+**Bounce**: audio rendered out of a Live Set, either a mixdown or stems, so it can be measured.
+_Avoid_: "export" alone (it can also mean a video export).
+
+**Stepping stone**: one concrete, ordered move the Mix & Master Assistant suggests, naming the Live track, the move, where to make it in Live, and why. The owner ticks it off when done.
+_Avoid_: "tip", "suggestion", "feedback".
+
+**Mix mode**: the first stage of the Mix & Master Assistant, working on the balance between tracks in a Live Set.
+
+**Master mode**: the second stage of the Mix & Master Assistant, working on the final chain and loudness of the whole track.
+_Avoid_: "mastering" for the mode (mastering is the craft; master mode is the tool's stage).
+
+**Reference track**: a released song by another artist that the owner picks for a track, to compare the mix or master against.
+_Avoid_: "reference" alone when a visual reference is meant (see the Visualizer).
+
+**Subgenre**: the EDM style the owner tags a track with (e.g. house, dubstep, DnB). It sets default loudness and dynamics; tone is judged against reference tracks.
+_Avoid_: "genre" (always EDM here), "style".
+
+**Loudness target**: the loudness a track's master aims for, chosen per track as either **Club** (loud, for DJ and club play) or **Streaming** (about where streaming services play it).
+
+**Mastering Set**: a separate Live Set, built from a track's bounced mixdown, where the master chain lives.
+_Avoid_: mastering on the mix's Main track.
+
+**Space**: one region of a mix, defined by a frequency band (sub, low, low-mid, presence, air) and by where it sits in mid/side.
+
+**Space map**: the grid of every space in a mix, showing which Live track fills each one and where they collide.
+
 **Artist profile**: what the owner tells the suite once, so every tool fits them: artist name and links, subgenres, audience snapshot, budget, distributor and platforms, past releases, reference artists, voice, and default goal. Shared by all three tools.
 
 **Release**: one track put out to the public on a release day. In v1 a release is always a single.

@@ -49,3 +49,5 @@ _Avoid_: confusing with a musical remix; a remix here only ever changes visuals.
 **Moment**: a visual event pinned to an exact bar or beat of a track, on top of what its section's scene already does.
 
 **Transition**: how one section's scene hands over to the next.
+
+**Media shelf**: the owner's own reusable images, clips and logo, available to any track's visuals.

@@ -35,10 +35,13 @@ _Avoid_: "theme", "style" (a vision is made for one track, not reused as-is).
 **Live Set**: the owner's Ableton Live project for a track, as saved in its .als file.
 _Avoid_: "session", "project file" (when the musical content is meant).
 
+**Live track**: one audio, MIDI, group or return track inside a Live Set.
+_Avoid_: "track" alone (a track is the whole song), "channel".
+
 **Bounce**: audio rendered out of a Live Set, either a mixdown or stems, so it can be measured.
 _Avoid_: "export" alone (it can also mean a video export).
 
-**Stepping stone**: one concrete, ordered move the Mix & Master Assistant suggests, naming the track, the move, where to make it in Live, and why. The owner ticks it off when done.
+**Stepping stone**: one concrete, ordered move the Mix & Master Assistant suggests, naming the Live track, the move, where to make it in Live, and why. The owner ticks it off when done.
 _Avoid_: "tip", "suggestion", "feedback".
 
 **Mix mode**: the first stage of the Mix & Master Assistant, working on the balance between tracks in a Live Set.

@@ -1,0 +1,42 @@
+:root {
+  --bg: #07070a;
+  --panel: #0f0f14;
+  --line: #22222b;
+  --text: #f2f2f5;
+  --muted: #8b8b98;
+  --accent: linear-gradient(90deg, #ff3d7f, #ffb13d, #3dffb4, #3db8ff, #b43dff);
+  color-scheme: dark;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+body { margin: 0; background: var(--bg); color: var(--text); }
+
+.shell { display: grid; grid-template-columns: 220px 1fr; height: 100vh; }
+
+.nav { background: var(--panel); border-right: 1px solid var(--line); padding: 24px 12px; display: flex; flex-direction: column; gap: 4px; }
+
+.brand { font-weight: 900; font-size: 28px; letter-spacing: 0.08em; padding: 0 12px 24px; }
+.brand span { display: block; font-size: 10px; letter-spacing: 0.4em; color: var(--muted); font-weight: 600; }
+
+.nav-item { background: none; border: 0; color: var(--muted); text-align: left; padding: 10px 12px; border-radius: 6px; font: inherit; font-size: 15px; cursor: pointer; }
+.nav-item:hover { color: var(--text); background: #16161d; }
+.nav-item.active { color: var(--text); background: #1a1a22; box-shadow: inset 3px 0 0 #3db8ff; }
+
+.tool { padding: 32px 40px; overflow-y: auto; }
+.tool-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; border-bottom: 1px solid var(--line); padding-bottom: 24px; margin-bottom: 24px; }
+.tool-head h1 { margin: 0; font-size: 44px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.02em; }
+.tool-head p { margin: 8px 0 0; color: var(--muted); }
+
+.add { border: 0; border-radius: 6px; padding: 10px 18px; font: inherit; font-weight: 700; cursor: pointer; color: #07070a; background: var(--accent); }
+
+h2 { font-size: 12px; letter-spacing: 0.3em; text-transform: uppercase; color: var(--muted); }
+
+.tracks { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; }
+.tracks li { display: flex; flex-direction: column; padding: 12px 16px; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; }
+.tracks .title { font-weight: 700; }
+.tracks .path { color: var(--muted); font-size: 12px; margin-top: 2px; word-break: break-all; }
+
+.empty { color: var(--muted); }
+.error { color: #ff6b8b; }

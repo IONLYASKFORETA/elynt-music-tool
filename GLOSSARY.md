@@ -22,3 +22,12 @@ _Avoid_: "channel", "layer" (a layer is visual).
 _Avoid_: using "layer" for audio parts; those are stems.
 
 **Scene**: a stack of layers composed together into one look.
+
+**Section**: a span of a track with one musical role, such as intro, build, drop, breakdown, or outro.
+
+**Track analysis**: what the Visualizer learns by listening to a track and its stems: tempo, beats, sections, energy, and its emotion and vibe.
+
+**Vision**: the art direction for one track (mood, palette, motifs, the look of each section, and how the visuals react), agreed between the owner and the Visualizer before scenes are built.
+_Avoid_: "theme", "style" (a vision is made for one track, not reused as-is).
+
+**Reactivity**: how a layer responds to the audio.

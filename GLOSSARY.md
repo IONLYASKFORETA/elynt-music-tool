@@ -31,3 +31,6 @@ _Avoid_: using "layer" for audio parts; those are stems.
 _Avoid_: "theme", "style" (a vision is made for one track, not reused as-is).
 
 **Reactivity**: how a layer responds to the audio.
+
+**House style**: the single visual world every vision lives inside; for the Visualizer, the spectral, glitch, holographic-chrome poster aesthetic. Tracks differ within it, never outside it.
+_Avoid_: "theme" (a vision is per track; the house style is shared by all of them).

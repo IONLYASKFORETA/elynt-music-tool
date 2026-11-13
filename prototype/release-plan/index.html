@@ -1,0 +1,314 @@
+<title>Release Plan Prototype</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;800&family=Archivo+Narrow:wght@500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* PROTOTYPE, throwaway. Three layouts of the Release Assistant's release plan screen, switchable from the bottom bar (or #a / #b / #c).
+   Layout: app shell with a tool rail on the left, plan view on the right. Dark-first, like a DAW. */
+:root{
+  --bg:#0f1114; --panel:#171a1f; --panel2:#1e2229; --line:#2a2f38; --fg:#e8eaee; --muted:#8d95a3;
+  --accent:#ff5a36; --accent-ink:#1a0d08; --hard:#ff4d6d; --ok:#3ecf8e; --warn:#f5b83d; --info:#6aa8ff;
+  --display:"Archivo Narrow","Arial Narrow",system-ui,sans-serif; --body:"Archivo",system-ui,sans-serif; --mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+  color-scheme:dark;
+}
+@media (prefers-color-scheme: light){ :root:not([data-theme="dark"]){
+  --bg:#f3f2ef; --panel:#ffffff; --panel2:#f7f6f3; --line:#dedbd4; --fg:#16181c; --muted:#646a74;
+  --accent:#e2431f; --accent-ink:#ffffff; --hard:#d42a4c; --ok:#178a5a; --warn:#a86d00; --info:#2f6fd0; color-scheme:light } }
+:root[data-theme="light"]{
+  --bg:#f3f2ef; --panel:#ffffff; --panel2:#f7f6f3; --line:#dedbd4; --fg:#16181c; --muted:#646a74;
+  --accent:#e2431f; --accent-ink:#ffffff; --hard:#d42a4c; --ok:#178a5a; --warn:#a86d00; --info:#2f6fd0; color-scheme:light }
+*{box-sizing:border-box}
+html,body{height:100%}
+body{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:14px;line-height:1.5}
+button{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible,textarea:focus-visible,input:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.app{display:grid;grid-template-columns:72px 1fr;min-height:100%}
+.rail{background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;gap:6px;padding-block:14px}
+.rail .logo{font-family:var(--display);font-weight:700;font-size:20px;letter-spacing:.02em;margin-bottom:10px}
+.rail button{width:56px;border:0;background:none;border-radius:10px;padding:8px 0;font-size:10.5px;color:var(--muted);display:flex;flex-direction:column;align-items:center;gap:4px}
+.rail button svg{width:22px;height:22px}
+.rail button.on{background:var(--panel2);color:var(--fg)}
+.rail button.on svg{color:var(--accent)}
+main{min-width:0;padding-block:20px 96px;padding-left:max(20px,env(safe-area-inset-left,0px));padding-right:max(20px,env(safe-area-inset-right,0px))}
+.proto{font-family:var(--mono);font-size:11px;color:var(--muted);border:1px dashed var(--line);border-radius:6px;padding:6px 10px;margin-bottom:16px}
+.head{display:flex;flex-wrap:wrap;gap:16px 24px;align-items:flex-end;justify-content:space-between;margin-bottom:18px}
+.head h1{font-family:var(--display);font-size:clamp(28px,4vw,40px);line-height:1;margin:0;letter-spacing:.01em;text-transform:uppercase}
+.head .sub{color:var(--muted);margin-top:6px}
+.count{display:flex;gap:18px;align-items:flex-end}
+.count .big{font-family:var(--display);font-size:44px;line-height:1;color:var(--accent);font-variant-numeric:tabular-nums}
+.count .lab{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.phasebar{display:flex;gap:3px;margin-bottom:22px;overflow-x:auto}
+.phasebar div{flex:1;min-width:80px;padding:6px 8px;background:var(--panel);border-top:3px solid var(--line);font-size:11px;color:var(--muted)}
+.phasebar div.now{border-top-color:var(--accent);color:var(--fg)}
+.phasebar div.done{border-top-color:var(--ok)}
+.phasebar b{display:block;font-family:var(--display);font-size:13px;letter-spacing:.04em;text-transform:uppercase}
+.pill{display:inline-flex;align-items:center;gap:4px;font-size:11px;padding:1px 8px;border-radius:99px;border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+.pill.hard{border-color:var(--hard);color:var(--hard)}
+.pill.rule{color:var(--info);border-color:color-mix(in srgb,var(--info) 50%,transparent)}
+.pill.thumb{color:var(--warn);border-color:color-mix(in srgb,var(--warn) 50%,transparent)}
+.pill.done{color:var(--ok);border-color:color-mix(in srgb,var(--ok) 50%,transparent)}
+.rday{font-family:var(--mono);font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+.check{width:22px;height:22px;flex:none;border-radius:6px;border:2px solid var(--line);background:none;display:grid;place-items:center;padding:0}
+.check.on{background:var(--ok);border-color:var(--ok);color:var(--bg)}
+.check svg{width:14px;height:14px}
+/* step detail, shared by all variants */
+.detail{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px;display:grid;gap:14px;min-width:0}
+.detail h2{font-family:var(--display);font-size:22px;margin:0;text-transform:uppercase;letter-spacing:.02em;text-wrap:balance}
+.detail .meta{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.coach{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
+.coach div{min-width:0}
+.coach h4{margin:0 0 2px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.coach p{margin:0}
+.drafts h4{margin:0 0 8px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.opts{display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap}
+.opts button{border:1px solid var(--line);background:var(--panel2);border-radius:6px;padding:2px 10px;font-size:12px}
+.opts button.on{border-color:var(--accent);color:var(--accent)}
+.draft{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:12px;white-space:pre-wrap;font-size:13.5px;min-height:60px}
+.draft[contenteditable="true"]{border-color:var(--accent)}
+.draft .blank{background:color-mix(in srgb,var(--warn) 25%,transparent);border-radius:3px;padding:0 3px}
+.acts{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;align-items:center}
+.btn{border:1px solid var(--line);background:var(--panel);border-radius:8px;padding:6px 12px;font-size:13px}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:600}
+.tweak{display:flex;gap:6px;flex:1;min-width:200px}
+.tweak input{flex:1;min-width:0;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:6px 10px;color:var(--fg);font:inherit;font-size:13px}
+.note{font-size:12px;color:var(--muted)}
+.toast{position:fixed;left:50%;bottom:calc(76px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:6px 14px;border-radius:99px;font-size:13px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:30}
+.toast.show{opacity:1}
+/* Variant A: timeline */
+.va{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:20px;align-items:start}
+.tl{display:grid;gap:18px}
+.tl section h3{font-family:var(--display);text-transform:uppercase;letter-spacing:.06em;font-size:13px;color:var(--muted);margin:0 0 6px;display:flex;gap:8px;align-items:center}
+.tl section.now h3{color:var(--accent)}
+.row{display:flex;gap:10px;align-items:center;padding:8px 10px;border-radius:8px;border:1px solid transparent;cursor:pointer}
+.row:hover{background:var(--panel)}
+.row.sel{background:var(--panel);border-color:var(--line)}
+.row .t{flex:1;min-width:0}
+.row .t small{display:block;color:var(--muted);font-size:12px}
+.row.isdone .t span{text-decoration:line-through;color:var(--muted)}
+.row.today{box-shadow:inset 3px 0 0 var(--accent)}
+.sticky{position:sticky;top:calc(16px + env(safe-area-inset-top,0px))}
+/* Variant B: today focus */
+.vb{display:grid;gap:22px;max-width:880px}
+.hero{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px;display:grid;gap:12px}
+.hero .eyebrow{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--accent);font-weight:600}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px;display:grid;gap:6px;cursor:pointer;text-align:left}
+.card:hover{border-color:var(--muted)}
+.card.hardc{border-left:3px solid var(--hard)}
+.card b{font-weight:600}
+.sec-h{font-family:var(--display);text-transform:uppercase;letter-spacing:.06em;font-size:14px;margin:0 0 8px;color:var(--muted)}
+.dl{display:grid;gap:6px}
+.dl .item{display:flex;gap:10px;align-items:center;justify-content:space-between;background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--hard);border-radius:8px;padding:8px 12px}
+/* Variant C: calendar board */
+.vc{display:grid;gap:18px}
+.board{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:var(--panel)}
+.grid{display:grid;grid-template-columns:120px repeat(var(--cols),minmax(108px,1fr));min-width:calc(120px + var(--cols)*108px)}
+.grid .hd{position:sticky;top:0;background:var(--panel2);padding:8px;border-bottom:1px solid var(--line);font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.grid .hd.now{color:var(--accent)}
+.grid .hd b{display:block;font-family:var(--display);font-size:13px;color:var(--fg)}
+.grid .lane{padding:8px;border-bottom:1px solid var(--line);font-weight:600;font-size:12px;display:flex;align-items:center;gap:6px;background:var(--panel2)}
+.grid .cell{padding:6px;border-bottom:1px solid var(--line);border-left:1px solid var(--line);display:flex;flex-direction:column;gap:4px;min-height:54px}
+.grid .cell.now{background:color-mix(in srgb,var(--accent) 6%,transparent)}
+.chip{font-size:11.5px;text-align:left;border:1px solid var(--line);background:var(--panel);border-radius:6px;padding:3px 6px;line-height:1.3}
+.chip.hard{border-color:var(--hard)}
+.chip.isdone{opacity:.5;text-decoration:line-through}
+.chip.sel{outline:2px solid var(--accent)}
+.dot{width:8px;height:8px;border-radius:50%;flex:none}
+/* check-in */
+.ci{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px}
+.ci label{display:grid;gap:3px;font-size:12px;color:var(--muted)}
+.ci input{background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:6px 8px;color:var(--fg);font:inherit;font-variant-numeric:tabular-nums}
+.ci small{font-size:11px}
+/* switcher */
+.switch{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(14px + env(safe-area-inset-bottom,0px));display:flex;align-items:center;gap:4px;background:#000;color:#fff;border-radius:99px;padding:5px;box-shadow:0 6px 24px rgba(0,0,0,.35);z-index:40;font-family:var(--mono);font-size:12px;max-width:calc(100% - 32px)}
+.switch button{background:none;border:0;color:#fff;width:32px;height:32px;border-radius:50%}
+.switch button:hover{background:#333}
+.switch span{padding:0 8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+@media (max-width:860px){ .va{grid-template-columns:1fr} .sticky{position:static} }
+@media (max-width:560px){ .app{grid-template-columns:1fr} .rail{flex-direction:row;justify-content:center;padding:8px;border-right:0;border-bottom:1px solid var(--line)} .rail .logo{display:none;margin:0} }
+@media (prefers-reduced-motion:reduce){ .toast{transition:none} }
+</style>
+
+<div class="app">
+  <nav class="rail" aria-label="Tools">
+    <div class="logo">E</div>
+    <button type="button" aria-label="Visualizer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h2l2-6 3 12 3-9 2 5 2-2h4"/></svg>Visualizer</button>
+    <button type="button" aria-label="Mix and Master"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3v18M12 3v18M18 3v18"/><rect x="4" y="13" width="4" height="3" rx="1"/><rect x="10" y="7" width="4" height="3" rx="1"/><rect x="16" y="10" width="4" height="3" rx="1"/></svg>Mix</button>
+    <button type="button" class="on" aria-label="Release"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20 20 4M9 4h11v11"/></svg>Release</button>
+  </nav>
+  <main>
+    <div class="proto">PROTOTYPE · sample single, made-up numbers · today is set to Fri 13 Nov 2026 (R−14) · flip layouts with the bar at the bottom</div>
+    <header class="head">
+      <div>
+        <h1>SUPERFLY</h1>
+        <div class="sub">Single · melodic bass · release day <b>Fri 27 Nov 2026</b> · goal: grow fans</div>
+      </div>
+      <div class="count">
+        <div><div class="big" id="countdown">14</div><div class="lab">days to release</div></div>
+        <div><div class="big" id="progress" style="color:var(--fg)">0/0</div><div class="lab">steps done</div></div>
+      </div>
+    </header>
+    <div class="phasebar" id="phasebar"></div>
+    <div id="view"></div>
+  </main>
+</div>
+<div class="switch" role="toolbar" aria-label="Prototype layouts">
+  <button type="button" id="prev" aria-label="Previous layout">←</button>
+  <span id="vlabel">A · Timeline</span>
+  <button type="button" id="next" aria-label="Next layout">→</button>
+</div>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+const R = new Date(2026,10,27); // release Friday
+const TODAY = -14;
+const fmt = o => { const d=new Date(R); d.setDate(d.getDate()+o); return d.toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'}); };
+const rlab = o => o===0 ? 'R' : (o<0 ? 'R−'+(-o) : 'R+'+o);
+const PHASES = [
+  {id:'prep', name:'Prep', from:-42, to:-29},
+  {id:'setup', name:'Setup', from:-28, to:-15},
+  {id:'pre', name:'Pre-release', from:-14, to:-1},
+  {id:'day', name:'Release day', from:0, to:0},
+  {id:'post', name:'Post-release', from:1, to:28},
+];
+const phaseOf = o => PHASES.find(p => o>=p.from && o<=p.to).id;
+const LANES = {dist:['Distribution','#9b8cff'], spot:['Spotify','#3ecf8e'], social:['Social','#ff5a36'], out:['Outreach','#f5b83d'], sc:['SoundCloud','#ff8a3d'], data:['Check-ins','#6aa8ff']};
+
+const S = (o,lane,title,extra={}) => ({o,lane,title,hard:false,tag:'thumb',done:o<TODAY,...extra});
+const steps = [
+  S(-42,'dist','Finish the master, artwork and Canvas',{tag:'thumb',what:'Lock the final master, 3000×3000 artwork, and request the Canvas loop from the Visualizer.',why:'Everything after this is dated from these files. Late artwork is the most common reason uploads slip.',how:'Send a clip request for SUPERFLY: drop with 2 s lead-in, build, hook, breakdown, plus a 6 s Canvas loop.'}),
+  S(-35,'social','Request 6 promo clips from the Visualizer',{tag:'thumb',what:'Six clean 9:16 clips, 15 s and 30 s.',why:'About 30 posting days are coming. Six strong clips, re-captioned, cover most of them.',how:'Open the clip request, check the suggested moments, and send.'}),
+  S(-28,'dist','Upload to DistroKid with a custom release date',{tag:'rule',what:'Upload SUPERFLY with release date Fri 27 Nov.',why:'Four weeks gives a week of slack before the hard pitch cutoff.',how:'Musician Plus plan: Upload → set release date → check Spotify "Upcoming" in 2 to 5 days.'}),
+  S(-28,'sc','Upload to SoundCloud as private',{tag:'thumb',what:'Upload now, keep it private until release day.',why:'You get the private link for curator pitches.',how:'Upload → Privacy: Private → copy the secret link.'}),
+  S(-24,'spot','Write the track description',{tag:'thumb',what:'The 3-sentence story every other draft builds on.',why:'Pitches, captions and emails all reuse it, so they stay consistent.',how:'Edit the draft until it sounds like you.',drafts:[['Description','SUPERFLY is a melodic bass track built around a chopped vocal that keeps lifting until the drop flips it into a distorted, half-time growl. I wrote it after a late drive home with the windows down. It is the brightest thing I have made, but the drop still hits like a truck.']]}),
+  S(-22,'spot','Pitch SUPERFLY to Spotify editors',{tag:'rule',hard:false,what:'Submit one pitch in Spotify for Artists.',why:'Editorial playlists are the biggest free lever, and a pitch also puts the song on your followers’ Release Radar.',how:'Spotify for Artists → Music → Upcoming → Pitch a song. Fill every field.',drafts:[['Pitch','Melodic bass single with a chopped, euphoric vocal that resolves into a heavy half-time drop. For fans of Seven Lions and Illenium: bright, emotional build, then real weight. Made after a late night drive; the hook is about not wanting the ride to end. Strong fit for melodic bass, festival and “feel-good heavy” playlists.']]}),
+  S(-21,'dist','Hard deadline: last day to upload and still pitch Spotify',{tag:'rule',hard:true,what:'If the track is not in DistroKid by today, Spotify pitching is lost.',why:'DistroKid needs 3 weeks for pitching.',how:'Already done on R−28.'}),
+  S(-20,'social','Put the HyperFollow pre-save link in your bios',{tag:'rule',what:'Share the DistroKid HyperFollow link.',why:'A pre-save also follows you on Spotify, which feeds Release Radar.',how:'Copy the HyperFollow link to Instagram, TikTok and SoundCloud bios.'}),
+  S(-14,'social','First teaser: the drop, 15 s',{tag:'thumb',what:'Post clip 1 on TikTok, Reels and Shorts.',why:'TikTok’s New Release window opens 14 days out. Use the same audio snippet in every teaser so they group together.',how:'Upload natively to each app (no watermark reposts). Add the hook text in the app.',drafts:[['Caption 1','the drop on this one took 3 months to get right. out 27/11 ⚡️ #melodicbass #edm #newmusic'],['Caption 2','wrote this after a 2am drive and I still can’t stop playing it. SUPERFLY, Nov 27. pre-save in bio #melodicdubstep #producer'],['Caption 3','POV: the build lifts you up and then… 😮‍💨 SUPERFLY out Friday the 27th #bassmusic #edmtok']],hook:'On screen, first 2 s: "wait for the drop" over the last bar of the build.'}),
+  S(-14,'out','Pitch 8 curators on SubmitHub',{tag:'thumb',what:'Send SUPERFLY to 5 to 10 melodic bass curators with the private link.',why:'Paid reviews guarantee a listen and feedback, never a placement. Budget: about $50.',how:'Filter by genre, check each curator’s approval %, and send to 8.',drafts:[['Pitch email','Hi [curator name],\n\nI’m Aden, a melodic bass producer. My next single SUPERFLY comes out on 27 Nov: a euphoric chopped vocal build into a heavy half-time drop. I think it fits [playlist or blog name] because [reason].\n\nPrivate link: [SoundCloud private link]\n\nThanks for listening,\nAden']]}),
+  S(-12,'out','Email 5 blogs and YouTube channels',{tag:'thumb',what:'Free pitches to outlets that post melodic bass.',why:'Free, and YouTube promo channels still move EDM.',how:'Fill in each recipient’s name. Short, one track, private link.'}),
+  S(-10,'social','Teaser 2: studio breakdown of the vocal chop',{tag:'thumb',what:'Film yourself in Ableton showing the vocal chop.',why:'Behind-the-scenes posts give people a reason to care before release.',how:'Use the same SUPERFLY snippet as background audio.'}),
+  S(-7,'spot','Hard deadline: Spotify pitch and Release Radar cutoff',{tag:'rule',hard:true,what:'The last day a pitch counts.',why:'After today the song can’t be pitched, and Spotify picks your Release Radar song itself.',how:'Already pitched on R−22.'}),
+  S(-7,'social','Final week: post daily',{tag:'thumb',what:'One short clip a day, rotating the 6 clips and new captions.',why:'Momentum into release day. The daily number is a rule of thumb, not a platform rule.',how:'Each day’s caption is drafted when you open that day.'}),
+  S(0,'sc','Make SoundCloud public and turn on the new-track boost',{tag:'rule',what:'Go public at 00:01 and turn on amplification.',why:'SoundCloud pushes new tracks to about 100 matched listeners within 14 days of upload.',how:'Track page → Make public → Amplify.'}),
+  S(0,'social','Release day posts with the official sound',{tag:'rule',what:'Post on all three apps using the official audio.',why:'Fan videos on the official sound are the breakout signal.',how:'Pick SUPERFLY from each app’s sound picker.'}),
+  S(0,'out','Send SUPERFLY to a DJ promo pool',{tag:'thumb',what:'Upload to one DJ pool (about $10).',why:'DJ support matters in EDM.',how:'Pool upload → DJ promo email draft.'}),
+  S(0,'data','Release day baseline',{tag:'rule',what:'Record follower counts now.',why:'Needed to measure follower gain at R+7 and R+28.',how:'Takes one minute.',checkin:'base'}),
+  S(7,'data','7-day check-in',{tag:'rule',what:'Type in a few numbers.',why:'The plan adapts to what’s working.',how:'Each field says where to find the number.',checkin:'d7'}),
+  S(7,'spot','Pitch the next single if one is ready',{tag:'rule',what:'Spotify frees your pitch slot once SUPERFLY is live.',why:'Keeps a release every 4+ weeks.',how:'Only if a track is finished.'}),
+  S(14,'sc','Hard deadline: SoundCloud boost window ends',{tag:'rule',hard:true,what:'Amplification must be on before today.',why:'The window is 14 days from upload or going public.',how:'Done on release day.'}),
+  S(28,'data','28-day check-in and retrospective',{tag:'rule',what:'Final numbers, release engagement %, and what to try next time.',why:'The retrospective feeds the next release plan.',how:'About five minutes.',checkin:'d28'}),
+];
+steps.forEach((s,i)=>{s.id=i; s.opt=0;});
+let sel = steps.findIndex(s=>s.o===TODAY);
+
+const $ = (q,el=document)=>el.querySelector(q);
+const h = (s)=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const blanks = t => h(t).replace(/\[([^\]]+)\]/g,'<span class="blank">[$1]</span>');
+const tick = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="m5 12 5 5 9-10"/></svg>';
+function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),1600);}
+
+function pills(s){
+  return (s.hard?'<span class="pill hard">hard deadline</span>':'')+
+    (s.tag==='rule'?'<span class="pill rule">platform rule</span>':'<span class="pill thumb">rule of thumb</span>')+
+    (s.done?'<span class="pill done">done</span>':'');
+}
+function detailHTML(s){
+  if(!s) return '';
+  let d = `<div class="detail" aria-live="polite">
+    <div class="meta"><span class="rday">${rlab(s.o)} · ${fmt(s.o)}</span><span class="pill"><span class="dot" style="background:${LANES[s.lane][1]}"></span>${LANES[s.lane][0]}</span>${pills(s)}</div>
+    <h2>${h(s.title)}</h2>
+    <div class="coach"><div><h4>What</h4><p>${h(s.what||'')}</p></div><div><h4>Why</h4><p>${h(s.why||'')}</p></div><div><h4>How</h4><p>${h(s.how||'')}</p></div></div>`;
+  if(s.drafts){
+    const many = s.drafts.length>1;
+    d += `<div class="drafts"><h4>Draft${many?'s · pick one':''}</h4>`+
+      (many?`<div class="opts">${s.drafts.map((x,i)=>`<button type="button" data-opt="${i}" class="${i===s.opt?'on':''}">Option ${i+1}</button>`).join('')}</div>`:'')+
+      `<div class="draft" id="draft">${blanks(s.drafts[s.opt][1])}</div>
+      ${s.hook?`<p class="note">${h(s.hook)}</p>`:''}
+      <div class="acts"><button type="button" class="btn primary" data-act="copy">Copy</button><button type="button" class="btn" data-act="edit">Edit</button><button type="button" class="btn" data-act="regen">Regenerate</button>
+      <div class="tweak"><input id="tweak-${s.id}" placeholder="Tweak: more hype, shorter, no emoji…" aria-label="Tweak note"><button type="button" class="btn" data-act="tweak">Tweak</button></div></div>
+      <p class="note">Drafts are written when you open a step. Edits you keep are saved as examples of your voice.</p></div>`;
+  }
+  if(s.checkin) d += checkinHTML(s.checkin);
+  d += `<div class="acts"><button type="button" class="btn ${s.done?'':'primary'}" data-act="done">${s.done?'Mark not done':'Mark done'}</button><button type="button" class="btn" data-act="skip">${s.hard?'Skip (warns)':'Skip'}</button><button type="button" class="btn" data-act="move">Move…</button></div>
+  </div>`;
+  return d;
+}
+function checkinHTML(k){
+  const F = k==='base'
+    ? [['Spotify followers','Spotify for Artists → Audience'],['Instagram followers','Profile'],['TikTok followers','Profile'],['SoundCloud followers','Profile']]
+    : [['Spotify streams','S4A → Music → SUPERFLY'],['Spotify listeners','same page'],['Spotify saves','same page (desktop)'],['Spotify followers','S4A → Audience'],['Playlist adds (artist-wide)','S4A → Audience'],['SoundCloud plays','Insights'],['SoundCloud reposts','Insights'],['TikTok videos using the sound','TikTok for Artists → Songs'],['Instagram Reels shares','Reel → View insights']].concat(k==='d28'?[['Release engagement %','S4A → Audience → Release engagement']]:[]);
+  return `<div><h4 class="note" style="text-transform:uppercase;letter-spacing:.08em;margin:0 0 8px">${k==='base'?'Baseline':'Check-in'} · leave any field blank</h4><div class="ci">${F.map((f,i)=>`<label for="ci-${k}-${i}">${f[0]}<input id="ci-${k}-${i}" inputmode="numeric" placeholder="—"><small>${f[1]}</small></label>`).join('')}</div>
+  ${k==='d7'?'<p class="note">After you save, Claude proposes changes (for example: TikTok is moving, so boost clip 2 with the $40 held back). You accept or reject each one.</p>':''}</div>`;
+}
+
+function phasebar(){
+  $('#phasebar').innerHTML = PHASES.map(p=>{const st = TODAY>p.to?'done':(TODAY>=p.from?'now':'');return `<div class="${st}"><b>${p.name}</b>${rlab(p.from)}${p.from!==p.to?' → '+rlab(p.to):''}</div>`}).join('');
+  $('#progress').textContent = steps.filter(s=>s.done).length+'/'+steps.length;
+  $('#countdown').textContent = -TODAY;
+}
+function rowHTML(s){
+  return `<div class="row ${s.id===sel?'sel':''} ${s.done?'isdone':''} ${s.o===TODAY?'today':''}" data-sel="${s.id}" tabindex="0">
+    <button type="button" class="check ${s.done?'on':''}" data-done="${s.id}" aria-label="Done">${s.done?tick:''}</button>
+    <div class="t"><span>${h(s.title)}</span><small>${LANES[s.lane][0]}${s.drafts?' · draft ready':''}</small></div>
+    ${s.hard?'<span class="pill hard">hard</span>':''}<span class="rday">${rlab(s.o)}</span></div>`;
+}
+const V = {
+  A:{name:'Timeline', render(){
+    return `<div class="va"><div class="tl">${PHASES.map(p=>{const ss=steps.filter(s=>phaseOf(s.o)===p.id);const now=TODAY>=p.from&&TODAY<=p.to;return `<section class="${now?'now':''}"><h3>${p.name}${now?' · you are here':''}</h3>${ss.map(rowHTML).join('')}</section>`}).join('')}</div>
+    <div class="sticky">${detailHTML(steps[sel])}</div></div>`;
+  }},
+  B:{name:'Today', render(){
+    const today = steps.filter(s=>s.o===TODAY);
+    const week = steps.filter(s=>s.o>TODAY&&s.o<=TODAY+7);
+    const overdue = steps.filter(s=>s.o<TODAY&&!s.done);
+    const hard = steps.filter(s=>s.hard&&s.o>=TODAY);
+    const cur = steps[sel];
+    return `<div class="vb">
+      <div class="hero"><div class="eyebrow">Today · ${fmt(TODAY)} · ${today.length} step${today.length===1?'':'s'}</div>
+        <div class="opts">${today.map(s=>`<button type="button" data-sel="${s.id}" class="${s.id===sel?'on':''}">${h(s.title)}</button>`).join('')}</div>
+        ${detailHTML(cur)}</div>
+      ${overdue.length?`<div><h3 class="sec-h">Overdue</h3><div class="cards">${overdue.map(card).join('')}</div></div>`:''}
+      <div><h3 class="sec-h">Next 7 days</h3><div class="cards">${week.map(card).join('')}</div></div>
+      <div><h3 class="sec-h">Hard deadlines ahead</h3><div class="dl">${hard.map(s=>`<div class="item"><span>${h(s.title)}</span><span class="rday">${rlab(s.o)} · ${fmt(s.o)}</span></div>`).join('')}</div></div>
+      <p class="note">The full plan is one tap away (hidden here on purpose: this layout bets you only care about today).</p>
+    </div>`;
+    function card(s){return `<button type="button" class="card ${s.hard?'hardc':''}" data-sel="${s.id}"><span class="rday">${rlab(s.o)} · ${fmt(s.o)}</span><b>${h(s.title)}</b><span class="note">${LANES[s.lane][0]}${s.drafts?' · draft ready':''}</span></button>`;}
+  }},
+  C:{name:'Board', render(){
+    const weeks=[]; for(let w=-42; w<=28; w+=7) weeks.push(w);
+    const wk = o => weeks.findLast(w=>o>=w);
+    return `<div class="vc"><div class="board"><div class="grid" style="--cols:${weeks.length}">
+      <div class="hd">Lane</div>${weeks.map(w=>`<div class="hd ${TODAY>=w&&TODAY<w+7?'now':''}"><b>${w===0?'Release wk':rlab(w)}</b>${fmt(w)}</div>`).join('')}
+      ${Object.entries(LANES).map(([k,[n,c]])=>`<div class="lane"><span class="dot" style="background:${c}"></span>${n}</div>`+weeks.map(w=>`<div class="cell ${TODAY>=w&&TODAY<w+7?'now':''}">${steps.filter(s=>s.lane===k&&wk(s.o)===w).map(s=>`<button type="button" class="chip ${s.hard?'hard':''} ${s.done?'isdone':''} ${s.id===sel?'sel':''}" data-sel="${s.id}">${h(s.title)}</button>`).join('')}</div>`).join('')).join('')}
+    </div></div>${detailHTML(steps[sel])}</div>`;
+  }},
+};
+const KEYS = Object.keys(V);
+let cur = (location.hash.slice(1).toUpperCase()) in V ? location.hash.slice(1).toUpperCase() : 'A';
+function render(){
+  phasebar();
+  $('#view').innerHTML = V[cur].render();
+  $('#vlabel').textContent = cur+' · '+V[cur].name;
+}
+function go(d){cur = KEYS[(KEYS.indexOf(cur)+d+KEYS.length)%KEYS.length]; history.replaceState(null,'','#'+cur.toLowerCase()); render();}
+$('#prev').onclick=()=>go(-1); $('#next').onclick=()=>go(1);
+addEventListener('keydown',e=>{ if(e.target.closest('input,textarea,[contenteditable="true"]')) return; if(e.key==='ArrowLeft')go(-1); if(e.key==='ArrowRight')go(1); if(e.key==='Enter'&&e.target.dataset.sel){sel=+e.target.dataset.sel;render();}});
+addEventListener('hashchange',()=>{const k=location.hash.slice(1).toUpperCase(); if(k in V){cur=k;render();}});
+$('#view').addEventListener('click',e=>{
+  const d=e.target.closest('[data-done]'); if(d){const s=steps[+d.dataset.done]; s.done=!s.done; render(); return;}
+  const o=e.target.closest('[data-opt]'); if(o){steps[sel].opt=+o.dataset.opt; render(); return;}
+  const a=e.target.closest('[data-act]');
+  if(a){const s=steps[sel], act=a.dataset.act, el=$('#draft');
+    if(act==='copy'){const txt=el.innerText; (navigator.clipboard?navigator.clipboard.writeText(txt):Promise.reject()).then(()=>toast('Copied · marked used'),()=>toast('Copy blocked here · select the text instead'));}
+    if(act==='edit'){const on=el.getAttribute('contenteditable')==='true'; el.setAttribute('contenteditable',on?'false':'true'); a.textContent=on?'Edit':'Save edit'; if(!on) el.focus(); else {s.drafts[s.opt][1]=el.innerText; toast('Saved · added to your voice examples');}}
+    if(act==='regen') toast('Prototype: Claude would write a new version here');
+    if(act==='tweak'){const v=$('#tweak-'+s.id).value.trim(); toast(v?`Prototype: rewriting with “${v}”`:'Type a note first, like “shorter”');}
+    if(act==='done'){s.done=!s.done; render();}
+    if(act==='skip') toast(s.hard?'Warning: skipping this loses the Spotify pitch window':'Skipped');
+    if(act==='move') toast('Prototype: pick a new day · hard deadlines stay fixed');
+    return;}
+  const r=e.target.closest('[data-sel]'); if(r){sel=+r.dataset.sel; render();}
+});
+render();
+</script>

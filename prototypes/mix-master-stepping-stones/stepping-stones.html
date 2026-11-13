@@ -1,0 +1,246 @@
+<title>Neon Drop Stepping Stones</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Space+Grotesk:wght@500;600&display=swap">
+<style>
+/* Layout: one narrow column, like a mixer channel strip read top to bottom; a fixed bottom bar switches between three ways of reading the same stones. */
+:root {
+  --bg: #f3f4f6; --surface: #ffffff; --fg: #1b1f27; --muted: #5d6573; --line: #dde1e7;
+  --accent: #c27a12; --accent-soft: #fbefd9; --ok: #237a4b; --ok-soft: #e1f2e8; --guess: #8a5a00; --guess-soft: #fff4d6;
+  --font-display: "Space Grotesk", "Segoe UI", system-ui, sans-serif;
+  --font-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #13161c; --surface: #1c2029; --fg: #e8eaee; --muted: #9aa2b0; --line: #2c323e;
+  --accent: #f0a537; --accent-soft: #3a2a12; --ok: #5cc98d; --ok-soft: #173325; --guess: #f3c35b; --guess-soft: #3a3014; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #13161c; --surface: #1c2029; --fg: #e8eaee; --muted: #9aa2b0; --line: #2c323e;
+  --accent: #f0a537; --accent-soft: #3a2a12; --ok: #5cc98d; --ok-soft: #173325; --guess: #f3c35b; --guess-soft: #3a3014; color-scheme: dark }
+
+body { background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 15px; line-height: 1.5; }
+.wrap { max-width: 680px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 20px 120px; display: grid; gap: 18px; }
+h1 { font-family: var(--font-display); font-weight: 600; font-size: 1.6rem; line-height: 1.15; margin: 0; text-wrap: balance; }
+h2 { font-family: var(--font-display); font-weight: 600; font-size: 1.05rem; margin: 0; text-wrap: balance; }
+.eyebrow { font-size: .72rem; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+.mono, .num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.note { background: var(--accent-soft); border-radius: 10px; padding: 12px 14px; font-size: .9rem; }
+.runline { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font-size: .78rem; border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 2px 10px; white-space: nowrap; }
+.progress { display: flex; align-items: center; gap: 10px; font-size: .85rem; color: var(--muted); }
+.bar { flex: 1; height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; }
+.bar > i { display: block; height: 100%; background: var(--accent); width: 0; transition: width .2s; }
+.step-tag { font-size: .72rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--accent); }
+.conf { font-size: .72rem; font-weight: 600; border-radius: 4px; padding: 1px 7px; white-space: nowrap; }
+.conf.measured { background: var(--ok-soft); color: var(--ok); }
+.conf.guess { background: var(--guess-soft); color: var(--guess); }
+.conf.setting { background: var(--line); color: var(--fg); }
+.where { font-family: var(--font-mono); font-size: .8rem; color: var(--muted); overflow-wrap: anywhere; }
+.why { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: .88rem; margin: 0; }
+.why dt { color: var(--muted); font-weight: 600; font-size: .75rem; text-transform: uppercase; letter-spacing: .06em; padding-top: 2px; }
+.why dd { margin: 0; min-width: 0; }
+button { font: inherit; color: inherit; }
+.tick { width: 26px; height: 26px; flex: none; border-radius: 7px; border: 2px solid var(--muted); background: transparent; cursor: pointer; display: grid; place-items: center; }
+.tick[aria-pressed="true"] { background: var(--ok); border-color: var(--ok); color: var(--surface); }
+.tick:focus-visible, .seg button:focus-visible, .nav button:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.done .move { text-decoration: line-through; color: var(--muted); }
+
+/* Checklist view */
+.list { display: grid; gap: 10px; }
+.row { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; display: grid; gap: 8px; }
+.row-top { display: flex; gap: 12px; align-items: flex-start; }
+.row-body { display: grid; gap: 4px; min-width: 0; flex: 1; }
+.move { font-weight: 600; }
+details summary { cursor: pointer; color: var(--accent); font-size: .85rem; font-weight: 600; }
+details[open] summary { margin-bottom: 8px; }
+
+/* Coach view */
+.coach { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 20px 18px; display: grid; gap: 14px; }
+.coach .move { font-family: var(--font-display); font-size: 1.3rem; line-height: 1.25; text-wrap: balance; }
+.coach .why { font-size: .95rem; gap: 8px 14px; }
+.nav { display: flex; gap: 10px; }
+.nav button { flex: 1; border: 1px solid var(--line); background: var(--surface); border-radius: 10px; padding: 10px; cursor: pointer; font-weight: 600; }
+.nav button.primary { background: var(--accent); border-color: var(--accent); color: #1b1f27; }
+.dots { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; }
+.dots i { width: 8px; height: 8px; border-radius: 50%; background: var(--line); }
+.dots i.on { background: var(--accent); }
+.dots i.ok { background: var(--ok); }
+
+/* Numbers view */
+.num-card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; display: grid; gap: 8px; }
+.meter { display: grid; gap: 4px; }
+.meter-label { display: flex; justify-content: space-between; font-size: .8rem; color: var(--muted); gap: 8px; }
+.track { position: relative; height: 14px; background: var(--bg); border-radius: 4px; border: 1px solid var(--line); }
+.track .zone { position: absolute; top: 0; bottom: 0; background: var(--ok-soft); border-left: 1px solid var(--ok); border-right: 1px solid var(--ok); }
+.track .you { position: absolute; top: -3px; bottom: -3px; width: 4px; margin-left: -2px; background: var(--accent); border-radius: 2px; }
+.track .ref { position: absolute; top: -3px; bottom: -3px; width: 2px; margin-left: -1px; background: var(--fg); opacity: .55; }
+.legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: .75rem; color: var(--muted); }
+.legend span::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; background: var(--c); }
+
+.fine { display: grid; gap: 8px; }
+.fine p { margin: 0; font-size: .88rem; display: flex; gap: 8px; }
+.fine p::before { content: "✓"; color: var(--ok); font-weight: 700; }
+.ask { border-top: 1px solid var(--line); padding-top: 14px; display: grid; gap: 6px; font-size: .9rem; }
+.ask ol { margin: 0; padding-left: 20px; display: grid; gap: 4px; }
+
+.seg { position: fixed; left: 0; right: 0; bottom: 0; z-index: 5; background: var(--surface); border-top: 1px solid var(--line);
+  padding: 10px max(16px, env(safe-area-inset-right, 0px)) calc(10px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); }
+.seg-inner { max-width: 680px; margin: 0 auto; display: grid; gap: 6px; }
+.seg-btns { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.seg button { border: 1px solid var(--line); background: var(--bg); border-radius: 9px; padding: 8px 4px; cursor: pointer; font-size: .85rem; font-weight: 600; }
+.seg button[aria-pressed="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+.seg-hint { font-size: .75rem; color: var(--muted); text-align: center; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="wrap">
+  <header style="display:grid;gap:8px">
+    <span class="eyebrow">Mix &amp; Master Assistant · Mix mode · Prototype</span>
+    <h1>Neon Drop: 8 stepping stones</h1>
+    <div class="runline">
+      <span class="chip">Live Set saved in Live 11.1.5</span>
+      <span class="chip">Mixdown + 4 stems</span>
+      <span class="chip">Reference: stand-in</span>
+      <span class="chip">Target: Club</span>
+    </div>
+  </header>
+
+  <p class="note"><strong>This is a demo, not your track.</strong> The Live Set is a public Ableton test project with its tracks renamed to EDM parts. Its devices and settings are real. The audio is synthetic, with problems planted on purpose. Code parsed the Set and measured the bounces, and Claude then wrote these stones from those numbers, which is how the app would work. Every number below was measured.</p>
+
+  <div class="progress"><span id="count">0 of 8 done</span><div class="bar"><i id="fill"></i></div></div>
+
+  <main id="view"></main>
+
+  <section class="fine" aria-labelledby="fine-h">
+    <h2 id="fine-h">Checked and fine</h2>
+    <p><span>Nothing is limiting or squashing your Main track (no devices on it), which is right for mix mode.</span></p>
+    <p><span><b>Drums</b> has a Compressor at 8:1 that looks heavy on paper, but the drum stem keeps <span class="num">15.1 dB</span> between its peaks and its average, so the punch survives. Left alone.</span></p>
+    <p><span>Sub bass level against the reference is close: <span class="num">+0.2 dB</span> under 60 Hz and <span class="num">+0.3 dB</span> from 60 to 250 Hz.</span></p>
+  </section>
+
+  <section class="ask">
+    <h2>Tell me in the thread</h2>
+    <ol>
+      <li>Which view would you actually work from: Checklist, Coach, or Numbers?</li>
+      <li>Are the moves specific enough to do without thinking?</li>
+      <li>Is the order right, and are 8 stones too many or too few?</li>
+      <li>Does the "why" read the way you think about a mix?</li>
+    </ol>
+  </section>
+</div>
+
+<nav class="seg" aria-label="View">
+  <div class="seg-inner">
+    <div class="seg-btns">
+      <button type="button" id="v-list" data-v="list">Checklist</button>
+      <button type="button" id="v-coach" data-v="coach">Coach</button>
+      <button type="button" id="v-num" data-v="num">Numbers</button>
+    </div>
+    <div class="seg-hint" id="hint"></div>
+  </div>
+</nav>
+
+<script>
+const STONES = [
+  { step: "Headroom", track: "Main track", conf: "measured",
+    move: "Turn the whole mix down about 4 dB before you bounce.",
+    where: "Main track › add Utility as the last device › Gain −4 dB",
+    heard: "The mix is already at the ceiling, so there's no room left for mastering.",
+    measured: "Mixdown peaks at −0.2 dBTP. Mix mode aims for −6 to −3 dBTP.",
+    check: "Re-bounce. Peaks should land between −6 and −3 dBTP.",
+    meter: { label: "Mixdown true peak", unit: "dBTP", min: -12, max: 1, you: -0.2, lo: -6, hi: -3 } },
+  { step: "Low end", track: "Sub Bass", conf: "measured",
+    move: "Switch off the Reverb on Sub Bass.",
+    where: "Sub Bass › Reverb (Decay 6.22 s) › device on/off button",
+    heard: "The bass sounds wide and blurry instead of a solid centre.",
+    measured: "Below 120 Hz, the bass stem's left and right are unrelated (correlation 0.00), and it loses 3.0 dB in mono. Its Reverb has a 6.22 s decay and 88% stereo spread.",
+    check: "Bass correlation below 120 Hz should be close to 1.00.",
+    note: "The Reverb is the likely cause: the settings were read from the Set, the effect on sound is inferred.",
+    meter: { label: "Bass correlation under 120 Hz", unit: "", min: -1, max: 1, you: 0.00, lo: 0.9, hi: 1, ref: 1.0 } },
+  { step: "Low end", track: "Sub Bass", conf: "measured",
+    move: "Force everything under 120 Hz on Sub Bass to mono.",
+    where: "Sub Bass › add Utility at the end › Bass Mono on › 120 Hz",
+    heard: "In mono, on a club system or a phone, the low end drops away.",
+    measured: "The whole mix loses 2.2 dB below 120 Hz in mono (low-end correlation 0.19). The reference loses 0.0 dB (correlation 1.00).",
+    check: "Mix correlation below 120 Hz near 1.00, with no loss in mono.",
+    meter: { label: "Mix mono loss under 120 Hz", unit: "dB", min: -4, max: 0.5, you: -2.2, lo: -0.5, hi: 0, ref: 0.0 } },
+  { step: "Balance", track: "Sub Bass", conf: "guess",
+    move: "Make the bass duck under every kick, using the Compressor already on Sub Bass.",
+    where: "Sub Bass › Compressor › Sidechain on › Audio From: Drums › Ratio 4:1 › Attack 0.1 ms › Release 80 ms › lower Threshold until 4–6 dB of reduction on each kick",
+    heard: "Kick and bass fight for the same spot, so the kick loses its thump in the drop.",
+    measured: "The bass doesn't move when the kick hits (0.0 dB change), and it sits 4.1 dB above the kick between 40 and 100 Hz.",
+    check: "The bass should dip 4–6 dB on each kick. Watch the Compressor's reduction meter.",
+    note: "Clash detection is a best guess. Right now this Compressor squeezes the bass on its own (−13 dB threshold, 3.6:1).",
+    meter: { label: "Bass dip on each kick", unit: "dB", min: -10, max: 1, you: 0.0, lo: -6, hi: -4 } },
+  { step: "Tone", track: "Vocal Chop", conf: "guess",
+    move: "Bring the Vocal Chop up about 3 dB.",
+    where: "Vocal Chop › track volume 0.0 dB → +3.0 dB",
+    heard: "The middle of the mix feels hollow next to the reference.",
+    measured: "The mix has 2.6 dB less low-mid (250 Hz to 2 kHz) than the reference. Vocal Chop is the only part living there, and it's 22 dB quieter than Sub Bass (−38.4 vs −16.3 dBFS average).",
+    check: "Low-mid should come within 1 dB of the reference.",
+    meter: { label: "Low-mid vs reference", unit: "dB", min: -6, max: 6, you: -2.6, lo: -1, hi: 1, ref: 0 } },
+  { step: "Tone", track: "Drums", conf: "measured",
+    move: "Add a gentle high shelf on the drums for air.",
+    where: "Drums › add EQ Eight at the end › band 8 high shelf › 8 kHz › +2 dB",
+    heard: "The top end is duller than the reference.",
+    measured: "The mix has 2.8 dB less air above 6 kHz than the reference.",
+    check: "Air above 6 kHz within 1 dB of the reference, without the hats getting spitty.",
+    meter: { label: "Air (>6 kHz) vs reference", unit: "dB", min: -6, max: 6, you: -2.8, lo: -1, hi: 1, ref: 0 } },
+  { step: "Stereo", track: "Lead Synth, Vocal Chop", conf: "setting",
+    move: "Swap the two inserted Reverbs for a send to Return A.",
+    where: "Lead Synth and Vocal Chop › Reverb (6.22 s) › switch off › raise Send A to taste (start around −15 dB)",
+    heard: "Long reverbs on each part pile up and wash out the drop.",
+    measured: "Lead Synth and Vocal Chop each have their own Reverb with a 6.22 s decay, while Return A already has a Reverb set up.",
+    check: "A/B the drop. The parts should sound closer and clearer.",
+    note: "Space can't be measured reliably, so this stone comes from settings alone.",
+    meter: null },
+  { step: "Harshness", track: "Lead Synth", conf: "measured",
+    move: "Cut the lead's harsh spot around 3.5 kHz.",
+    where: "Lead Synth › add EQ Eight › bell › 3.5 kHz › −3 dB › Q 1.4",
+    heard: "The lead is sharp and tiring at volume.",
+    measured: "The mix has 2.0 dB more presence (2 to 6 kHz) than the reference, and Lead Synth puts more energy there than any other stem.",
+    check: "Presence within 1 dB of the reference.",
+    meter: { label: "Presence (2–6 kHz) vs reference", unit: "dB", min: -6, max: 6, you: 2.0, lo: -1, hi: 1, ref: 0 } }
+];
+const CONF = { measured: "Measured", guess: "Best guess", setting: "From settings" };
+const HINT = { list: "Everything at once, details folded away.", coach: "One stone at a time, with the full why.", num: "Your numbers against the target zone." };
+let view = "list", idx = 0;
+const done = new Set();
+try { const s = localStorage.getItem("nd-view"); if (s && HINT[s]) view = s; } catch (e) {}
+
+const esc = s => s.replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+const tick = i => `<button type="button" class="tick" id="tick-${view}-${i}" aria-pressed="${done.has(i)}" aria-label="Mark stone ${i + 1} done" data-i="${i}">${done.has(i) ? "✓" : ""}</button>`;
+const head = s => `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="step-tag">${s.step}</span><span class="conf ${s.conf}">${CONF[s.conf]}</span></div>`;
+const why = s => `<dl class="why"><dt>Heard</dt><dd>${esc(s.heard)}</dd><dt>Measured</dt><dd>${esc(s.measured)}</dd><dt>Check</dt><dd>${esc(s.check)}</dd>${s.note ? `<dt>Note</dt><dd>${esc(s.note)}</dd>` : ""}</dl>`;
+
+function pct(m, v) { return Math.max(0, Math.min(100, (v - m.min) / (m.max - m.min) * 100)); }
+function meter(m) {
+  if (!m) return `<p style="margin:0;font-size:.85rem;color:var(--muted)">No meter. This stone comes from the project settings.</p>`;
+  const v = x => (x > 0 ? "+" : "") + x.toFixed(m.unit ? 1 : 2) + (m.unit ? " " + m.unit : "");
+  return `<div class="meter"><div class="meter-label"><span>${m.label}</span><span class="num">you ${v(m.you)} · aim ${v(m.lo)} to ${v(m.hi)}</span></div>
+  <div class="track"><span class="zone" style="left:${pct(m, m.lo)}%;width:${pct(m, m.hi) - pct(m, m.lo)}%"></span>${m.ref !== undefined ? `<span class="ref" style="left:${pct(m, m.ref)}%"></span>` : ""}<span class="you" style="left:${pct(m, m.you)}%"></span></div></div>`;
+}
+
+function render() {
+  const el = document.getElementById("view");
+  if (view === "list") {
+    el.innerHTML = `<div class="list">${STONES.map((s, i) => `<article class="row ${done.has(i) ? "done" : ""}"><div class="row-top">${tick(i)}<div class="row-body">${head(s)}<span class="move">${i + 1}. ${esc(s.move)}</span><span class="where">${esc(s.where)}</span></div></div><details><summary>Why</summary>${why(s)}</details></article>`).join("")}</div>`;
+  } else if (view === "coach") {
+    const s = STONES[idx];
+    el.innerHTML = `<article class="coach ${done.has(idx) ? "done" : ""}"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span class="eyebrow">Stone ${idx + 1} of ${STONES.length} · ${esc(s.track)}</span>${tick(idx)}</div>${head(s)}<span class="move">${esc(s.move)}</span><span class="where">${esc(s.where)}</span>${why(s)}${meter(s.meter)}
+      <div class="nav"><button type="button" id="prev" ${idx === 0 ? "disabled" : ""}>Back</button><button type="button" id="next" class="primary">${idx === STONES.length - 1 ? "Back to start" : done.has(idx) ? "Next" : "Done, next"}</button></div>
+      <div class="dots">${STONES.map((_, i) => `<i class="${i === idx ? "on" : done.has(i) ? "ok" : ""}"></i>`).join("")}</div></article>`;
+    document.getElementById("prev").onclick = () => { idx = Math.max(0, idx - 1); render(); };
+    document.getElementById("next").onclick = () => { if (idx < STONES.length - 1) { done.add(idx); idx++; } else idx = 0; render(); };
+  } else {
+    el.innerHTML = `<div class="list"><div class="legend"><span style="--c:var(--ok-soft)">target zone</span><span style="--c:var(--accent)">your mix</span><span style="--c:var(--muted)">reference</span></div>${STONES.map((s, i) => `<article class="num-card ${done.has(i) ? "done" : ""}"><div class="row-top">${tick(i)}<div class="row-body">${head(s)}<span class="move">${i + 1}. ${esc(s.move)}</span></div></div>${meter(s.meter)}<span class="where">${esc(s.where)}</span></article>`).join("")}</div>`;
+  }
+  el.querySelectorAll(".tick").forEach(b => b.onclick = () => { const i = +b.dataset.i; done.has(i) ? done.delete(i) : done.add(i); render(); });
+  document.querySelectorAll(".seg button").forEach(b => b.setAttribute("aria-pressed", b.dataset.v === view));
+  document.getElementById("hint").textContent = HINT[view];
+  document.getElementById("count").textContent = `${done.size} of ${STONES.length} done`;
+  document.getElementById("fill").style.width = (done.size / STONES.length * 100) + "%";
+}
+document.querySelectorAll(".seg button").forEach(b => b.onclick = () => { view = b.dataset.v; try { localStorage.setItem("nd-view", view); } catch (e) {} render(); });
+render();
+</script>

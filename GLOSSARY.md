@@ -52,5 +52,10 @@ _Avoid_: "mastering" for the mode (mastering is the craft; master mode is the to
 **Reference track**: a released song by another artist that the owner picks for a track, to compare the mix or master against.
 _Avoid_: "reference" alone when a visual reference is meant (see the Visualizer).
 
-**Subgenre**: the EDM style the owner tags a track with (e.g. house, dubstep, DnB). It sets the targets the Mix & Master Assistant aims for.
+**Subgenre**: the EDM style the owner tags a track with (e.g. house, dubstep, DnB). It sets default loudness and dynamics; tone is judged against reference tracks.
 _Avoid_: "genre" (always EDM here), "style".
+
+**Loudness target**: the loudness a track's master aims for, chosen per track as either **Club** (loud, for DJ and club play) or **Streaming** (about where streaming services play it).
+
+**Mastering Set**: a separate Live Set, built from a track's bounced mixdown, where the master chain lives.
+_Avoid_: mastering on the mix's Main track.

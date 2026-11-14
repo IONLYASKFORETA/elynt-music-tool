@@ -2,6 +2,8 @@ import { app, BrowserWindow, dialog, ipcMain } from 'electron'
 import { join } from 'node:path'
 import { channels } from '../shared/api'
 import { openSuiteDatabase } from './db/database'
+import { resolveHelperCommand } from './helper/command'
+import { createHelperSupervisor } from './helper/supervisor'
 import { createTrackLibrary } from './tracks'
 
 const MIXDOWN_EXTENSIONS = ['wav', 'aif', 'aiff', 'flac', 'mp3']
@@ -52,7 +54,25 @@ function start(): void {
     return result.canceled || !path ? null : tracks.addFromMixdown(path)
   })
 
-  app.on('will-quit', () => db.close())
+  // The Python helper does the heavy work (ADR 0001). It runs under WSL2 on Windows (ADR 0003).
+  const helper = createHelperSupervisor({
+    command: resolveHelperCommand({ platform: process.platform, appRoot: app.getAppPath(), env: process.env })
+  })
+  helper.onStatus((status) => {
+    for (const win of BrowserWindow.getAllWindows()) win.webContents.send(channels.helperStatusChanged, status)
+  })
+  ipcMain.handle(channels.helperStatus, () => helper.status())
+  ipcMain.handle(channels.probeTrack, (_event, trackId: number) => {
+    const track = tracks.list().find((t) => t.id === trackId)
+    if (!track) throw new Error(`No track with id ${trackId}`)
+    return helper.call('audio.probe', { path: helper.toHelperPath(track.mixdownPath) })
+  })
+  helper.start()
+
+  app.on('will-quit', () => {
+    helper.stop()
+    db.close()
+  })
 
   createWindow()
   app.on('activate', () => {

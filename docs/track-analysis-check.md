@@ -10,11 +10,11 @@ Times are minutes:seconds into the excerpt. Bars count from 1.
 
 | Track | BPM | Sections | Key and mood |
 |---|---|---|---|
-| SUPERFLY (1:07) | 146.9 | intro 0:00, **build 0:14** (bar 10, unsure), **drop 0:25.4** (bar 17), breakdown 0:33.6 (bar 22), **drop 0:40.1** (bar 26) | G♯ major (low confidence), euphoric |
+| SUPERFLY (1:07) | 147.1 | intro 0:00, **build 0:07.5** (bar 6), **drop 0:25.4** (bar 17), breakdown 0:33.6 (bar 22), **drop 0:40.1** (bar 26) | G♯ major (low confidence), euphoric |
 | flip (1:12) | 134.1 | intro 0:00, **build 0:14.3** (bar 9), **drop 0:42.95** (bar 25) | C major, euphoric |
 | THE WAY I (0:55) | 140.0 | intro 0:00, **build 0:13.7** (bar 9), **drop 0:27.4** (bar 17) | C minor, moody |
 
-Each run took under 0.2 seconds on the cloud CPU. The beat model will add a few seconds on the GPU.
+Each run took under 0.2 seconds on the cloud CPU. The synthetic test track also checks out at 120, 124, 128, 140, 150, 160 and 174 BPM: tempo within 0.05 BPM, every downbeat within 15 ms, and all six sections labelled right. The beat model will add a few seconds on the GPU.
 
 ## Compared with markings
 
@@ -23,7 +23,7 @@ Aden hasn't marked these tracks yet. The only earlier reference is the visual-la
 | Track | Earlier reference | Analysis | Verdict |
 |---|---|---|---|
 | flip | 134 BPM, rise from ~0:15, drop 0:42.7 | 134.1 BPM, build 0:14.3, drop 0:42.95 | Agrees. The drop's sample-level energy jump is at 0:42.95, so 0:42.95 is the more exact time. |
-| SUPERFLY | none | two drops with a short gap between | Needs Aden's marks. This is the least certain track: its loudness only moves about 4 dB across the excerpt, and the build is marked unsure. |
+| SUPERFLY | none | two drops with a short gap between | Needs Aden's marks. This is the least certain track: its loudness only moves about 4 dB across the excerpt, and where the build starts is a guess. |
 | THE WAY I | none | build 0:13.7, drop 0:27.4 | Needs Aden's marks. The drop is a clear 8 dB lift in loudness and low end. |
 
 ## Build risk

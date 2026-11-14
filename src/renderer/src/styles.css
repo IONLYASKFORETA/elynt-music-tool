@@ -87,7 +87,8 @@ h2 { font-size: 12px; letter-spacing: 0.3em; text-transform: uppercase; color: v
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px 16px; margin-bottom: 12px; }
 .field { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--muted); }
 .field input, .field select { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; color: var(--text); font: inherit; font-size: 14px; padding: 9px 10px; }
-.field input:focus, .field select:focus { outline: none; border-color: #3db8ff; }
+.field textarea { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; color: var(--text); font: inherit; font-size: 14px; padding: 9px 10px; resize: vertical; }
+.field input:focus, .field select:focus, .field textarea:focus { outline: none; border-color: #3db8ff; }
 .label { display: block; font-size: 13px; color: var(--muted); margin: 4px 0 8px; }
 
 .chips { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -103,6 +104,15 @@ h2 { font-size: 12px; letter-spacing: 0.3em; text-transform: uppercase; color: v
 .profile-foot { display: flex; align-items: center; gap: 16px; padding-top: 12px; }
 .saved { color: #3dffb4; font-size: 14px; }
 .profile section > .field { margin-bottom: 12px; }
+.examples { display: flex; flex-direction: column; gap: 10px; margin-bottom: 12px; }
+.setup-check { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.setup-check li { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
+.setup-check li.setup-unmet { border-color: #ff6b8b; }
+.setup-check li.setup-met { border-color: #2a5c4a; }
+.setup-row { display: flex; justify-content: space-between; align-items: center; gap: 16px; font-size: 14px; }
+.setup-row select { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; color: var(--text); font: inherit; font-size: 14px; padding: 7px 10px; }
+.blocks { color: #ff9fb2; font-size: 13px; margin: 8px 0 0; }
+.past-release { border: 1px solid var(--line); border-radius: 8px; padding: 12px; margin-bottom: 12px; }
 
 .helper { margin-top: 8px; display: flex; gap: 10px; align-items: flex-start; padding: 12px; border-top: 1px solid var(--line); font-size: 12px; }
 .helper .dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 4px; flex: none; background: var(--muted); }

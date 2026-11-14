@@ -68,5 +68,17 @@ export const migrations: Migration[] = [
         updated_at         TEXT NOT NULL
       );
     `
+  },
+  {
+    version: 4,
+    name: 'artist profile voice, setup check and past releases',
+    // JSON text, read through createProfileStore. Older rows get the empty values.
+    sql: `
+      ALTER TABLE artist_profile ADD COLUMN voice TEXT NOT NULL
+        DEFAULT '{"examples":[],"tone":null,"emoji":null,"caps":null,"neverSay":[]}';
+      ALTER TABLE artist_profile ADD COLUMN setup_check TEXT NOT NULL
+        DEFAULT '{"customReleaseDates":null,"spotifyForArtistsClaimed":null,"tiktokArtistAccount":null,"soundcloudPlan":null}';
+      ALTER TABLE artist_profile ADD COLUMN past_releases TEXT NOT NULL DEFAULT '[]';
+    `
   }
 ]

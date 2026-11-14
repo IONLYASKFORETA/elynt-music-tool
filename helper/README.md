@@ -20,6 +20,10 @@ On Windows it runs inside WSL2 (ADR 0003). Python is pinned to 3.12.
 
 Native Windows instead: run `helper\setup-windows.ps1` and start the app with `ELYNT_HELPER_MODE=native`.
 
+## Stem splitting
+
+`stems.split` splits a mixdown into stems with BS-RoFormer SW (via `audio-separator`, installed by the setup scripts after PyTorch). The model (about 700 MB) downloads on the first split into `~/.elynt/models` (override with `ELYNT_MODEL_DIR`). It writes one WAV per stem into the folder the app gives it, drops stems that are silent all the way through, and sends progress lines while it works. One split runs at a time on the GPU.
+
 ## Settings
 
 | Variable | What it does |
@@ -31,7 +35,7 @@ Native Windows instead: run `helper\setup-windows.ps1` and start the app with `E
 
 ## Protocol
 
-One JSON object per line over stdin/stdout, described in `src/elynt_helper/server.py`. The calls are listed in `src/elynt_helper/methods.py` and mirrored as types in `src/shared/helper.ts`; change both together and bump the protocol version when a shape changes.
+One JSON object per line over stdin/stdout, described in `src/elynt_helper/server.py`. Each call runs on its own thread, and long calls send `progress` lines for their id before the answer. The calls are listed in `src/elynt_helper/methods.py` and mirrored as types in `src/shared/helper.ts`; change both together and bump the protocol version when a shape changes.
 
 ## Develop and test
 

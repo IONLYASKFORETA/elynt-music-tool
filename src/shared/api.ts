@@ -3,7 +3,9 @@ import type { ExportFormatId, ExportJob, ExportRequest, ExportResult } from './e
 import type { AudioProbe, HelperStatus } from './helper'
 import type { KeyName, KeyStatus, KeyTestResult } from './keys'
 import type { BackupStatus } from './backup'
+import type { MixSetup } from './mix-setup'
 import type { ArtistProfile } from './profile'
+import type { SplitJob, Stem } from './stems'
 import type { Track } from './track'
 
 /** What the preload script exposes to the UI as `window.elynt`. */
@@ -14,6 +16,22 @@ export interface ElyntApi {
     addFromPickedMixdown(): Promise<Track | null>
     /** The bytes of a track's mixdown file, for the Visualizer to decode and play. */
     readMixdown(trackId: number): Promise<Uint8Array>
+  }
+  /**
+   * A track's stems: all the owner's own, or all AI-split by the helper. Own stems always win.
+   * Each stem's `source` says which; the Mix & Master Assistant only uses 'own'.
+   */
+  stems: {
+    list(trackId: number): Promise<Stem[]>
+    /** Opens a multi-file picker; the picked stems replace any split set. Null if cancelled. */
+    attachPicked(trackId: number): Promise<Stem[] | null>
+    removeOwn(stemId: number): Promise<void>
+    /** Splits the mixdown in the helper if the track has no stems yet. Resolves when done. */
+    split(trackId: number): Promise<Stem[]>
+    /** Splits running or failed right now. */
+    jobs(): Promise<SplitJob[]>
+    /** Calls back as a split starts, reports progress, finishes ('done') or fails. Returns a function that stops listening. */
+    onJob(listener: (job: SplitJob | { trackId: number; state: 'done' }) => void): () => void
   }
   /** API keys live in the Windows credential vault. The UI can save and remove them but never read them back. */
   keys: {
@@ -55,6 +73,17 @@ export interface ElyntApi {
     checkFile(path: string, frame: number, renders: Uint8Array[], width: number, height: number): Promise<FileCheck>
     report(report: BenchReport): Promise<void>
   }
+  /** Mix & Master per-track setup: subgenre, loudness target and reference tracks. */
+  mixSetup: {
+    /** Null if the track was never set up. */
+    get(trackId: number): Promise<MixSetup | null>
+    /** Saves the whole setup. Rejects unknown values, missing files and more than 3 references. */
+    save(setup: MixSetup): Promise<MixSetup>
+    /** Opens a file picker for reference tracks. Resolves to the picked paths, empty if cancelled. */
+    pickReferenceTracks(): Promise<string[]>
+    /** The path on disk of a file dropped onto the window. */
+    pathForDroppedFile(file: File): string
+  }
   helper: {
     status(): Promise<HelperStatus>
     /** Calls back on every status change. Returns a function that stops listening. */
@@ -68,6 +97,12 @@ export const channels = {
   listTracks: 'tracks:list',
   addFromPickedMixdown: 'tracks:add-from-picked-mixdown',
   readMixdown: 'tracks:read-mixdown',
+  listStems: 'stems:list',
+  attachPickedStems: 'stems:attach-picked',
+  removeOwnStem: 'stems:remove-own',
+  splitStems: 'stems:split',
+  splitJobs: 'stems:jobs',
+  splitJobChanged: 'stems:job-changed',
   keyStatus: 'keys:status',
   saveKey: 'keys:save',
   removeKey: 'keys:remove',
@@ -77,6 +112,9 @@ export const channels = {
   exportEverything: 'backup:export-everything',
   getProfile: 'profile:get',
   saveProfile: 'profile:save',
+  getMixSetup: 'mix-setup:get',
+  saveMixSetup: 'mix-setup:save',
+  pickReferenceTracks: 'mix-setup:pick-reference-tracks',
   helperStatus: 'helper:status',
   helperStatusChanged: 'helper:status-changed',
   probeTrack: 'helper:probe-track',

@@ -6,7 +6,9 @@ import { BenchRunner } from './visualizer/BenchRunner'
 import { Preview } from './visualizer/Preview'
 import { ApiKeysPanel } from './ApiKeysPanel'
 import { BackupSettings } from './BackupSettings'
+import { MixSetupScreen } from './MixSetupScreen'
 import { ProfileScreen } from './ProfileScreen'
+import { TrackStems } from './TrackStems'
 
 const TOOLS = [
   { id: 'visualizer', name: 'Visualizer', nav: 'Visualizer', blurb: 'Turn a track into reactive visuals and render the video.' },
@@ -16,6 +18,9 @@ const TOOLS = [
 
 type ToolId = (typeof TOOLS)[number]['id']
 type View = ToolId | 'profile' | 'settings'
+
+/** Tools where picking a track opens it. */
+const PICKS_A_TRACK: readonly View[] = ['visualizer', 'mix-master']
 
 export function App() {
   const [bench, setBench] = useState<BenchConfig | null | undefined>(undefined)
@@ -31,7 +36,7 @@ function Suite() {
   const [active, setActive] = useState<View>('visualizer')
   const [tracks, setTracks] = useState<Track[]>([])
   const [error, setError] = useState<string | null>(null)
-  const [previewTrackId, setPreviewTrackId] = useState<number | null>(null)
+  const [pickedTrackId, setPickedTrackId] = useState<number | null>(null)
 
   const refresh = useCallback(async () => {
     setTracks(await window.elynt.tracks.list())
@@ -52,7 +57,8 @@ function Suite() {
   }
 
   const tool = TOOLS.find((s) => s.id === active)
-  const previewTrack = active === 'visualizer' ? tracks.find((t) => t.id === previewTrackId) : undefined
+  const pickedTrack = tracks.find((t) => t.id === pickedTrackId)
+  const picks = PICKS_A_TRACK.includes(active)
 
   return (
     <div className="shell">
@@ -122,20 +128,21 @@ function Suite() {
 
           {error && <p className="error">{error}</p>}
 
-          {previewTrack && <Preview key={previewTrack.id} track={previewTrack} />}
+          {active === 'visualizer' && pickedTrack && <Preview key={pickedTrack.id} track={pickedTrack} />}
+          {active === 'mix-master' && pickedTrack && <MixSetupScreen key={pickedTrack.id} track={pickedTrack} />}
 
-          <h2>{active === 'visualizer' && tracks.length > 0 ? 'Tracks · pick one to preview' : 'Tracks'}</h2>
+          <h2>{picks && tracks.length > 0 ? `Tracks · pick one to ${active === 'visualizer' ? 'preview' : 'open'}` : 'Tracks'}</h2>
           {tracks.length === 0 ? (
             <p className="empty">No tracks yet. Add one by picking its mixdown.</p>
           ) : (
             <ul className="tracks">
               {tracks.map((t) => (
                 <li key={t.id}>
-                  {active === 'visualizer' ? (
+                  {picks ? (
                     <button
-                      className={t.id === previewTrackId ? 'track-pick active' : 'track-pick'}
-                      aria-pressed={t.id === previewTrackId}
-                      onClick={() => setPreviewTrackId(t.id)}
+                      className={t.id === pickedTrackId ? 'track-pick active' : 'track-pick'}
+                      aria-pressed={t.id === pickedTrackId}
+                      onClick={() => setPickedTrackId(t.id)}
                     >
                       <span className="title">{t.title}</span>
                       <span className="path">{t.mixdownPath}</span>
@@ -147,6 +154,7 @@ function Suite() {
                     </>
                   )}
                   <MixdownFacts trackId={t.id} />
+                  <TrackStems trackId={t.id} />
                 </li>
               ))}
             </ul>

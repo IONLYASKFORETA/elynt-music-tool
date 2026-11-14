@@ -1,3 +1,4 @@
+import { titleFromFileName } from '../shared/paths'
 import type { Track } from '../shared/track'
 import type { SuiteDatabase } from './db/database'
 
@@ -37,13 +38,6 @@ export function createTrackLibrary(db: SuiteDatabase): TrackLibrary {
       return row ? toTrack(row) : null
     }
   }
-}
-
-/** "C:\\Bounces\\SUPERFLY.wav" -> "SUPERFLY". Handles Windows and POSIX separators. */
-function titleFromFileName(path: string): string {
-  const fileName = path.split(/[\\/]/).pop() ?? path
-  const dot = fileName.lastIndexOf('.')
-  return dot > 0 ? fileName.slice(0, dot) : fileName
 }
 
 function toTrack(row: TrackRow): Track {

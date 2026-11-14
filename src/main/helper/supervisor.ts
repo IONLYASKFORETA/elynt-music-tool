@@ -1,6 +1,6 @@
 import { spawn as nodeSpawn, type ChildProcess, type SpawnOptions } from 'node:child_process'
 import { HELPER_PROTOCOL_VERSION, type HelperMethod, type HelperMethods, type HelperStatus } from '../../shared/helper'
-import { createHelperClient, HelperCallError, type HelperClient } from './client'
+import { createHelperClient, HelperCallError, type CallOptions, type HelperClient } from './client'
 import type { HelperCommand } from './command'
 
 export interface HelperSupervisor {
@@ -11,7 +11,7 @@ export interface HelperSupervisor {
   status(): HelperStatus
   onStatus(listener: (status: HelperStatus) => void): () => void
   /** Calls the helper, waiting for it to finish starting if it is mid-start. */
-  call<M extends HelperMethod>(method: M, params: HelperMethods[M]['params'], options?: { timeoutMs?: number }): Promise<HelperMethods[M]['result']>
+  call<M extends HelperMethod>(method: M, params: HelperMethods[M]['params'], options?: CallOptions): Promise<HelperMethods[M]['result']>
   /** Maps an app path to the helper's view of it (Windows path to WSL path under WSL2). */
   toHelperPath(path: string): string
 }

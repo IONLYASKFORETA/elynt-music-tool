@@ -68,5 +68,51 @@ export const migrations: Migration[] = [
         updated_at         TEXT NOT NULL
       );
     `
+  },
+  {
+    version: 4,
+    name: 'artist profile voice, setup check and past releases',
+    // JSON text, read through createProfileStore. Older rows get the empty values.
+    sql: `
+      ALTER TABLE artist_profile ADD COLUMN voice TEXT NOT NULL
+        DEFAULT '{"examples":[],"tone":null,"emoji":null,"caps":null,"neverSay":[]}';
+      ALTER TABLE artist_profile ADD COLUMN setup_check TEXT NOT NULL
+        DEFAULT '{"customReleaseDates":null,"spotifyForArtistsClaimed":null,"tiktokArtistAccount":null,"soundcloudPlan":null}';
+      ALTER TABLE artist_profile ADD COLUMN past_releases TEXT NOT NULL DEFAULT '[]';
+    `
+  },
+  {
+    version: 5,
+    name: 'mix setup',
+    // Mix & Master per-track setup (M3). One row per track, written the first time it is set up.
+    // reference_tracks is a JSON list of file paths, in the order they were added.
+    sql: `
+      CREATE TABLE mix_setup (
+        track_id         INTEGER PRIMARY KEY REFERENCES tracks(id) ON DELETE CASCADE,
+        subgenre         TEXT,                        -- an id from src/shared/subgenres.ts
+        loudness_target  TEXT NOT NULL,               -- club or streaming
+        reference_tracks TEXT NOT NULL DEFAULT '[]',
+        updated_at       TEXT NOT NULL
+      );
+    `
+  },
+  {
+    version: 6,
+    name: 'stems',
+    // A track's stems, as file paths. source is 'own' (bounced by the owner) or 'split' (AI-split by the helper).
+    // A track holds one set at a time: the owner's own stems replace a split set.
+    sql: `
+      CREATE TABLE stems (
+        id        INTEGER PRIMARY KEY AUTOINCREMENT,
+        track_id  INTEGER NOT NULL REFERENCES tracks(id) ON DELETE CASCADE,
+        name      TEXT NOT NULL,
+        path      TEXT NOT NULL COLLATE NOCASE, -- Windows paths ignore case
+        source    TEXT NOT NULL CHECK (source IN ('own', 'split')),
+        model     TEXT,                         -- the separation model, for split stems
+        added_at  TEXT NOT NULL,
+        UNIQUE (track_id, path)
+      );
+      CREATE INDEX stems_track ON stems (track_id);
+    `
   }
 ]

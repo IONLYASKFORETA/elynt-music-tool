@@ -1,11 +1,23 @@
 import {
+  CAPS,
+  EMOJI_USE,
   emptyProfile,
+  emptySetupCheck,
+  emptyVoice,
   GOALS,
   MAX_REFERENCE_ARTISTS,
+  MAX_VOICE_EXAMPLE_LENGTH,
+  MAX_VOICE_EXAMPLES,
+  PAST_RELEASE_NUMBERS,
   PLATFORMS,
+  SOUNDCLOUD_PLANS,
+  TONES,
   type ArtistProfile,
   type GoalId,
-  type PlatformId
+  type PastRelease,
+  type PlatformId,
+  type SetupCheck,
+  type Voice
 } from '../shared/profile'
 import { isSubgenreId, MAX_OTHER_SUBGENRES, type SubgenreId } from '../shared/subgenres'
 import type { SuiteDatabase } from './db/database'
@@ -29,6 +41,9 @@ interface ProfileRow {
   platforms: string
   reference_artists: string
   default_goal: string | null
+  voice: string
+  setup_check: string
+  past_releases: string
   updated_at: string
 }
 
@@ -37,8 +52,9 @@ export function createProfileStore(db: SuiteDatabase, now: () => Date = () => ne
   const upsert = db.prepare(`
     INSERT INTO artist_profile (
       id, artist_name, links, main_subgenre, other_subgenres, followers, spotify_monthly_listeners,
-      budget_per_release, distributor, platforms, reference_artists, default_goal, updated_at
-    ) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      budget_per_release, distributor, platforms, reference_artists, default_goal,
+      voice, setup_check, past_releases, updated_at
+    ) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT (id) DO UPDATE SET
       artist_name = excluded.artist_name,
       links = excluded.links,
@@ -51,6 +67,9 @@ export function createProfileStore(db: SuiteDatabase, now: () => Date = () => ne
       platforms = excluded.platforms,
       reference_artists = excluded.reference_artists,
       default_goal = excluded.default_goal,
+      voice = excluded.voice,
+      setup_check = excluded.setup_check,
+      past_releases = excluded.past_releases,
       updated_at = excluded.updated_at
   `)
 
@@ -75,6 +94,9 @@ export function createProfileStore(db: SuiteDatabase, now: () => Date = () => ne
         JSON.stringify(p.platforms),
         JSON.stringify(p.referenceArtists),
         p.defaultGoal,
+        JSON.stringify(p.voice),
+        JSON.stringify(p.setupCheck),
+        JSON.stringify(p.pastReleases),
         now().toISOString()
       )
       return get()
@@ -129,8 +151,83 @@ export function normalizeProfile(input: ArtistProfile): ArtistProfile {
     platforms,
     referenceArtists,
     defaultGoal: goal as GoalId | null,
+    voice: normalizeVoice(input.voice ?? emptyVoice()),
+    setupCheck: normalizeSetupCheck(input.setupCheck ?? emptySetupCheck()),
+    pastReleases: normalizePastReleases(input.pastReleases ?? []),
     updatedAt: input.updatedAt
   }
+}
+
+function normalizeVoice(input: Voice): Voice {
+  const examples = input.examples.map((e) => e.trim()).filter(Boolean)
+  for (const e of examples) {
+    if (e.length > MAX_VOICE_EXAMPLE_LENGTH) {
+      throw new Error(`Each caption example must be at most ${MAX_VOICE_EXAMPLE_LENGTH} characters`)
+    }
+  }
+  if (examples.length > MAX_VOICE_EXAMPLES) throw new Error(`Keep at most ${MAX_VOICE_EXAMPLES} caption examples`)
+  const seen = new Set<string>()
+  const neverSay: string[] = []
+  for (const raw of input.neverSay) {
+    const word = raw.trim()
+    if (word && !seen.has(word.toLowerCase())) {
+      seen.add(word.toLowerCase())
+      neverSay.push(word)
+    }
+  }
+  return {
+    examples,
+    tone: choice(input.tone, TONES, 'tone'),
+    emoji: choice(input.emoji, EMOJI_USE, 'emoji use'),
+    caps: choice(input.caps, CAPS, 'caps'),
+    neverSay
+  }
+}
+
+function normalizeSetupCheck(input: SetupCheck): SetupCheck {
+  return {
+    customReleaseDates: yesNo(input.customReleaseDates),
+    spotifyForArtistsClaimed: yesNo(input.spotifyForArtistsClaimed),
+    tiktokArtistAccount: yesNo(input.tiktokArtistAccount),
+    soundcloudPlan: choice(input.soundcloudPlan, SOUNDCLOUD_PLANS, 'SoundCloud plan')
+  }
+}
+
+function normalizePastReleases(input: PastRelease[]): PastRelease[] {
+  const rows: PastRelease[] = []
+  for (const r of input) {
+    const title = text(r.title)
+    const releasedOn = text(r.releasedOn)
+    const numbers = PAST_RELEASE_NUMBERS.map(({ key, name }) => [key, count0(r[key], name)] as const)
+    if (title === null && releasedOn === null && numbers.every(([, n]) => n === null)) continue
+    if (title === null) throw new Error('Give each past single a title')
+    if (releasedOn === null || !isCalendarDate(releasedOn)) {
+      throw new Error(`Give "${title}" a release date (year, month and day)`)
+    }
+    rows.push({ title, releasedOn, ...(Object.fromEntries(numbers) as Omit<PastRelease, 'title' | 'releasedOn'>) })
+  }
+  // Newest first; ISO dates sort as text.
+  return rows.sort((a, b) => b.releasedOn.localeCompare(a.releasedOn))
+}
+
+function isCalendarDate(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
+  const d = new Date(`${value}T00:00:00Z`)
+  return !Number.isNaN(d.getTime()) && d.toISOString().startsWith(value)
+}
+
+function choice<T extends string>(
+  value: T | null | undefined,
+  options: ReadonlyArray<{ id: string }>,
+  label: string
+): T | null {
+  if (value === null || value === undefined) return null
+  if (!options.some((o) => o.id === value)) throw new Error(`Unknown ${label}: ${String(value)}`)
+  return value
+}
+
+function yesNo(value: boolean | null | undefined): boolean | null {
+  return typeof value === 'boolean' ? value : null
 }
 
 function fromRow(row: ProfileRow): ArtistProfile {
@@ -147,6 +244,9 @@ function fromRow(row: ProfileRow): ArtistProfile {
     platforms: (JSON.parse(row.platforms) as unknown[]).filter(isPlatformId),
     referenceArtists: JSON.parse(row.reference_artists),
     defaultGoal: GOALS.some((g) => g.id === row.default_goal) ? (row.default_goal as GoalId) : null,
+    voice: { ...emptyVoice(), ...JSON.parse(row.voice) },
+    setupCheck: { ...emptySetupCheck(), ...JSON.parse(row.setup_check) },
+    pastReleases: JSON.parse(row.past_releases),
     updatedAt: row.updated_at
   }
 }

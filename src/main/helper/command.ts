@@ -1,4 +1,4 @@
-import { join } from 'node:path'
+import { posix, win32 } from 'node:path'
 
 /** How to start the helper, and how to hand it file paths. */
 export interface HelperCommand {
@@ -43,8 +43,11 @@ export function resolveHelperCommand({ platform, appRoot, env }: ResolveOptions)
     }
   }
 
+  // Join with the target platform's separator, not the one this code happens to run on.
   const venvPython =
-    platform === 'win32' ? join(appRoot, 'helper', '.venv', 'Scripts', 'python.exe') : join(appRoot, 'helper', '.venv', 'bin', 'python')
+    platform === 'win32'
+      ? win32.join(appRoot, 'helper', '.venv', 'Scripts', 'python.exe')
+      : posix.join(appRoot, 'helper', '.venv', 'bin', 'python')
   return {
     mode,
     command: env['ELYNT_HELPER_PYTHON'] ?? venvPython,

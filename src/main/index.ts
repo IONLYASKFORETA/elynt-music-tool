@@ -2,6 +2,7 @@ import { app, BrowserWindow, dialog, ipcMain } from 'electron'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { channels } from '../shared/api'
+import { createAnalysisQueue, createTrackAnalysisStore } from './analysis'
 import { createBackups } from './backup'
 import { openSuiteDatabase } from './db/database'
 import { resolveHelperCommand } from './helper/command'
@@ -71,13 +72,34 @@ function start(): void {
     }
     const result = parent ? await dialog.showOpenDialog(parent, options) : await dialog.showOpenDialog(options)
     const [path] = result.filePaths
-    return result.canceled || !path ? null : tracks.addFromMixdown(path)
+    if (result.canceled || !path) return null
+    const track = tracks.addFromMixdown(path)
+    // A new track is analysed straight away; picking a known one again doesn't redo it.
+    if (!analysisStore.get(track.id)) analysis.enqueue(track.id)
+    return track
   })
 
   // The Python helper does the heavy work (ADR 0001). It runs under WSL2 on Windows (ADR 0003).
   const helper = createHelperSupervisor({
     command: resolveHelperCommand({ platform: process.platform, appRoot: app.getAppPath(), env: process.env })
   })
+
+  // Track analysis (V1) is saved on the track, so every tool reads the same sections.
+  const analysisStore = createTrackAnalysisStore(db)
+  const analysis = createAnalysisQueue({
+    store: analysisStore,
+    tracks,
+    helper,
+    onChange: (state) => {
+      for (const win of BrowserWindow.getAllWindows()) win.webContents.send(channels.analysisChanged, state)
+    }
+  })
+  ipcMain.handle(channels.getAnalysis, (_event, trackId: number) => analysisStore.get(trackId))
+  ipcMain.handle(channels.rerunAnalysis, (_event, trackId: number) => {
+    if (!tracks.get(trackId)) throw new Error(`No track with id ${trackId}`)
+    return analysis.enqueue(trackId)
+  })
+  analysis.resume()
   helper.onStatus((status) => {
     for (const win of BrowserWindow.getAllWindows()) win.webContents.send(channels.helperStatusChanged, status)
   })

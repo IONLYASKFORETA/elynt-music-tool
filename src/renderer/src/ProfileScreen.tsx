@@ -1,13 +1,26 @@
 import { useEffect, useState } from 'react'
 import {
+  CAPS,
   DEFAULT_GOAL,
   DISTRIBUTORS,
+  EMOJI_USE,
+  emptyPastRelease,
   GOALS,
   MAX_REFERENCE_ARTISTS,
+  PAST_RELEASE_NUMBERS,
+  parseNeverSay,
   PLATFORMS,
+  setupStatus,
+  SOUNDCLOUD_PLANS,
+  SUGGESTED_VOICE_EXAMPLES,
+  TONES,
   type ArtistProfile,
   type GoalId,
-  type PlatformId
+  type PastRelease,
+  type PlatformId,
+  type SetupCheck,
+  type SetupItemId,
+  type Voice
 } from '../../shared/profile'
 import {
   makeMainSubgenre,
@@ -22,11 +35,16 @@ export function ProfileScreen() {
   const [profile, setProfile] = useState<ArtistProfile | null>(null)
   const [status, setStatus] = useState<{ kind: 'saved' | 'error'; text: string } | null>(null)
   const [saving, setSaving] = useState(false)
+  // Kept as typed, so a trailing comma survives while typing; parsed into the profile on change.
+  const [neverSayText, setNeverSayText] = useState('')
 
   useEffect(() => {
     window.elynt.profile
       .get()
-      .then(setProfile)
+      .then((p) => {
+        setProfile(p)
+        setNeverSayText(p.voice.neverSay.join(', '))
+      })
       .catch((e: unknown) => setStatus({ kind: 'error', text: String(e) }))
   }, [])
 
@@ -42,6 +60,7 @@ export function ProfileScreen() {
     try {
       const saved = await window.elynt.profile.save(profile)
       setProfile(saved)
+      setNeverSayText(saved.voice.neverSay.join(', '))
       setStatus({ kind: 'saved', text: 'Saved. Every tool now uses this profile.' })
     } catch (e) {
       setStatus({ kind: 'error', text: errorText(e) })
@@ -50,7 +69,17 @@ export function ProfileScreen() {
     }
   }
 
-  const { subgenres } = profile
+  const { subgenres, voice } = profile
+  const setVoice = (changes: Partial<Voice>) => change({ ...profile, voice: { ...voice, ...changes } })
+  const examples = [...voice.examples]
+  while (examples.length < SUGGESTED_VOICE_EXAMPLES.max) examples.push('')
+  const setSetup = (changes: Partial<SetupCheck>) =>
+    change({ ...profile, setupCheck: { ...profile.setupCheck, ...changes } })
+  const setPast = (i: number, changes: Partial<PastRelease>) =>
+    change({
+      ...profile,
+      pastReleases: profile.pastReleases.map((r, j) => (j === i ? { ...r, ...changes } : r))
+    })
   const refs = [...profile.referenceArtists]
   while (refs.length < MAX_REFERENCE_ARTISTS) refs.push('')
 
@@ -237,6 +266,107 @@ export function ProfileScreen() {
         </div>
       </section>
 
+      <section>
+        <h2>Voice</h2>
+        <p className="hint">
+          Paste {SUGGESTED_VOICE_EXAMPLES.min} to {SUGGESTED_VOICE_EXAMPLES.max} captions you wrote yourself, so the
+          Release Assistant's drafts sound like you.
+        </p>
+        <div className="examples">
+          {examples.map((text, i) => (
+            <label className="field" key={i}>
+              <span>Caption {i + 1}</span>
+              <textarea
+                rows={2}
+                value={text}
+                onChange={(e) => {
+                  const next = [...examples]
+                  next[i] = e.target.value
+                  setVoice({ examples: next })
+                }}
+              />
+            </label>
+          ))}
+        </div>
+        <div className="grid">
+          <Switch label="Tone" options={TONES} value={voice.tone} onChange={(tone) => setVoice({ tone })} />
+          <Switch label="Emoji" options={EMOJI_USE} value={voice.emoji} onChange={(emoji) => setVoice({ emoji })} />
+          <Switch label="Caps" options={CAPS} value={voice.caps} onChange={(caps) => setVoice({ caps })} />
+        </div>
+        <label className="field">
+          <span>Never say</span>
+          <input
+            value={neverSayText}
+            placeholder="Words or phrases drafts must never use, separated by commas"
+            onChange={(e) => {
+              setNeverSayText(e.target.value)
+              setVoice({ neverSay: parseNeverSay(e.target.value) })
+            }}
+          />
+        </label>
+      </section>
+
+      <section>
+        <h2>Setup check</h2>
+        <p className="hint">
+          Answer once, so blockers show up before your first release plan. Nothing here stops you starting a release.
+        </p>
+        <ul className="setup-check">
+          {setupStatus(profile).map((item) => (
+            <li key={item.id} className={`setup-${item.state}`}>
+              <div className="setup-row">
+                <span>{item.question}</span>
+                <SetupAnswer
+                  id={item.id}
+                  check={profile.setupCheck}
+                  onChange={setSetup}
+                />
+              </div>
+              {item.blocks && <p className="blocks">{item.blocks}</p>}
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      <section>
+        <h2>Past singles</h2>
+        <p className="hint">
+          Optional. Numbers from each single's first 28 days, so your first plan has something to compare against. Leave
+          any number blank.
+        </p>
+        {profile.pastReleases.map((r, i) => (
+          <div className="past-release" key={i}>
+            <div className="grid">
+              <label className="field">
+                <span>Title</span>
+                <input value={r.title} onChange={(e) => setPast(i, { title: e.target.value })} />
+              </label>
+              <label className="field">
+                <span>Release date</span>
+                <input type="date" value={r.releasedOn} onChange={(e) => setPast(i, { releasedOn: e.target.value })} />
+              </label>
+              {PAST_RELEASE_NUMBERS.map(({ key, name }) => (
+                <NumberField key={key} label={name} value={r[key]} onChange={(v) => setPast(i, { [key]: v })} />
+              ))}
+            </div>
+            <button
+              type="button"
+              className="link"
+              onClick={() => change({ ...profile, pastReleases: profile.pastReleases.filter((_, j) => j !== i) })}
+            >
+              Remove {r.title.trim() || 'this single'}
+            </button>
+          </div>
+        ))}
+        <button
+          type="button"
+          className="chip"
+          onClick={() => change({ ...profile, pastReleases: [...profile.pastReleases, emptyPastRelease()] })}
+        >
+          + Add a past single
+        </button>
+      </section>
+
       <footer className="profile-foot">
         <button className="add" type="submit" disabled={saving}>
           {saving ? 'Saving…' : 'Save profile'}
@@ -244,6 +374,64 @@ export function ProfileScreen() {
         {status && <span className={status.kind === 'error' ? 'error' : 'saved'}>{status.text}</span>}
       </footer>
     </form>
+  )
+}
+
+function Switch<T extends string>(props: {
+  label: string
+  options: ReadonlyArray<{ id: T; name: string }>
+  value: T | null
+  onChange(v: T | null): void
+}) {
+  return (
+    <label className="field">
+      <span>{props.label}</span>
+      <select value={props.value ?? ''} onChange={(e) => props.onChange((e.target.value || null) as T | null)}>
+        <option value="">Learn it from my captions</option>
+        {props.options.map((o) => (
+          <option key={o.id} value={o.id}>
+            {o.name}
+          </option>
+        ))}
+      </select>
+    </label>
+  )
+}
+
+function SetupAnswer(props: { id: SetupItemId; check: SetupCheck; onChange(c: Partial<SetupCheck>): void }) {
+  if (props.id === 'soundcloudPlan') {
+    return (
+      <select
+        value={props.check.soundcloudPlan ?? ''}
+        onChange={(e) =>
+          props.onChange({ soundcloudPlan: (e.target.value || null) as SetupCheck['soundcloudPlan'] })
+        }
+      >
+        <option value="">Not checked yet</option>
+        {SOUNDCLOUD_PLANS.map((p) => (
+          <option key={p.id} value={p.id}>
+            {p.name}
+          </option>
+        ))}
+      </select>
+    )
+  }
+  const id = props.id
+  const value = props.check[id]
+  return (
+    <div className="chips" role="group">
+      {([true, false] as const).map((answer) => (
+        <button
+          type="button"
+          key={String(answer)}
+          className={value === answer ? 'chip on' : 'chip'}
+          aria-pressed={value === answer}
+          onClick={() => props.onChange({ [id]: value === answer ? null : answer })}
+        >
+          {answer ? 'Yes' : 'No'}
+        </button>
+      ))}
+    </div>
   )
 }
 

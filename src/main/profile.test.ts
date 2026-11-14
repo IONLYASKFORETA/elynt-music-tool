@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { emptyProfile, type ArtistProfile } from '../shared/profile'
+import { emptyPastRelease, emptyProfile, type ArtistProfile } from '../shared/profile'
 import { openSuiteDatabase, type SuiteDatabase } from './db/database'
 import { createProfileStore } from './profile'
 
@@ -149,5 +149,131 @@ describe('artist profile', () => {
     expect(() =>
       createProfileStore(db).save(profile({ referenceArtists: ['A', 'B', 'C', 'D'] }))
     ).toThrow(/at most 3/)
+  })
+
+  describe('voice (R7)', () => {
+    it('saves examples, switches and never-say words and keeps them after reopening', () => {
+      const voice = {
+        examples: ['new one friday 🔊', 'this drop is unwell', 'link in bio, go'],
+        tone: 'hype' as const,
+        emoji: 'some' as const,
+        caps: 'lowercase' as const,
+        neverSay: ['banger', 'fire']
+      }
+      createProfileStore(db, fixedNow).save(profile({ voice }))
+      db.close()
+      db = openSuiteDatabase(join(dir, 'elynt.sqlite'))
+
+      expect(createProfileStore(db).get().voice).toEqual(voice)
+    })
+
+    it('drops blank examples, keeps line breaks inside one, and dedupes never-say words ignoring case', () => {
+      const saved = createProfileStore(db).save(
+        profile({
+          voice: {
+            examples: ['  ', ' line one\nline two ', ''],
+            tone: null,
+            emoji: null,
+            caps: null,
+            neverSay: [' Banger ', 'banger', '', 'fire']
+          }
+        })
+      )
+
+      expect(saved.voice.examples).toEqual(['line one\nline two'])
+      expect(saved.voice.neverSay).toEqual(['Banger', 'fire'])
+    })
+
+    it('refuses unknown switches and over-long examples', () => {
+      const store = createProfileStore(db)
+      const voice = emptyProfile().voice
+
+      expect(() => store.save(profile({ voice: { ...voice, tone: 'angry' as never } }))).toThrow(/tone/)
+      expect(() => store.save(profile({ voice: { ...voice, examples: ['x'.repeat(2201)] } }))).toThrow(/2200/)
+    })
+  })
+
+  describe('setup check (R7)', () => {
+    it('saves its answers', () => {
+      const setupCheck = {
+        customReleaseDates: true,
+        spotifyForArtistsClaimed: false,
+        tiktokArtistAccount: null,
+        soundcloudPlan: 'free' as const
+      }
+      createProfileStore(db).save(profile({ setupCheck }))
+
+      expect(createProfileStore(db).get().setupCheck).toEqual(setupCheck)
+    })
+
+    it('refuses a SoundCloud plan it does not know', () => {
+      const bad = profile({ setupCheck: { ...emptyProfile().setupCheck, soundcloudPlan: 'next-pro' as never } })
+
+      expect(() => createProfileStore(db).save(bad)).toThrow(/SoundCloud plan/)
+    })
+  })
+
+  describe('past releases (R7)', () => {
+    it('saves singles with a date and optional numbers, newest first', () => {
+      const saved = createProfileStore(db).save(
+        profile({
+          pastReleases: [
+            { ...emptyPastRelease(), title: ' Older ', releasedOn: '2025-03-07', spotifyStreams: 1200 },
+            {
+              title: 'Newer',
+              releasedOn: '2026-06-12',
+              spotifyStreams: 3400,
+              spotifySaves: 210,
+              soundcloudPlays: null,
+              followersGained: 45
+            }
+          ]
+        })
+      )
+
+      expect(saved.pastReleases.map((r) => [r.title, r.releasedOn])).toEqual([
+        ['Newer', '2026-06-12'],
+        ['Older', '2025-03-07']
+      ])
+      expect(createProfileStore(db).get().pastReleases[1]).toEqual({
+        ...emptyPastRelease(),
+        title: 'Older',
+        releasedOn: '2025-03-07',
+        spotifyStreams: 1200
+      })
+    })
+
+    it('drops rows left completely blank', () => {
+      const saved = createProfileStore(db).save(profile({ pastReleases: [emptyPastRelease()] }))
+
+      expect(saved.pastReleases).toEqual([])
+    })
+
+    it('needs a title and a real date on any row that has something in it', () => {
+      const store = createProfileStore(db)
+
+      expect(() =>
+        store.save(profile({ pastReleases: [{ ...emptyPastRelease(), releasedOn: '2026-01-02' }] }))
+      ).toThrow(/title/)
+      expect(() =>
+        store.save(profile({ pastReleases: [{ ...emptyPastRelease(), title: 'X', releasedOn: '2026-02-30' }] }))
+      ).toThrow(/date/)
+      expect(() =>
+        store.save(
+          profile({ pastReleases: [{ ...emptyPastRelease(), title: 'X', releasedOn: '2026-02-03', spotifySaves: -1 }] })
+        )
+      ).toThrow(/Spotify saves/)
+    })
+  })
+
+  it('reads the R7 fields as empty from a profile saved before they existed', () => {
+    db.prepare("INSERT INTO artist_profile (id, artist_name, updated_at) VALUES (1, 'Old', '2026-11-13T00:00:00.000Z')").run()
+
+    expect(createProfileStore(db).get()).toMatchObject({
+      artistName: 'Old',
+      voice: emptyProfile().voice,
+      setupCheck: emptyProfile().setupCheck,
+      pastReleases: []
+    })
   })
 })

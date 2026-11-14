@@ -3,10 +3,12 @@ import { join } from 'node:path'
 import { channels } from '../shared/api'
 import { createBackups } from './backup'
 import { openSuiteDatabase } from './db/database'
+import { createProfileStore } from './profile'
 import { isKeyName } from '../shared/keys'
 import { ClaudeError, createClaudeClient, createUsageLog } from './claude'
 import { createApiKeys } from './keys/api-keys'
 import { createCredentialVault } from './keys/key-vault'
+import type { ArtistProfile } from '../shared/profile'
 import { createTrackLibrary } from './tracks'
 
 const MIXDOWN_EXTENSIONS = ['wav', 'aif', 'aiff', 'flac', 'mp3']
@@ -45,6 +47,7 @@ function start(): void {
   // One SQLite file for the whole suite, in the app's data folder (ADR 0002).
   const db = openSuiteDatabase(join(app.getPath('userData'), 'elynt.sqlite'))
   const tracks = createTrackLibrary(db)
+  const profile = createProfileStore(db)
 
   ipcMain.handle(channels.listTracks, () => tracks.list())
   ipcMain.handle(channels.addFromPickedMixdown, async (event) => {
@@ -123,6 +126,9 @@ function start(): void {
     backups.exportEverything(result.filePath)
     return result.filePath
   })
+
+  ipcMain.handle(channels.getProfile, () => profile.get())
+  ipcMain.handle(channels.saveProfile, (_event, input: ArtistProfile) => profile.save(input))
 
   app.on('will-quit', () => {
     clearInterval(backupTimer)

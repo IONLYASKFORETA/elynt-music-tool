@@ -1,5 +1,6 @@
 import type { KeyName, KeyStatus, KeyTestResult } from './keys'
 import type { BackupStatus } from './backup'
+import type { ArtistProfile } from './profile'
 import type { Track } from './track'
 
 /** What the preload script exposes to the UI as `window.elynt`. */
@@ -24,6 +25,12 @@ export interface ElyntApi {
     /** Opens a save dialog and writes the whole database to one file. Resolves to its path, or null if cancelled. */
     exportEverything(): Promise<string | null>
   }
+  /** The suite's one artist profile, read by every tool. */
+  profile: {
+    get(): Promise<ArtistProfile>
+    /** Saves the whole profile, half-filled or not. Rejects values the suite doesn't know. */
+    save(profile: ArtistProfile): Promise<ArtistProfile>
+  }
 }
 
 export const channels = {
@@ -35,5 +42,7 @@ export const channels = {
   testAnthropicKey: 'keys:test-anthropic',
   backupStatus: 'backup:status',
   chooseBackupFolder: 'backup:choose-folder',
-  exportEverything: 'backup:export-everything'
+  exportEverything: 'backup:export-everything',
+  getProfile: 'profile:get',
+  saveProfile: 'profile:save'
 } as const

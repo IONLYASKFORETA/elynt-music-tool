@@ -46,5 +46,27 @@ export const migrations: Migration[] = [
       CREATE INDEX api_usage_track ON api_usage (track_id);
       CREATE INDEX api_usage_release ON api_usage (release_id);
     `
+  },
+  {
+    version: 3,
+    name: 'artist profile',
+    // One suite-wide row (id is always 1). List and map fields are JSON text.
+    sql: `
+      CREATE TABLE artist_profile (
+        id                 INTEGER PRIMARY KEY CHECK (id = 1),
+        artist_name        TEXT,
+        links              TEXT NOT NULL DEFAULT '{}',
+        main_subgenre      TEXT,
+        other_subgenres    TEXT NOT NULL DEFAULT '[]',
+        followers          TEXT NOT NULL DEFAULT '{}',
+        spotify_monthly_listeners INTEGER,
+        budget_per_release REAL,
+        distributor        TEXT,
+        platforms          TEXT NOT NULL DEFAULT '[]',
+        reference_artists  TEXT NOT NULL DEFAULT '[]',
+        default_goal       TEXT,
+        updated_at         TEXT NOT NULL
+      );
+    `
   }
 ]

@@ -16,6 +16,10 @@ const api: ElyntApi = {
     status: () => ipcRenderer.invoke(channels.backupStatus),
     chooseFolder: () => ipcRenderer.invoke(channels.chooseBackupFolder),
     exportEverything: () => ipcRenderer.invoke(channels.exportEverything)
+  },
+  profile: {
+    get: () => ipcRenderer.invoke(channels.getProfile),
+    save: (profile) => ipcRenderer.invoke(channels.saveProfile, profile)
   }
 }
 

@@ -11,7 +11,7 @@ dependencies = [
 [dependency-groups]
 dev = ["pytest>=8"]
 
-# PyTorch is not listed here: it comes from PyTorch's own CUDA 12.8 index, which the
+# PyTorch is not listed here: it comes from PyTorch's own CUDA 13.0 index (torch 2.13, to match NATTEN's wheels), which the
 # setup scripts install with `uv pip install` after `uv sync --inexact` (see helper/README.md).
 # Keeping it out of the lockfile keeps CI and the lock small.
 

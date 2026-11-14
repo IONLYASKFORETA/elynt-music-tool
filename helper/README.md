@@ -7,15 +7,16 @@ On Windows it runs inside WSL2 (ADR 0003). Python is pinned to 3.12.
 ## Set it up on Aden's PC (WSL2, the default)
 
 1. Install WSL2 with Ubuntu if it isn't there yet, from PowerShell: `wsl --install -d Ubuntu`, then restart.
-2. Make sure the NVIDIA Windows driver is current. Don't install a Linux NVIDIA driver inside WSL; the Windows one covers it.
-3. Open Ubuntu and run this repo's setup script (the repo is visible under `/mnt/c/...` or `/mnt/d/...`):
+2. In Ubuntu, install a C compiler for the packages that build from source: `sudo apt update && sudo apt install -y build-essential`.
+3. Make sure the NVIDIA Windows driver is current. Don't install a Linux NVIDIA driver inside WSL; the Windows one covers it.
+4. Open Ubuntu and run this repo's setup script (the repo is visible under `/mnt/c/...` or `/mnt/d/...`):
 
    ```sh
    bash /mnt/c/path/to/elynt-music-tool/helper/setup-wsl.sh
    ```
 
-   It installs `uv`, makes a venv at `~/.elynt/helper-venv`, installs the helper and the CUDA 12.8 build of PyTorch, then prints the helper's own report. Look for `"available":true` and `RTX 5080` in the `gpu` part.
-4. Start the app (`npm run dev`). The sidebar should say **Helper running** with the GPU name.
+   It installs `uv`, makes a venv at `~/.elynt/helper-venv`, installs the helper, PyTorch 2.13 (CUDA 13.0) and NATTEN's matching wheel, then prints the helper's own report. Look for `"available":true` and `RTX 5080` in the `gpu` part.
+5. Start the app (`npm run dev`). The sidebar should say **Helper running** with the GPU name.
 
 Native Windows instead: run `helper\setup-windows.ps1` and start the app with `ELYNT_HELPER_MODE=native`.
 

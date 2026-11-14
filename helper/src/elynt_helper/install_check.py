@@ -26,11 +26,20 @@ import urllib.request
 from dataclasses import dataclass, field
 from pathlib import Path
 
-TORCH_INDEX = "https://download.pytorch.org/whl/cu128"
+# NATTEN only publishes wheels for the two newest torch releases, on its own index, and not
+# for CUDA 12.8. torch 2.13 + CUDA 13.0 has a NATTEN wheel and supports the RTX 5080.
+TORCH_VERSION = "2.13.0"
+TORCH_INDEX = "https://download.pytorch.org/whl/cu130"
+NATTEN_WHEEL = "natten==0.21.7+torch2130cu130"
+NATTEN_INDEX = "https://whl.natten.org"
 SONGFORMER_REQUIREMENTS = "https://raw.githubusercontent.com/ASLP-lab/SongFormer/main/requirements.txt"
 # SongFormer pins torch 2.4, which predates Blackwell (RTX 50 series) support.
-# We keep our CUDA 12.8 torch and install the rest of its list around it.
+# We keep our CUDA 13.0 torch and install the rest of its list around it.
 SONGFORMER_SKIP = ("torch", "torchaudio", "torchvision")
+# Pins in its list that can't install on Python 3.12 (found 2026-11-14):
+# - numpy==1.25.0 contradicts pandas==2.2.3, which needs numpy>=1.26.
+# - jams==0.3.4 is source-only and its setup.py imports `imp`, gone in 3.12; 0.3.5 ships a wheel.
+SONGFORMER_OVERRIDES = {"numpy": "numpy>=1.26,<2", "jams": "jams>=0.3.5"}
 
 
 @dataclass
@@ -86,9 +95,9 @@ class Checker:
         if not self.step("Python 3.12 venv", [["uv", "venv", "--python", "3.12", str(self.venv)]]):
             return
         self.step(
-            "PyTorch (CUDA 12.8) sees the GPU",
+            f"PyTorch {TORCH_VERSION} (CUDA 13.0) sees the GPU",
             [
-                self.pip("torch", "torchaudio", "--index-url", TORCH_INDEX),
+                self.pip(f"torch=={TORCH_VERSION}", f"torchaudio=={TORCH_VERSION}", "--index-url", TORCH_INDEX),
                 self.py(
                     "import torch; assert torch.cuda.is_available(), 'CUDA not available'; "
                     "print(torch.__version__, torch.cuda.get_device_name(0))"
@@ -100,10 +109,10 @@ class Checker:
         self.step(
             "NATTEN",
             [
-                self.pip("natten", "--no-build-isolation"),
+                self.pip(NATTEN_WHEEL, "--find-links", NATTEN_INDEX),
                 self.py("import natten; print(natten.__version__)"),
             ],
-            note="Builds against the installed torch; needs the CUDA toolkit if no wheel matches.",
+            note=f"Prebuilt wheel {NATTEN_WHEEL} from {NATTEN_INDEX}. NATTEN publishes Linux wheels only.",
         )
         self.songformer()
 
@@ -115,13 +124,13 @@ class Checker:
         except OSError as e:
             self.steps.append(Step("SongFormer requirements", False, time.monotonic() - start, tail=[str(e)]))
             return
-        keep = [line for line in lines if requirement_name(line) not in ("", *SONGFORMER_SKIP)]
+        keep = songformer_requirements(lines)
         req = self.workdir / "songformer-requirements.txt"
         req.write_text("\n".join(keep) + "\n")
         self.step(
             "SongFormer requirements",
             [self.pip("-r", str(req))],
-            note="Installs SongFormer's pinned list minus torch/torchaudio (kept at the CUDA 12.8 build).",
+            note="Installs SongFormer's pinned list minus torch/torchaudio (kept at the CUDA 13.0 build), with the numpy and jams pins fixed for Python 3.12.",
         )
 
 
@@ -129,6 +138,17 @@ def requirement_name(line: str) -> str:
     """The package name of a requirements.txt line, lowercased; "" for blanks and comments."""
     match = re.match(r"\s*([A-Za-z0-9][A-Za-z0-9._-]*)", line.split("#", 1)[0])
     return match.group(1).lower() if match else ""
+
+
+def songformer_requirements(lines: list[str]) -> list[str]:
+    """SongFormer's requirements.txt without torch, and with its broken pins replaced."""
+    out = []
+    for line in lines:
+        name = requirement_name(line)
+        if name in ("", *SONGFORMER_SKIP):
+            continue
+        out.append(SONGFORMER_OVERRIDES.get(name, line.strip()))
+    return out
 
 
 def gpu_line() -> str:

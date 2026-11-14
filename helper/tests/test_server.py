@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from elynt_helper.install_check import requirement_name
+from elynt_helper.install_check import requirement_name, songformer_requirements
 from elynt_helper.server import handle_line
 
 
@@ -81,3 +81,8 @@ def test_process_says_ready_then_answers_in_order(tmp_path):
 )
 def test_requirement_name(line, name):
     assert requirement_name(line) == name
+
+
+def test_songformer_requirements_drop_torch_and_fix_numpy():
+    lines = ["# Core", "torch==2.4.0", "torchaudio==2.4.0", "numpy==1.25.0", "pandas==2.2.3", "jams==0.3.4", ""]
+    assert songformer_requirements(lines) == ["numpy>=1.26,<2", "pandas==2.2.3", "jams>=0.3.5"]

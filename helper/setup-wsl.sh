@@ -15,7 +15,9 @@ fi
 
 export UV_PROJECT_ENVIRONMENT="$VENV"
 uv sync --inexact --python 3.12
-uv pip install --python "$VENV/bin/python" torch torchaudio --index-url https://download.pytorch.org/whl/cu128
+uv pip install --python "$VENV/bin/python" torch==2.13.0 torchaudio==2.13.0 --index-url https://download.pytorch.org/whl/cu130
+# NATTEN (used by section analysis) only ships prebuilt wheels for specific torch + CUDA builds.
+uv pip install --python "$VENV/bin/python" "natten==0.21.7+torch2130cu130" --find-links https://whl.natten.org
 
 echo
 echo "Helper venv ready at $VENV. Checking it:"

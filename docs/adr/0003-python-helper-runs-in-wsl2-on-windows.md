@@ -4,7 +4,7 @@ The heavy-work helper from ADR 0001 runs as a Linux process inside WSL2 on Aden'
 
 ## Consequences
 
-- Python is pinned to 3.12 (pyebur128 and the analysis stack target it). PyTorch comes from PyTorch's CUDA 12.8 index, since the RTX 50 series (Blackwell) needs torch 2.7 or newer.
+- Python is pinned to 3.12 (pyebur128 and the analysis stack target it). PyTorch is pinned to 2.13 from PyTorch's CUDA 13.0 index. The RTX 50 series (Blackwell) needs CUDA 12.8 or newer, and NATTEN only publishes wheels (Linux only, on whl.natten.org) for the two newest torch releases and specific CUDA builds, so torch moves only when NATTEN has a wheel for the new version.
 - SongFormer pins torch 2.4, which predates Blackwell. We install its other requirements and keep our newer torch.
 - The app turns Windows paths into WSL paths before sending them (`D:\Music Projects\x.wav` becomes `/mnt/d/Music Projects/x.wav`). Network paths (`\\nas\...`) aren't supported.
 - Reading audio from `/mnt/<drive>` is slower than from WSL's own disk. That's fine for analysis; revisit if stem separation turns out to be I/O bound.

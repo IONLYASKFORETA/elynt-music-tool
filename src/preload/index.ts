@@ -11,6 +11,11 @@ const api: ElyntApi = {
     save: (name, value) => ipcRenderer.invoke(channels.saveKey, name, value),
     remove: (name) => ipcRenderer.invoke(channels.removeKey, name),
     testAnthropic: () => ipcRenderer.invoke(channels.testAnthropicKey)
+  },
+  backup: {
+    status: () => ipcRenderer.invoke(channels.backupStatus),
+    chooseFolder: () => ipcRenderer.invoke(channels.chooseBackupFolder),
+    exportEverything: () => ipcRenderer.invoke(channels.exportEverything)
   }
 }
 

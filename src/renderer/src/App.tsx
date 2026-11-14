@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { Track } from '../../shared/track'
 import { ApiKeysPanel } from './ApiKeysPanel'
+import { BackupSettings } from './BackupSettings'
 
 const TOOLS = [
   { id: 'visualizer', name: 'Visualizer', nav: 'Visualizer', blurb: 'Turn a track into reactive visuals and render the video.' },
@@ -9,10 +10,10 @@ const TOOLS = [
 ] as const
 
 type ToolId = (typeof TOOLS)[number]['id']
+type View = ToolId | 'settings'
 
 export function App() {
-  const [active, setActive] = useState<ToolId>('visualizer')
-  const [view, setView] = useState<'tool' | 'settings'>('tool')
+  const [active, setActive] = useState<View>('visualizer')
   const [tracks, setTracks] = useState<Track[]>([])
   const [error, setError] = useState<string | null>(null)
 
@@ -34,7 +35,7 @@ export function App() {
     }
   }
 
-  const tool = TOOLS.find((s) => s.id === active)!
+  const tool = TOOLS.find((s) => s.id === active)
 
   return (
     <div className="shell">
@@ -45,26 +46,23 @@ export function App() {
         {TOOLS.map((s) => (
           <button
             key={s.id}
-            className={view === 'tool' && s.id === active ? 'nav-item active' : 'nav-item'}
-            aria-current={view === 'tool' && s.id === active ? 'page' : undefined}
-            onClick={() => {
-              setActive(s.id)
-              setView('tool')
-            }}
+            className={s.id === active ? 'nav-item active' : 'nav-item'}
+            aria-current={s.id === active ? 'page' : undefined}
+            onClick={() => setActive(s.id)}
           >
             {s.nav}
           </button>
         ))}
         <button
-          className={view === 'settings' ? 'nav-item nav-settings active' : 'nav-item nav-settings'}
-          aria-current={view === 'settings' ? 'page' : undefined}
-          onClick={() => setView('settings')}
+          className={active === 'settings' ? 'nav-item nav-settings active' : 'nav-item nav-settings'}
+          aria-current={active === 'settings' ? 'page' : undefined}
+          onClick={() => setActive('settings')}
         >
           Settings
         </button>
       </nav>
 
-      {view === 'settings' && (
+      {!tool ? (
         <main className="tool">
           <header className="tool-head">
             <div>
@@ -73,36 +71,37 @@ export function App() {
             </div>
           </header>
           <ApiKeysPanel />
+          <BackupSettings />
+        </main>
+      ) : (
+        <main className="tool">
+          <header className="tool-head">
+            <div>
+              <h1>{tool.name}</h1>
+              <p>{tool.blurb}</p>
+            </div>
+            <button className="add" onClick={addTrack}>
+              + Add track
+            </button>
+          </header>
+
+          {error && <p className="error">{error}</p>}
+
+          <h2>Tracks</h2>
+          {tracks.length === 0 ? (
+            <p className="empty">No tracks yet. Add one by picking its mixdown.</p>
+          ) : (
+            <ul className="tracks">
+              {tracks.map((t) => (
+                <li key={t.id}>
+                  <span className="title">{t.title}</span>
+                  <span className="path">{t.mixdownPath}</span>
+                </li>
+              ))}
+            </ul>
+          )}
         </main>
       )}
-
-      <main className="tool" hidden={view !== 'tool'}>
-        <header className="tool-head">
-          <div>
-            <h1>{tool.name}</h1>
-            <p>{tool.blurb}</p>
-          </div>
-          <button className="add" onClick={addTrack}>
-            + Add track
-          </button>
-        </header>
-
-        {error && <p className="error">{error}</p>}
-
-        <h2>Tracks</h2>
-        {tracks.length === 0 ? (
-          <p className="empty">No tracks yet. Add one by picking its mixdown.</p>
-        ) : (
-          <ul className="tracks">
-            {tracks.map((t) => (
-              <li key={t.id}>
-                <span className="title">{t.title}</span>
-                <span className="path">{t.mixdownPath}</span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </main>
     </div>
   )
 }

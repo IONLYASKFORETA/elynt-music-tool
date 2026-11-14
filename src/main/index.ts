@@ -1,6 +1,7 @@
 import { app, BrowserWindow, dialog, ipcMain } from 'electron'
 import { join } from 'node:path'
 import { channels } from '../shared/api'
+import { createBackups } from './backup'
 import { openSuiteDatabase } from './db/database'
 import { isKeyName } from '../shared/keys'
 import { ClaudeError, createClaudeClient, createUsageLog } from './claude'
@@ -9,6 +10,8 @@ import { createCredentialVault } from './keys/key-vault'
 import { createTrackLibrary } from './tracks'
 
 const MIXDOWN_EXTENSIONS = ['wav', 'aif', 'aiff', 'flac', 'mp3']
+/** How often a running app checks whether today's backup is due (so it also runs past midnight). */
+const BACKUP_CHECK_MS = 60 * 60 * 1000
 
 function createWindow(): BrowserWindow {
   const win = new BrowserWindow({
@@ -83,7 +86,48 @@ function start(): void {
     }
   })
 
-  app.on('will-quit', () => db.close())
+  // Daily backup (ADR 0002): on launch, which catches up a missed day, then hourly while running.
+  const backups = createBackups({ db, settingsFile: join(app.getPath('userData'), 'backup-settings.json') })
+  const backupIfDue = () => {
+    try {
+      backups.runIfDue()
+    } catch (error) {
+      console.error('Daily backup failed', error)
+    }
+  }
+  backupIfDue()
+  const backupTimer = setInterval(backupIfDue, BACKUP_CHECK_MS)
+
+  ipcMain.handle(channels.backupStatus, () => backups.status())
+  ipcMain.handle(channels.chooseBackupFolder, async (event) => {
+    const parent = BrowserWindow.fromWebContents(event.sender)
+    const options: Electron.OpenDialogOptions = {
+      title: 'Choose a backup folder (for example in OneDrive or Dropbox)',
+      properties: ['openDirectory', 'createDirectory']
+    }
+    const result = parent ? await dialog.showOpenDialog(parent, options) : await dialog.showOpenDialog(options)
+    const [folder] = result.filePaths
+    if (result.canceled || !folder) return null
+    backups.setFolder(folder)
+    return backups.status()
+  })
+  ipcMain.handle(channels.exportEverything, async (event) => {
+    const parent = BrowserWindow.fromWebContents(event.sender)
+    const options: Electron.SaveDialogOptions = {
+      title: 'Export everything',
+      defaultPath: join(app.getPath('documents'), `Elynt export ${new Date().toISOString().slice(0, 10)}.sqlite`),
+      filters: [{ name: 'Elynt export (SQLite)', extensions: ['sqlite'] }]
+    }
+    const result = parent ? await dialog.showSaveDialog(parent, options) : await dialog.showSaveDialog(options)
+    if (result.canceled || !result.filePath) return null
+    backups.exportEverything(result.filePath)
+    return result.filePath
+  })
+
+  app.on('will-quit', () => {
+    clearInterval(backupTimer)
+    db.close()
+  })
 
   createWindow()
   app.on('activate', () => {

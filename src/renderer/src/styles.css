@@ -56,4 +56,10 @@ h2 { font-size: 12px; letter-spacing: 0.3em; text-transform: uppercase; color: v
 .badge { margin-left: 8px; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 99px; background: #1a1a22; color: var(--muted); }
 .badge.set { color: #3dffb4; }
 .ok { color: #3dffb4; }
-.tool[hidden] { display: none; }
+.secondary { border: 1px solid var(--line); border-radius: 6px; padding: 8px 16px; font: inherit; font-weight: 600; cursor: pointer; color: var(--text); background: #16161d; white-space: nowrap; }
+.secondary:hover { background: #1f1f28; }
+.settings-block { max-width: 720px; }
+.settings-help { color: var(--muted); }
+.settings-row { display: flex; justify-content: space-between; align-items: center; gap: 24px; padding: 14px 16px; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; margin-bottom: 8px; }
+.settings-label { font-weight: 700; }
+.settings-row .path { color: var(--muted); font-size: 12px; margin-top: 2px; word-break: break-all; }

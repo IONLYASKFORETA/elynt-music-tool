@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import { channels, type ElyntApi } from '../shared/api'
 import type { HelperStatus } from '../shared/helper'
 
@@ -22,6 +22,13 @@ const api: ElyntApi = {
   profile: {
     get: () => ipcRenderer.invoke(channels.getProfile),
     save: (profile) => ipcRenderer.invoke(channels.saveProfile, profile)
+  },
+  mixSetup: {
+    get: (trackId) => ipcRenderer.invoke(channels.getMixSetup, trackId),
+    save: (setup) => ipcRenderer.invoke(channels.saveMixSetup, setup),
+    pickReferenceTracks: () => ipcRenderer.invoke(channels.pickReferenceTracks),
+    // File.path is gone in current Electron; webUtils is the supported way to get a dropped file's path.
+    pathForDroppedFile: (file) => webUtils.getPathForFile(file)
   },
   helper: {
     status: () => ipcRenderer.invoke(channels.helperStatus),

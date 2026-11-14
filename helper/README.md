@@ -15,7 +15,7 @@ On Windows it runs inside WSL2 (ADR 0003). Python is pinned to 3.12.
    bash /mnt/c/path/to/elynt-music-tool/helper/setup-wsl.sh
    ```
 
-   It installs `uv`, makes a venv at `~/.elynt/helper-venv`, installs the helper, PyTorch 2.13 (CUDA 13.0, no torchaudio: it ended at 2.9) and NATTEN's matching wheel, then prints the helper's own report. Look for `"available":true` and `RTX 5080` in the `gpu` part.
+   It installs `uv`, makes a venv at `~/.elynt/helper-venv`, installs the helper, PyTorch 2.13 (CUDA 13.0; there is no matching torchaudio) and NATTEN's matching wheel, then prints the helper's own report. Look for `"available":true` and `RTX 5080` in the `gpu` part.
 5. Start the app (`npm run dev`). The sidebar should say **Helper running** with the GPU name.
 
 Native Windows instead: run `helper\setup-windows.ps1` and start the app with `ELYNT_HELPER_MODE=native`.

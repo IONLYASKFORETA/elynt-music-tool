@@ -16,7 +16,7 @@ The question: do NATTEN, SongFormer, Essentia and pyebur128 install natively on 
 
 SongFormer's own `requirements.txt` pins `torch==2.4.0`, which predates RTX 50 series (Blackwell) support. The helper keeps its own torch (2.13, CUDA 13.0) and installs the rest of SongFormer's list around it.
 
-Two more of its pins can't install on Python 3.12 on any OS, so the check replaces them: `numpy==1.25.0` contradicts its own `pandas==2.2.3` (which needs numpy 1.26 or newer), and `jams==0.3.4` has no wheel and its setup script imports `imp`, which Python 3.12 removed (0.3.5 ships a wheel). With those fixed, the whole list resolves for Linux on Python 3.12 (181 packages). It does not resolve for Windows at all, because it needs `triton`, which has no Windows build. NATTEN has no wheel for CUDA 12.8, so the helper uses torch 2.13 with CUDA 13.0 and NATTEN's matching wheel. torchaudio is left out: PyTorch's last torchaudio release is 2.9.1, so none exists for torch 2.13. SongFormer lists torchaudio, so its audio loading will need to go through soundfile or librosa instead when it's wired in (V1). Under WSL2, `pesq` builds from source, so Ubuntu needs a C compiler (`sudo apt install build-essential`).
+Two more of its pins can't install on Python 3.12 on any OS, so the check replaces them: `numpy==1.25.0` contradicts its own `pandas==2.2.3` (which needs numpy 1.26 or newer), and `jams==0.3.4` has no wheel and its setup script imports `imp`, which Python 3.12 removed (0.3.5 ships a wheel). With those fixed, the whole list resolves for Linux on Python 3.12 (181 packages). It does not resolve for Windows at all, because it needs `triton`, which has no Windows build. NATTEN has no wheel for CUDA 12.8, so the helper uses torch 2.13 with CUDA 13.0 and NATTEN's matching wheel. There is no torchaudio 2.13 (PyPI stops at 2.9.1), so the check doesn't pin one. SongFormer's `muq` dependency still pulls in `torchaudio 2.11.1+cu132`, which imports fine next to torch 2.13 but is a version mismatch. When SongFormer is wired in (V1), prefer soundfile or librosa for audio loading and check any torchaudio call it makes. Under WSL2, `pesq` builds from source, so Ubuntu needs a C compiler (`sudo apt install build-essential`).
 
 ## 2. On Aden's machine
 
@@ -31,7 +31,7 @@ It builds a throwaway Python 3.12 venv, installs PyTorch 2.13 (CUDA 13.0) and co
 | Where | Result |
 |---|---|
 | Windows (native), 2026-11-14 | **wsl2**: 3 of 6 steps pass. See below. |
-| WSL2 (Ubuntu), 2026-11-14 | **everything installs**: 6 of 6 steps pass. See below. |
+| WSL2 (Ubuntu), 2026-11-14 | **the whole stack installs**: 7 of 7 steps pass, and torch stays CUDA 13.0. See below. |
 
 ### Windows 11 (native), 2026-11-14
 
@@ -57,12 +57,15 @@ Linux 6.18.58.1-microsoft-standard-WSL2, glibc 2.43, RTX 5080 seen through the W
 | pyebur128 | pass | 0 s |
 | Essentia | pass | 1 s |
 | NATTEN (`0.21.7+torch2130cu130` wheel) | pass | 6 s |
-| SongFormer requirements | pass | 0 s (cached) |
+| SongFormer requirements | pass | 2 s |
+| GPU still works after everything | pass | 2 s |
 
 Getting there took three runs, and each one found something that's now fixed in the check or the setup notes:
 
-1. `torchaudio==2.13.0` doesn't exist, because torchaudio's last release is 2.9.1. It's dropped now.
+1. `torchaudio==2.13.0` doesn't exist. The pin is dropped now.
 2. Ubuntu had no C compiler, and `pesq` builds from source. Fixed by installing `build-essential`, which the README now lists.
 3. In WSL2, `/tmp` is a 7.8 GB RAM disk, and the throwaway venv filled it. The check now builds its venv under `~/.cache/elynt-install-check`.
 
 That run also showed that installing SongFormer's list pulled in a CUDA 12 torch from PyPI over our CUDA 13.0 one. The run checked the GPU before that step but not after it. The cause was SongFormer's `triton==3.0.0` pin, so the check now leaves triton out (torch brings its own) and holds torch at 2.13.0 with a constraint during that step, and it ends with a second GPU check that fails unless torch is still the `+cu130` build.
+
+After the final run (commit 952b84a), the venv held `torch 2.13.0+cu130`, `triton 3.7.1`, CUDA 13 builds of every nvidia package with no `*-cu12` ones, `natten 0.21.7+torch2130cu130`, `lightning 2.5.1.post0`, `torchvision 0.28.0+cu130` and `torchaudio 2.11.1+cu132`. `torch.cuda.is_available()` was True.

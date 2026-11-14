@@ -103,7 +103,7 @@ class Checker:
         self.step(
             f"PyTorch {TORCH_VERSION} (CUDA 13.0) sees the GPU",
             [
-                # No torchaudio: PyTorch stopped releasing it after 2.9, so there is none for torch 2.13.
+                # No torchaudio pin: there is no torchaudio 2.13.
                 self.pip(f"torch=={TORCH_VERSION}", "--index-url", TORCH_INDEX),
                 self.py(GPU_CHECK),
             ],

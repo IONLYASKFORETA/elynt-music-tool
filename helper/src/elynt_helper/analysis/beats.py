@@ -139,34 +139,44 @@ def _fit_line(pulse: np.ndarray, period: float, phase: float, rounds: int = 3) -
 
 def _tempo_prior(bpm: np.ndarray) -> np.ndarray:
     """Most club music sits between 120 and 150 BPM. Halves and doubles of those are less likely."""
-    return np.exp(-0.5 * (np.log2(bpm / 130.0) / 0.45) ** 2)
+    return np.exp(-0.5 * (np.log2(bpm / 130.0) / 0.6) ** 2)
 
 
 def _coarse_tempo(novelty: np.ndarray, fps: float) -> float:
+    """The tempo whose frequency is strongest in the onset envelope's spectrum, weighed by how common it is.
+
+    A spectrum (unlike an autocorrelation) has no peak at two-thirds of the tempo, so a
+    174 BPM track with hats between the beats isn't read as 116.
+    """
     centred = novelty - novelty.mean()
-    spectrum = np.fft.rfft(centred, n=2 * len(centred))
-    ac = np.fft.irfft(spectrum * np.conj(spectrum))[: len(centred)]
+    n = 8 * len(centred)  # zero-padding for a fine frequency grid
+    spectrum = np.abs(np.fft.rfft(centred, n=n))
+    freqs = np.fft.rfftfreq(n, 1.0 / fps) * 60.0  # in BPM
     candidates = np.arange(60.0, 200.0, 0.25)
-    lags = 60.0 * fps / candidates
-
-    def at(lag: np.ndarray) -> np.ndarray:
-        return np.interp(lag, np.arange(len(ac)), ac)
-
-    # A true beat period also lines up at two and four beats, so reward those.
-    score = (at(lags) + 0.5 * at(2 * lags) + 0.25 * at(4 * lags)) * _tempo_prior(candidates)
-    return float(candidates[int(np.argmax(score))])
+    strength = np.interp(candidates, freqs, spectrum)
+    return float(candidates[int(np.argmax(strength * _tempo_prior(candidates)))])
 
 
-def _refine(novelty: np.ndarray, fps: float, bpm: float) -> tuple[float, float]:
-    """Finds the tempo (to 0.01 BPM) and phase whose pulse train lines up best with the onsets."""
-    t = np.arange(len(novelty))
+def _refine(pulse: np.ndarray, fps: float, bpm: float) -> tuple[float, float]:
+    """The tempo (to 0.02 BPM) and phase whose grid lands on the most onset.
+
+    Searching phase directly, rather than averaging it, keeps the grid on the strongest
+    hits (kicks) instead of halfway between them and the hats.
+    """
     best = (-1.0, bpm, 0.0)
-    for candidate in np.arange(bpm * 0.98, bpm * 1.02, 0.01):
-        omega = 2.0 * np.pi * candidate / (60.0 * fps)
-        z = np.sum(novelty * np.exp(-1j * omega * t))
-        if abs(z) > best[0]:
-            phase = (-np.angle(z) / omega) % (2.0 * np.pi / omega)
-            best = (abs(z), float(candidate), float(phase))
+    padded = np.r_[pulse, 0.0]
+    for candidate in np.arange(bpm * 0.99, bpm * 1.01, 0.02):
+        period = 60.0 * fps / candidate
+        ticks = np.arange(0.0, len(pulse) - 1, period)
+        phases = np.arange(0.0, period, 0.5)
+        positions = ticks[None, :] + phases[:, None]
+        index = np.minimum(np.round(positions).astype(int), len(pulse))
+        # The best of each frame and its neighbours, so a half-frame miss doesn't count as a miss.
+        hits = np.maximum(padded[index], np.maximum(padded[np.maximum(index - 1, 0)], padded[np.minimum(index + 1, len(pulse))]))
+        totals = hits.sum(axis=1)
+        i = int(np.argmax(totals))
+        if totals[i] > best[0]:
+            best = (float(totals[i]), float(candidate), float(phases[i]))
     return best[1], best[2]
 
 

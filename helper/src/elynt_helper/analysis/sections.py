@@ -22,6 +22,8 @@ from .features import Features, db
 LABELS = ("intro", "build", "drop", "breakdown", "outro")
 PHRASE = 4  # bars; boundaries land on four-bar phrases
 MIN_SECTION_BARS = 4
+FLOOR_DB = 50.0  # quieter than this below a band's loudest bar counts as silent
+MIN_BUILD_RISE = 0.15  # how much a part must climb to count as a build
 BUILD_BARS = 8  # a long part before a drop splits so its last eight bars are the build
 DROP_LOUD_DB = 3.0  # a drop is within this of the loudest part...
 DROP_LOW_DB = 4.0  # ...and its low end within this of the strongest low end
@@ -117,7 +119,11 @@ def _bar_measures(features: Features, bar_starts: np.ndarray, duration: float) -
         out["kick"].append(float(np.mean(features.onset_low[a:b])))
         out["hats"].append(float(np.mean(features.onset_high[a:b])))
         out["bright"].append(float(np.mean(features.centroid[a:b])))
-    return {k: np.asarray(v) for k, v in out.items()}
+    measures = {k: np.asarray(v) for k, v in out.items()}
+    # Near-silence in one band reads as -100 dB and swamps every slope; floor it.
+    for key in ("loud", "low", "high"):
+        measures[key] = np.maximum(measures[key], measures[key].max() - FLOOR_DB)
+    return measures
 
 
 def _zscore(x: np.ndarray) -> np.ndarray:
@@ -157,7 +163,8 @@ def _split(measures: dict[str, np.ndarray], bars: int) -> list[_Part]:
         return [_Part(0, bars, 0.0)]
 
     values = np.array([novelty[j] for j in candidates])
-    threshold = max(float(np.median(novelty[1:])), values.max() * MIN_CHANGE)
+    # Against the bigger changes, not the single biggest: one pre-drop silence shouldn't hide the rest.
+    threshold = max(float(np.median(novelty[1:])), float(np.percentile(values, 90)) * MIN_CHANGE)
 
     def needed(j: int) -> float:
         # Off the phrase grid a change has to be twice as clear to count.
@@ -204,15 +211,27 @@ def _label(parts: list[_Part], m: dict[str, np.ndarray]) -> None:
             p.confidence = 0.3
         return
 
-    # Builds: the part just before each drop, when it rises.
+    # Builds: the run of parts leading into each drop. It starts at the clearest change in
+    # that run (where the riser or snare roll comes in), if everything from there to the drop
+    # climbs. A dip right before the drop (a pre-drop pause) is part of the build.
     for i in drops:
-        j = i - 1
-        if j < 0 or parts[j].label:
+        run = []
+        k = i - 1
+        while k >= 0 and not parts[k].label:
+            run.insert(0, k)
+            k -= 1
+        if not run:
             continue
-        rise = _rise(m, parts[j].first, parts[j].last)
-        if rise > 0:
-            parts[j].label = "build"
-            parts[j].confidence = float(np.clip(0.4 + rise, 0.3, 0.9))
+        inner = run[1:]
+        start = max(inner, key=lambda r: parts[r].novelty) if inner else run[0]
+        rise = _rise(m, parts[start].first, parts[i].first)
+        if rise <= MIN_BUILD_RISE and start != run[0]:
+            start = run[0]
+            rise = _rise(m, parts[start].first, parts[i].first)
+        if rise > MIN_BUILD_RISE:
+            for r in range(start, i):
+                parts[r].label = "build"
+                parts[r].confidence = float(np.clip(0.4 + rise, 0.3, 0.9))
 
     first, last = drops[0], drops[-1]
     for i, p in enumerate(parts):
@@ -239,7 +258,7 @@ def _split_long_builds(parts: list[_Part], m: dict[str, np.ndarray]) -> None:
             cut = prev.last - BUILD_BARS
             tail_rise = _rise(m, cut, prev.last)
             head_rise = _rise(m, prev.first, cut)
-            if tail_rise > 0.15 and tail_rise > head_rise:
+            if tail_rise > MIN_BUILD_RISE and tail_rise > head_rise:
                 head_label = "intro" if prev.label == "build" and i - 1 == 0 else prev.label
                 if head_label == "build":
                     head_label = "breakdown"
@@ -252,16 +271,22 @@ def _split_long_builds(parts: list[_Part], m: dict[str, np.ndarray]) -> None:
 
 
 def _rise(m: dict[str, np.ndarray], first: int, last: int) -> float:
-    """How much loudness, high end and hats climb across bars first..last, roughly 0 (flat) to 1 (steep)."""
+    """How much loudness, high end and hats climb across bars first..last, roughly 0 (flat) to 1 (steep).
+
+    Slopes are medians of bar-to-bar slopes (Theil-Sen), so one odd bar, like the next
+    part bleeding into the last bar, can't make a flat part look like a build.
+    """
     if last - first < 2:
         return 0.0
-    x = np.arange(last - first)
-    slopes = []
-    for key, scale in (("loud", 6.0), ("high", 9.0), ("bright", 1500.0)):
-        y = m[key][first:last]
-        slopes.append(np.polyfit(x, y, 1)[0] * (last - first) / scale)
+    n = last - first
+    i, j = np.triu_indices(n, k=1)
+
+    def slope(y: np.ndarray) -> float:
+        return float(np.median((y[j] - y[i]) / (j - i)))
+
+    slopes = [slope(m[key][first:last]) * n / scale for key, scale in (("loud", 6.0), ("high", 9.0), ("bright", 1500.0))]
     hats = np.log1p(m["hats"][first:last])
-    slopes.append(np.polyfit(x, hats, 1)[0] * (last - first) / (abs(hats.mean()) + 1e-6))
+    slopes.append(slope(hats) * n / (abs(hats.mean()) + 1e-6))
     return float(np.mean(slopes))
 
 

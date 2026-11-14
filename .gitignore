@@ -3,3 +3,8 @@ out/
 dist/
 *.log
 .DS_Store
+
+# Python helper
+helper/.venv/
+__pycache__/
+.pytest_cache/

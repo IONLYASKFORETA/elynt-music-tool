@@ -6,6 +6,7 @@ One desktop app for producing and releasing EDM tracks, with three tools: the **
 
 - Node.js 22.13 or newer (the app and the tests use the built-in `node:sqlite`)
 - Windows is the target platform; development also works on macOS and Linux
+- The Python helper (heavy work, Python 3.12, runs in WSL2 on Windows): set it up once with `helper/README.md`. The app still opens without it and shows "Helper not set up".
 
 ## Run the app in dev
 
@@ -29,7 +30,9 @@ npm run typecheck
 - `src/main/` is the Electron main process: the suite database (`db/`) and the track library.
 - `src/preload/` exposes a small `window.elynt` API to the UI.
 - `src/renderer/` is the React UI.
+- `src/main/helper/` starts the Python helper, restarts it if it dies, and makes typed calls to it.
 - `src/shared/` holds types used on both sides.
+- `helper/` is the Python helper itself (ADR 0001, ADR 0003).
 
 All records live in one SQLite file, `elynt.sqlite`, in the app's data folder (`%APPDATA%\elynt-music-tool` on Windows). Audio stays where it is on disk and the database stores only its path (ADR 0002).
 

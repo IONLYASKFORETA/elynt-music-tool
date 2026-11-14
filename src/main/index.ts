@@ -4,6 +4,8 @@ import { join } from 'node:path'
 import { channels } from '../shared/api'
 import { createBackups } from './backup'
 import { openSuiteDatabase } from './db/database'
+import { resolveHelperCommand } from './helper/command'
+import { createHelperSupervisor } from './helper/supervisor'
 import { createProfileStore } from './profile'
 import { isKeyName } from '../shared/keys'
 import { ClaudeError, createClaudeClient, createUsageLog } from './claude'
@@ -62,6 +64,21 @@ function start(): void {
     const [path] = result.filePaths
     return result.canceled || !path ? null : tracks.addFromMixdown(path)
   })
+
+  // The Python helper does the heavy work (ADR 0001). It runs under WSL2 on Windows (ADR 0003).
+  const helper = createHelperSupervisor({
+    command: resolveHelperCommand({ platform: process.platform, appRoot: app.getAppPath(), env: process.env })
+  })
+  helper.onStatus((status) => {
+    for (const win of BrowserWindow.getAllWindows()) win.webContents.send(channels.helperStatusChanged, status)
+  })
+  ipcMain.handle(channels.helperStatus, () => helper.status())
+  ipcMain.handle(channels.probeTrack, (_event, trackId: number) => {
+    const track = tracks.get(trackId)
+    if (!track) throw new Error(`No track with id ${trackId}`)
+    return helper.call('audio.probe', { path: helper.toHelperPath(track.mixdownPath) })
+  })
+  helper.start()
 
   // Only files the track library knows about can be read, never an arbitrary path from the UI.
   ipcMain.handle(channels.readMixdown, async (_event, trackId: number) => {
@@ -139,6 +156,7 @@ function start(): void {
   ipcMain.handle(channels.saveProfile, (_event, input: ArtistProfile) => profile.save(input))
 
   app.on('will-quit', () => {
+    helper.stop()
     clearInterval(backupTimer)
     db.close()
   })

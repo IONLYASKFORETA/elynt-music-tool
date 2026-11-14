@@ -1,3 +1,4 @@
+import type { AudioProbe, HelperStatus } from './helper'
 import type { KeyName, KeyStatus, KeyTestResult } from './keys'
 import type { BackupStatus } from './backup'
 import type { ArtistProfile } from './profile'
@@ -33,6 +34,13 @@ export interface ElyntApi {
     /** Saves the whole profile, half-filled or not. Rejects values the suite doesn't know. */
     save(profile: ArtistProfile): Promise<ArtistProfile>
   }
+  helper: {
+    status(): Promise<HelperStatus>
+    /** Calls back on every status change. Returns a function that stops listening. */
+    onStatus(listener: (status: HelperStatus) => void): () => void
+    /** Asks the helper to read a track's mixdown header: duration, sample rate, channels. */
+    probeTrack(trackId: number): Promise<AudioProbe>
+  }
 }
 
 export const channels = {
@@ -47,5 +55,8 @@ export const channels = {
   chooseBackupFolder: 'backup:choose-folder',
   exportEverything: 'backup:export-everything',
   getProfile: 'profile:get',
-  saveProfile: 'profile:save'
+  saveProfile: 'profile:save',
+  helperStatus: 'helper:status',
+  helperStatusChanged: 'helper:status-changed',
+  probeTrack: 'helper:probe-track'
 } as const

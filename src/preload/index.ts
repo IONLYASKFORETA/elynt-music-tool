@@ -23,6 +23,19 @@ const api: ElyntApi = {
     get: () => ipcRenderer.invoke(channels.getProfile),
     save: (profile) => ipcRenderer.invoke(channels.saveProfile, profile)
   },
+  exports: {
+    chooseOutput: (trackTitle, format) => ipcRenderer.invoke(channels.chooseExportOutput, trackTitle, format),
+    start: (request) => ipcRenderer.invoke(channels.startExport, request),
+    writeFrame: (jobId, frame) => ipcRenderer.invoke(channels.writeExportFrame, jobId, frame),
+    finish: (jobId) => ipcRenderer.invoke(channels.finishExport, jobId),
+    cancel: (jobId) => ipcRenderer.invoke(channels.cancelExport, jobId),
+    reveal: (path) => ipcRenderer.invoke(channels.revealExport, path)
+  },
+  bench: {
+    config: () => ipcRenderer.invoke(channels.benchConfig),
+    checkFile: (path, frame, renders, width, height) => ipcRenderer.invoke(channels.benchCheckFile, path, frame, renders, width, height),
+    report: (report) => ipcRenderer.invoke(channels.benchReport, report)
+  },
   helper: {
     status: () => ipcRenderer.invoke(channels.helperStatus),
     onStatus: (listener) => {

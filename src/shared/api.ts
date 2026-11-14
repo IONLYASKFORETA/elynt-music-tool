@@ -1,3 +1,5 @@
+import type { BenchConfig, BenchReport, FileCheck } from './bench'
+import type { ExportFormatId, ExportJob, ExportRequest, ExportResult } from './export'
 import type { AudioProbe, HelperStatus } from './helper'
 import type { KeyName, KeyStatus, KeyTestResult } from './keys'
 import type { BackupStatus } from './backup'
@@ -34,6 +36,25 @@ export interface ElyntApi {
     /** Saves the whole profile, half-filled or not. Rejects values the suite doesn't know. */
     save(profile: ArtistProfile): Promise<ArtistProfile>
   }
+  /** Video export. The window renders frames; the main process owns FFmpeg and the file. */
+  exports: {
+    /** Opens a save dialog for the video. Resolves to the path, or null if cancelled. */
+    chooseOutput(trackTitle: string, format: ExportFormatId): Promise<string | null>
+    start(request: ExportRequest): Promise<ExportJob>
+    /** One RGBA frame, top row first. Resolves once FFmpeg has taken it. */
+    writeFrame(jobId: string, frame: Uint8Array): Promise<void>
+    finish(jobId: string): Promise<ExportResult>
+    cancel(jobId: string): Promise<void>
+    /** Shows a finished video in Explorer. */
+    reveal(path: string): Promise<void>
+  }
+  /** The export benchmark: only active when the app was started with --bench-export. */
+  bench: {
+    config(): Promise<BenchConfig | null>
+    /** Reads an exported file back and compares its frame n with each RGBA render given. */
+    checkFile(path: string, frame: number, renders: Uint8Array[], width: number, height: number): Promise<FileCheck>
+    report(report: BenchReport): Promise<void>
+  }
   helper: {
     status(): Promise<HelperStatus>
     /** Calls back on every status change. Returns a function that stops listening. */
@@ -58,5 +79,14 @@ export const channels = {
   saveProfile: 'profile:save',
   helperStatus: 'helper:status',
   helperStatusChanged: 'helper:status-changed',
-  probeTrack: 'helper:probe-track'
+  probeTrack: 'helper:probe-track',
+  chooseExportOutput: 'exports:choose-output',
+  startExport: 'exports:start',
+  writeExportFrame: 'exports:write-frame',
+  finishExport: 'exports:finish',
+  cancelExport: 'exports:cancel',
+  revealExport: 'exports:reveal',
+  benchConfig: 'bench:config',
+  benchCheckFile: 'bench:check-file',
+  benchReport: 'bench:report'
 } as const

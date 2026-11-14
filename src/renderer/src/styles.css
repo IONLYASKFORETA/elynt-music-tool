@@ -53,6 +53,12 @@ h2 { font-size: 12px; letter-spacing: 0.3em; text-transform: uppercase; color: v
 .preview-controls { display: flex; align-items: center; gap: 14px; margin-top: 12px; }
 .preview-controls input[type='range'] { flex: 1; accent-color: #3db8ff; }
 .preview-controls select { background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 8px; font: inherit; }
+.export-panel { display: flex; align-items: center; flex-wrap: wrap; gap: 14px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+.export-panel select { background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 8px; font: inherit; }
+.export-status { display: flex; align-items: center; gap: 12px; margin: 0; font-size: 13px; color: var(--muted); }
+.export-status progress { width: 220px; accent-color: #3db8ff; }
+.export-status.error { color: #ff6b8a; }
+.bench { padding: 32px; font: 13px/1.6 ui-monospace, monospace; white-space: pre-wrap; }
 .preview-time { font: 600 13px ui-monospace, monospace; color: var(--muted); min-width: 92px; text-align: right; }
 
 .nav-settings { margin-top: auto; }

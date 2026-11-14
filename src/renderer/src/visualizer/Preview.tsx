@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Track } from '../../../shared/track'
-import { featuresAt, toMono, type MonoAudio } from './audio-features'
+import { featuresAt, type MonoAudio } from './audio-features'
+import { ExportPanel } from './ExportPanel'
 import { PlaybackClock } from './playback-clock'
 import { SceneRenderer } from './renderer'
 import { defaultScene, planFrame, type Scene } from './scene'
+import { decodeTrackAudio } from './track-audio'
 
 /** Share of the canvas's pixels the layers render at. The preview runs reduced; export will run full. */
 const RENDER_SCALES = [
@@ -25,6 +27,8 @@ export function Preview({ track, scene = defaultScene }: { track: Track; scene?:
   const sourceRef = useRef<AudioBufferSourceNode | null>(null)
   const sceneRef = useRef(scene)
   const scaleRef = useRef<number>(RENDER_SCALES[0].value)
+  /** While a video exports, the preview stops drawing so the GPU is free for the export. */
+  const exportingRef = useRef(false)
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading')
   const [error, setError] = useState<string | null>(null)
   const [playing, setPlaying] = useState(false)
@@ -47,19 +51,19 @@ export function Preview({ track, scene = defaultScene }: { track: Track; scene?:
 
     const start = async () => {
       const canvas = canvasRef.current!
-      const [bytes, created] = await Promise.all([window.elynt.tracks.readMixdown(track.id), SceneRenderer.create(canvas)])
-      if (cancelled) return created.destroy()
-      renderer = created
       const context = new AudioContext({ latencyHint: 'interactive' })
-      const buffer = await context.decodeAudioData(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer)
-      if (cancelled) return void context.close()
-      const channels = Array.from({ length: buffer.numberOfChannels }, (_, i) => buffer.getChannelData(i))
+      const [{ buffer, mono }, created] = await Promise.all([decodeTrackAudio(track.id, context), SceneRenderer.create(canvas)])
+      if (cancelled) {
+        created.destroy()
+        return void context.close()
+      }
+      renderer = created
       const clock = new PlaybackClock(
         () => context.currentTime,
         () => context.outputLatency + context.baseLatency,
         buffer.duration
       )
-      loadedRef.current = { context, buffer, mono: toMono(channels, buffer.sampleRate), clock }
+      loadedRef.current = { context, buffer, mono, clock }
       setDuration(buffer.duration)
       setStatus('ready')
 
@@ -68,7 +72,7 @@ export function Preview({ track, scene = defaultScene }: { track: Track; scene?:
       const tick = () => {
         frame = requestAnimationFrame(tick)
         const loaded = loadedRef.current
-        if (!loaded || !renderer) return
+        if (!loaded || !renderer || exportingRef.current) return
         const width = Math.min(canvas.clientWidth * devicePixelRatio, 3840)
         const height = Math.min(canvas.clientHeight * devicePixelRatio, 2160)
         if (canvas.width !== Math.round(width) || canvas.height !== Math.round(height)) {
@@ -181,6 +185,15 @@ export function Preview({ track, scene = defaultScene }: { track: Track; scene?:
           ))}
         </select>
       </div>
+      <ExportPanel
+        track={track}
+        scene={scene}
+        audio={status === 'ready' && loadedRef.current ? { ...loadedRef.current.mono, duration } : undefined}
+        onExportingChange={(exporting) => {
+          exportingRef.current = exporting
+          if (exporting) stop(false)
+        }}
+      />
     </section>
   )
 }

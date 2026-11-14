@@ -9,6 +9,8 @@ import blit from './shaders/blit.wgsl?raw'
 
 const LAYER_SHADERS: Record<LayerKind, string> = { ground, classic, finish }
 const WORK_FORMAT: GPUTextureFormat = 'rgba16float'
+/** What an offscreen (export) frame is read back as: 8-bit RGBA, top row first, the layout FFmpeg takes. */
+const PIXEL_FORMAT: GPUTextureFormat = 'rgba8unorm'
 
 /**
  * Our own WebGPU renderer (ADR 0001). It draws one frame from a plan, so it
@@ -20,18 +22,23 @@ export class SceneRenderer {
   private readonly layout: GPUBindGroupLayout
   private readonly pipelines: Record<LayerKind, GPURenderPipeline>
   private readonly blitPipeline: GPURenderPipeline
+  private readonly pixelBlitPipeline: GPURenderPipeline
   private readonly sampler: GPUSampler
   private readonly spectrum: GPUBuffer
   private readonly uniforms: GPUBuffer[] = []
   private targets: [GPUTexture, GPUTexture] | null = null
   private blank: GPUTexture | null = null
+  private pixels: GPUTexture | null = null
+  /** The target the last encodeLayers left the finished picture in. */
+  private finished: GPUTexture | null = null
+  private readonly readbacks: GPUBuffer[] = []
   private width = 0
   private height = 0
   private configured = false
 
   private constructor(
     private readonly device: GPUDevice,
-    private readonly context: GPUCanvasContext,
+    private readonly context: GPUCanvasContext | null,
     private readonly canvasFormat: GPUTextureFormat
   ) {
     this.layout = device.createBindGroupLayout({
@@ -57,6 +64,7 @@ export class SceneRenderer {
       finish: make(finish, WORK_FORMAT)
     }
     this.blitPipeline = make(blit, canvasFormat)
+    this.pixelBlitPipeline = canvasFormat === PIXEL_FORMAT ? this.blitPipeline : make(blit, PIXEL_FORMAT)
     this.sampler = device.createSampler({ magFilter: 'linear', minFilter: 'linear' })
     this.spectrum = device.createBuffer({
       size: BAND_COUNT * 4,
@@ -64,14 +72,15 @@ export class SceneRenderer {
     })
   }
 
-  static async create(canvas: HTMLCanvasElement): Promise<SceneRenderer> {
+  /** With a canvas, for the preview. Without one, for the export, which only reads frames back. */
+  static async create(canvas?: HTMLCanvasElement): Promise<SceneRenderer> {
     if (!('gpu' in navigator)) throw new Error('WebGPU is not available in this window.')
     const adapter = await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' })
     if (!adapter) throw new Error('No WebGPU adapter was found.')
     const device = await adapter.requestDevice()
-    const context = canvas.getContext('webgpu')
-    if (!context) throw new Error('The preview canvas has no WebGPU context.')
-    const format = navigator.gpu.getPreferredCanvasFormat()
+    const context = canvas ? canvas.getContext('webgpu') : null
+    if (canvas && !context) throw new Error('The preview canvas has no WebGPU context.')
+    const format = context ? navigator.gpu.getPreferredCanvasFormat() : PIXEL_FORMAT
     device.lost.then((info) => console.error('WebGPU device lost:', info.message))
     return new SceneRenderer(device, context, format)
   }
@@ -89,6 +98,9 @@ export class SceneRenderer {
     this.height = height
     this.targets?.forEach((t) => t.destroy())
     this.blank?.destroy()
+    this.pixels?.destroy()
+    this.pixels = null
+    this.readbacks.splice(0).forEach((b) => b.destroy())
     const texture = (): GPUTexture =>
       this.device.createTexture({
         size: [width, height],
@@ -110,33 +122,107 @@ export class SceneRenderer {
 
   /** Draws one frame: every pass in order, then the result onto the canvas. */
   draw(plan: FramePlan): void {
-    if (!this.targets || !this.blank) throw new Error('Call setRenderSize before draw.')
+    this.submitToCanvas(plan, false)
+  }
+
+  /**
+   * Draws onto the canvas like `draw`, and also reads back what the canvas
+   * shows, as RGBA. Only the export check uses it: it proves the export
+   * matches the preview pixel for pixel.
+   */
+  drawAndCapture(plan: FramePlan): Promise<Uint8Array> {
+    return this.submitToCanvas(plan, true)!
+  }
+
+  /**
+   * Renders one frame offscreen and reads it back as 8-bit RGBA, top row
+   * first. Several can be in flight at once: the GPU draws the next frame
+   * while the last one is still being copied out.
+   */
+  renderPixels(plan: FramePlan): Promise<Uint8Array> {
     const { device } = this
+    if (!this.pixels) {
+      this.pixels = device.createTexture({
+        size: [this.width, this.height],
+        format: PIXEL_FORMAT,
+        usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC
+      })
+    }
+    const encoder = this.encodeLayers(plan)
+    this.blitTo(encoder, this.pixelBlitPipeline, plan, this.pixels.createView())
+    return this.readBack(encoder, this.pixels, false)
+  }
+
+  private submitToCanvas(plan: FramePlan, capture: boolean): Promise<Uint8Array> | undefined {
+    const { device, context } = this
+    if (!context) throw new Error('This renderer has no canvas.')
     // Configured on first draw, so a renderer that is thrown away before drawing never claims the canvas.
     if (!this.configured) {
-      this.context.configure({ device, format: this.canvasFormat, alphaMode: 'opaque' })
+      context.configure({
+        device,
+        format: this.canvasFormat,
+        alphaMode: 'opaque',
+        usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC
+      })
       this.configured = true
     }
-    device.queue.writeBuffer(this.spectrum, 0, plan.spectrum)
-    const encoder = device.createCommandEncoder()
+    const encoder = this.encodeLayers(plan)
+    const current = context.getCurrentTexture()
+    this.blitTo(encoder, this.blitPipeline, plan, current.createView())
+    if (capture) return this.readBack(encoder, current, this.canvasFormat === 'bgra8unorm')
+    device.queue.submit([encoder.finish()])
+    return undefined
+  }
 
+  /** Every layer pass, bottom to top. The finished picture is left in the last target written. */
+  private encodeLayers(plan: FramePlan): GPUCommandEncoder {
+    if (!this.targets || !this.blank) throw new Error('Call setRenderSize before drawing.')
+    this.device.queue.writeBuffer(this.spectrum, 0, plan.spectrum)
+    const encoder = this.device.createCommandEncoder()
     let below = this.blank
     plan.passes.forEach((pass, i) => {
       const out = this.targets![i % 2]!
       this.runPass(encoder, this.pipelines[pass.kind], this.uniformBuffer(i), pass.uniforms, below, out.createView())
       below = out
     })
+    this.finished = below
+    return encoder
+  }
 
+  private blitTo(encoder: GPUCommandEncoder, pipeline: GPURenderPipeline, plan: FramePlan, view: GPUTextureView): void {
     const blitUniforms = new Float32Array(UNIFORM_FLOATS)
     blitUniforms.set([0, 0, this.width, this.height])
-    const canvasView = this.context.getCurrentTexture().createView()
-    this.runPass(encoder, this.blitPipeline, this.uniformBuffer(plan.passes.length), blitUniforms, below, canvasView)
-    device.queue.submit([encoder.finish()])
+    this.runPass(encoder, pipeline, this.uniformBuffer(plan.passes.length), blitUniforms, this.finished!, view)
+  }
+
+  /** Copies a texture into a mappable buffer, submits, and resolves with tightly packed RGBA rows. */
+  private async readBack(encoder: GPUCommandEncoder, texture: GPUTexture, bgra: boolean): Promise<Uint8Array> {
+    const { width, height } = texture
+    const rowBytes = width * 4
+    const paddedRow = Math.ceil(rowBytes / 256) * 256
+    const size = paddedRow * height
+    const buffer =
+      this.readbacks.pop() ?? this.device.createBuffer({ size, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ })
+    encoder.copyTextureToBuffer({ texture }, { buffer, bytesPerRow: paddedRow }, [width, height])
+    this.device.queue.submit([encoder.finish()])
+    await buffer.mapAsync(GPUMapMode.READ)
+    const mapped = new Uint8Array(buffer.getMappedRange())
+    const out = new Uint8Array(rowBytes * height)
+    if (paddedRow === rowBytes) out.set(mapped)
+    else for (let y = 0; y < height; y++) out.set(mapped.subarray(y * paddedRow, y * paddedRow + rowBytes), y * rowBytes)
+    buffer.unmap()
+    // A buffer from before a resize is the wrong size; let it go.
+    if (buffer.size === Math.ceil((this.width * 4) / 256) * 256 * this.height) this.readbacks.push(buffer)
+    else buffer.destroy()
+    if (bgra) for (let i = 0; i < out.length; i += 4) [out[i], out[i + 2]] = [out[i + 2]!, out[i]!]
+    return out
   }
 
   destroy(): void {
     this.targets?.forEach((t) => t.destroy())
     this.blank?.destroy()
+    this.pixels?.destroy()
+    this.readbacks.forEach((b) => b.destroy())
     this.device.destroy()
   }
 

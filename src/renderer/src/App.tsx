@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { Track } from '../../shared/track'
+import { Preview } from './visualizer/Preview'
 import { ApiKeysPanel } from './ApiKeysPanel'
 import { BackupSettings } from './BackupSettings'
 import { ProfileScreen } from './ProfileScreen'
@@ -17,6 +18,7 @@ export function App() {
   const [active, setActive] = useState<View>('visualizer')
   const [tracks, setTracks] = useState<Track[]>([])
   const [error, setError] = useState<string | null>(null)
+  const [previewTrackId, setPreviewTrackId] = useState<number | null>(null)
 
   const refresh = useCallback(async () => {
     setTracks(await window.elynt.tracks.list())
@@ -37,6 +39,7 @@ export function App() {
   }
 
   const tool = TOOLS.find((s) => s.id === active)
+  const previewTrack = active === 'visualizer' ? tracks.find((t) => t.id === previewTrackId) : undefined
 
   return (
     <div className="shell">
@@ -105,15 +108,30 @@ export function App() {
 
           {error && <p className="error">{error}</p>}
 
-          <h2>Tracks</h2>
+          {previewTrack && <Preview key={previewTrack.id} track={previewTrack} />}
+
+          <h2>{active === 'visualizer' && tracks.length > 0 ? 'Tracks · pick one to preview' : 'Tracks'}</h2>
           {tracks.length === 0 ? (
             <p className="empty">No tracks yet. Add one by picking its mixdown.</p>
           ) : (
             <ul className="tracks">
               {tracks.map((t) => (
                 <li key={t.id}>
-                  <span className="title">{t.title}</span>
-                  <span className="path">{t.mixdownPath}</span>
+                  {active === 'visualizer' ? (
+                    <button
+                      className={t.id === previewTrackId ? 'track-pick active' : 'track-pick'}
+                      aria-pressed={t.id === previewTrackId}
+                      onClick={() => setPreviewTrackId(t.id)}
+                    >
+                      <span className="title">{t.title}</span>
+                      <span className="path">{t.mixdownPath}</span>
+                    </button>
+                  ) : (
+                    <>
+                      <span className="title">{t.title}</span>
+                      <span className="path">{t.mixdownPath}</span>
+                    </>
+                  )}
                 </li>
               ))}
             </ul>

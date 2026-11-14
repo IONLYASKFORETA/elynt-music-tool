@@ -11,7 +11,7 @@
     "skipLibCheck": true,
     "isolatedModules": true,
     "resolveJsonModule": true,
-    "types": ["node"],
+    "types": ["node", "@webgpu/types"],
     "noEmit": true
   },
   "include": ["src", "electron.vite.config.ts", "vitest.config.ts"]

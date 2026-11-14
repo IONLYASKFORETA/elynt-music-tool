@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { Track } from '../../shared/track'
+import { ApiKeysPanel } from './ApiKeysPanel'
 import { BackupSettings } from './BackupSettings'
 
 const TOOLS = [
@@ -69,6 +70,7 @@ export function App() {
               <p>Shared by all three tools.</p>
             </div>
           </header>
+          <ApiKeysPanel />
           <BackupSettings />
         </main>
       ) : (

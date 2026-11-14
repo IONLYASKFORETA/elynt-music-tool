@@ -6,6 +6,7 @@ export interface TrackLibrary {
   addFromMixdown(mixdownPath: string): Track
   /** Every track in the suite, oldest first. Every tool lists the same records. */
   list(): Track[]
+  get(id: number): Track | null
 }
 
 interface TrackRow {
@@ -21,6 +22,7 @@ export function createTrackLibrary(db: SuiteDatabase): TrackLibrary {
   )
   const byPath = db.prepare('SELECT * FROM tracks WHERE mixdown_path = ?')
   const all = db.prepare('SELECT * FROM tracks ORDER BY id')
+  const byId = db.prepare('SELECT * FROM tracks WHERE id = ?')
 
   return {
     addFromMixdown(mixdownPath) {
@@ -29,6 +31,10 @@ export function createTrackLibrary(db: SuiteDatabase): TrackLibrary {
     },
     list() {
       return (all.all() as unknown as TrackRow[]).map(toTrack)
+    },
+    get(id) {
+      const row = byId.get(id) as unknown as TrackRow | undefined
+      return row ? toTrack(row) : null
     }
   }
 }

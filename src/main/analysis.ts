@@ -126,6 +126,7 @@ const FRIENDLY: Record<string, string> = {
   file_not_found: 'The mixdown is no longer where it was added from.',
   unreadable_audio: "The helper couldn't read the mixdown as audio.",
   silent_audio: 'The mixdown is silent.',
+  no_beat: 'The mixdown is too short, or has no beat to follow.',
   unknown_method: 'The helper is older than the app. Re-run the helper setup (helper/README.md).',
   timeout: 'The helper took too long.'
 }

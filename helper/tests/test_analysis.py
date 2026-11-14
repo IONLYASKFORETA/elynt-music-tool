@@ -147,3 +147,6 @@ def test_analyze_errors_are_coded(tmp_path):
     silent = tmp_path / "silent.wav"
     soundfile.write(str(silent), np.zeros(RATE * 5, np.float32), RATE)
     assert call(silent)["error"]["code"] == "silent_audio"
+    blip = tmp_path / "blip.wav"
+    soundfile.write(str(blip), np.sin(np.arange(RATE) * 0.05).astype(np.float32), RATE)
+    assert call(blip)["error"]["code"] == "no_beat"

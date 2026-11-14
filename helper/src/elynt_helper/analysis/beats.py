@@ -20,6 +20,10 @@ BEATS_PER_BAR = 4
 MAX_GRID_ERROR_S = 0.04
 
 
+class NoBeat(Exception):
+    """Too short, or nothing rhythmic to lock on to."""
+
+
 @dataclass
 class BeatGrid:
     bpm: float
@@ -38,9 +42,11 @@ def frame_time_offset(rate: int) -> float:
 def dsp_beats(features: Features) -> BeatGrid:
     """Signal-processing beat grid: tempo from the onset envelope's periodicity, downbeats from where things change."""
     fps = features.fps
+    if features.frames < fps * 4:
+        raise NoBeat("the mixdown is too short to find a beat")
     novelty = _onset_envelope(features)
-    if features.frames < fps * 4 or novelty.max() <= 0:
-        raise ValueError("too short or too quiet to find a beat")
+    if novelty.max() <= 0:
+        raise NoBeat("the mixdown is too short or has no beat to follow")
 
     bpm = _coarse_tempo(novelty, fps)
     # Kicks sit on the beat in club music, while hats often sit between beats, so the low band sets the phase.

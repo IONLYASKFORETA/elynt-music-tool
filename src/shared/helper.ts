@@ -61,7 +61,7 @@ export interface StemSplit {
 }
 
 export interface HelperMethods {
-  /** Track analysis (V1). Errors: file_not_found, unreadable_audio, silent_audio. Takes seconds to a minute. */
+  /** Track analysis (V1). Errors: file_not_found, unreadable_audio, silent_audio, no_beat. Takes seconds to a minute. */
   'track.analyze': { params: { path: string }; result: TrackAnalysis }
   'helper.info': { params: Record<string, never>; result: HelperInfo }
   /** Reads an audio file's header. `path` is as the helper sees it (a WSL path under WSL2). */

@@ -15,7 +15,7 @@ import numpy as np
 
 from . import beat_this_engine
 from .audio import ANALYSIS_RATE, load_mono
-from .beats import BeatGrid, dsp_beats, snap_to_grid
+from .beats import BeatGrid, NoBeat, dsp_beats, snap_to_grid
 from .features import compute, energy_curve
 from .mood import read_mood
 from .sections import find_sections
@@ -29,6 +29,9 @@ BeatTracker = Callable[[np.ndarray, int], tuple[np.ndarray, np.ndarray]]
 
 class SilentAudio(Exception):
     pass
+
+
+__all__ = ["NoBeat", "SilentAudio", "analyze_file", "analyze_signal"]
 
 
 def default_beat_tracker() -> BeatTracker | None:

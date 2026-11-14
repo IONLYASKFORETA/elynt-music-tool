@@ -60,7 +60,7 @@ def track_analyze(params: dict[str, Any], progress: Progress) -> dict[str, Any]:
     if not os.path.isfile(path):
         raise HelperError("file_not_found", f"no file at {path}")
 
-    from .analysis import SilentAudio, analyze_file  # numpy and scipy load only when asked
+    from .analysis import NoBeat, SilentAudio, analyze_file  # numpy and scipy load only when asked
     from .analysis.audio import AudioReadError
 
     progress("Analysing", None)
@@ -70,6 +70,8 @@ def track_analyze(params: dict[str, Any], progress: Progress) -> dict[str, Any]:
         raise HelperError("unreadable_audio", str(e)) from e
     except SilentAudio as e:
         raise HelperError("silent_audio", str(e)) from e
+    except NoBeat as e:
+        raise HelperError("no_beat", str(e)) from e
 
 
 def gpu_info() -> dict[str, Any]:

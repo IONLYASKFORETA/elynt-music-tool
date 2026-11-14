@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import type { AudioProbe, HelperStatus } from '../../shared/helper'
 import type { Track } from '../../shared/track'
 
 const TOOLS = [
@@ -50,6 +51,7 @@ export function App() {
             {s.nav}
           </button>
         ))}
+        <HelperBadge />
       </nav>
 
       <main className="tool">
@@ -74,11 +76,92 @@ export function App() {
               <li key={t.id}>
                 <span className="title">{t.title}</span>
                 <span className="path">{t.mixdownPath}</span>
+                <MixdownFacts trackId={t.id} />
               </li>
             ))}
           </ul>
         )}
       </main>
     </div>
+  )
+}
+
+const HELPER_LABELS: Record<HelperStatus['state'], string> = {
+  starting: 'Helper starting',
+  running: 'Helper running',
+  restarting: 'Helper restarting',
+  'not-installed': 'Helper not set up',
+  stopped: 'Helper stopped'
+}
+
+/** Shows whether the Python helper is up, and what GPU it sees. */
+function HelperBadge() {
+  const [status, setStatus] = useState<HelperStatus | null>(null)
+
+  useEffect(() => {
+    const off = window.elynt.helper.onStatus(setStatus)
+    window.elynt.helper.status().then(setStatus).catch(() => {})
+    return off
+  }, [])
+
+  if (!status) return null
+  const gpu = status.info?.gpu
+  const details = [
+    status.mode === 'wsl' ? 'WSL2' : 'native',
+    status.info && `Python ${status.info.python}`,
+    gpu && (gpu.available ? gpu.name : `no CUDA: ${gpu.reason ?? 'unknown'}`),
+    status.restarts > 0 && `${status.restarts} restart${status.restarts === 1 ? '' : 's'}`
+  ].filter(Boolean)
+
+  return (
+    <div className={`helper helper-${status.state}`} role="status" title={status.lastError ?? details.join(' · ')}>
+      <span className="dot" aria-hidden="true" />
+      <div>
+        <div className="helper-state">{HELPER_LABELS[status.state]}</div>
+        <div className="helper-detail">{details.join(' · ')}</div>
+        {status.state === 'not-installed' && <div className="helper-detail">See helper/README.md</div>}
+      </div>
+    </div>
+  )
+}
+
+function formatDuration(seconds: number): string {
+  const m = Math.floor(seconds / 60)
+  const s = Math.floor(seconds % 60)
+  return `${m}:${String(s).padStart(2, '0')}`
+}
+
+/** Asks the helper for the mixdown's duration and sample rate: the round trip proving the link works. */
+function MixdownFacts({ trackId }: { trackId: number }) {
+  const [probe, setProbe] = useState<AudioProbe | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  const read = async () => {
+    setBusy(true)
+    setError(null)
+    try {
+      setProbe(await window.elynt.helper.probeTrack(trackId))
+    } catch (e) {
+      setError(String(e).replace(/^Error: Error invoking remote method '[^']+': /, ''))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (probe) {
+    return (
+      <span className="facts">
+        {formatDuration(probe.durationSeconds)} · {(probe.sampleRate / 1000).toFixed(1)} kHz · {probe.channels === 2 ? 'stereo' : `${probe.channels} ch`}
+      </span>
+    )
+  }
+  return (
+    <span className="facts">
+      <button className="link" onClick={read} disabled={busy}>
+        {busy ? 'Reading…' : 'Read mixdown'}
+      </button>
+      {error && <span className="error"> {error}</span>}
+    </span>
   )
 }

@@ -40,3 +40,15 @@ h2 { font-size: 12px; letter-spacing: 0.3em; text-transform: uppercase; color: v
 
 .empty { color: var(--muted); }
 .error { color: #ff6b8b; }
+
+.helper { margin-top: auto; display: flex; gap: 10px; align-items: flex-start; padding: 12px; border-top: 1px solid var(--line); font-size: 12px; }
+.helper .dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 4px; flex: none; background: var(--muted); }
+.helper-running .dot { background: #3dffb4; box-shadow: 0 0 8px #3dffb4; }
+.helper-starting .dot, .helper-restarting .dot { background: #ffb13d; }
+.helper-not-installed .dot { background: #ff6b8b; }
+.helper-state { font-weight: 700; }
+.helper-detail { color: var(--muted); margin-top: 2px; word-break: break-word; }
+
+.tracks .facts { font-size: 12px; margin-top: 6px; color: var(--text); }
+.link { background: none; border: 0; padding: 0; color: #3db8ff; font: inherit; cursor: pointer; }
+.link:disabled { color: var(--muted); cursor: default; }

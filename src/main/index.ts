@@ -6,11 +6,13 @@ import { createBackups } from './backup'
 import { openSuiteDatabase } from './db/database'
 import { resolveHelperCommand } from './helper/command'
 import { createHelperSupervisor } from './helper/supervisor'
+import { createMixSetupStore } from './mix-setup'
 import { createProfileStore } from './profile'
 import { isKeyName } from '../shared/keys'
 import { ClaudeError, createClaudeClient, createUsageLog } from './claude'
 import { createApiKeys } from './keys/api-keys'
 import { createCredentialVault } from './keys/key-vault'
+import { REFERENCE_EXTENSIONS, type MixSetup } from '../shared/mix-setup'
 import type { ArtistProfile } from '../shared/profile'
 import { createTrackLibrary } from './tracks'
 
@@ -51,6 +53,7 @@ function start(): void {
   const db = openSuiteDatabase(join(app.getPath('userData'), 'elynt.sqlite'))
   const tracks = createTrackLibrary(db)
   const profile = createProfileStore(db)
+  const mixSetup = createMixSetupStore(db, tracks)
 
   ipcMain.handle(channels.listTracks, () => tracks.list())
   ipcMain.handle(channels.addFromPickedMixdown, async (event) => {
@@ -154,6 +157,19 @@ function start(): void {
 
   ipcMain.handle(channels.getProfile, () => profile.get())
   ipcMain.handle(channels.saveProfile, (_event, input: ArtistProfile) => profile.save(input))
+
+  ipcMain.handle(channels.getMixSetup, (_event, trackId: number) => mixSetup.get(trackId))
+  ipcMain.handle(channels.saveMixSetup, (_event, input: MixSetup) => mixSetup.save(input))
+  ipcMain.handle(channels.pickReferenceTracks, async (event) => {
+    const parent = BrowserWindow.fromWebContents(event.sender)
+    const options: Electron.OpenDialogOptions = {
+      title: 'Pick up to 3 reference tracks',
+      properties: ['openFile', 'multiSelections'],
+      filters: [{ name: 'Audio', extensions: REFERENCE_EXTENSIONS }]
+    }
+    const result = parent ? await dialog.showOpenDialog(parent, options) : await dialog.showOpenDialog(options)
+    return result.canceled ? [] : result.filePaths
+  })
 
   app.on('will-quit', () => {
     helper.stop()

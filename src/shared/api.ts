@@ -1,6 +1,7 @@
 import type { AudioProbe, HelperStatus } from './helper'
 import type { KeyName, KeyStatus, KeyTestResult } from './keys'
 import type { BackupStatus } from './backup'
+import type { MixSetup } from './mix-setup'
 import type { ArtistProfile } from './profile'
 import type { Track } from './track'
 
@@ -34,6 +35,17 @@ export interface ElyntApi {
     /** Saves the whole profile, half-filled or not. Rejects values the suite doesn't know. */
     save(profile: ArtistProfile): Promise<ArtistProfile>
   }
+  /** Mix & Master per-track setup: subgenre, loudness target and reference tracks. */
+  mixSetup: {
+    /** Null if the track was never set up. */
+    get(trackId: number): Promise<MixSetup | null>
+    /** Saves the whole setup. Rejects unknown values, missing files and more than 3 references. */
+    save(setup: MixSetup): Promise<MixSetup>
+    /** Opens a file picker for reference tracks. Resolves to the picked paths, empty if cancelled. */
+    pickReferenceTracks(): Promise<string[]>
+    /** The path on disk of a file dropped onto the window. */
+    pathForDroppedFile(file: File): string
+  }
   helper: {
     status(): Promise<HelperStatus>
     /** Calls back on every status change. Returns a function that stops listening. */
@@ -56,6 +68,9 @@ export const channels = {
   exportEverything: 'backup:export-everything',
   getProfile: 'profile:get',
   saveProfile: 'profile:save',
+  getMixSetup: 'mix-setup:get',
+  saveMixSetup: 'mix-setup:save',
+  pickReferenceTracks: 'mix-setup:pick-reference-tracks',
   helperStatus: 'helper:status',
   helperStatusChanged: 'helper:status-changed',
   probeTrack: 'helper:probe-track'

@@ -80,5 +80,20 @@ export const migrations: Migration[] = [
         DEFAULT '{"customReleaseDates":null,"spotifyForArtistsClaimed":null,"tiktokArtistAccount":null,"soundcloudPlan":null}';
       ALTER TABLE artist_profile ADD COLUMN past_releases TEXT NOT NULL DEFAULT '[]';
     `
+  },
+  {
+    version: 5,
+    name: 'mix setup',
+    // Mix & Master per-track setup (M3). One row per track, written the first time it is set up.
+    // reference_tracks is a JSON list of file paths, in the order they were added.
+    sql: `
+      CREATE TABLE mix_setup (
+        track_id         INTEGER PRIMARY KEY REFERENCES tracks(id) ON DELETE CASCADE,
+        subgenre         TEXT,                        -- an id from src/shared/subgenres.ts
+        loudness_target  TEXT NOT NULL,               -- club or streaming
+        reference_tracks TEXT NOT NULL DEFAULT '[]',
+        updated_at       TEXT NOT NULL
+      );
+    `
   }
 ]

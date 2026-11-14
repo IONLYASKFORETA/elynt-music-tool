@@ -11,13 +11,13 @@ if (mode === 'exit-127') {
 }
 if (mode !== 'never-ready') {
   process.stdout.write('some library printed this on import\n')
-  send({ event: 'ready', protocol: mode === 'old-protocol' ? 0 : 1, version: 'stub' })
+  send({ event: 'ready', protocol: mode === 'old-protocol' ? 0 : 2, version: 'stub' })
 }
 
 const methods = {
   'helper.info': () => ({
     version: 'stub',
-    protocol: 1,
+    protocol: 2,
     python: '3.12.9',
     platform: 'linux',
     wsl: true,
@@ -30,9 +30,19 @@ const methods = {
   }
 }
 
+// Reports progress every 40 ms for 200 ms, then answers: longer than a 100 ms timeout, but never quiet that long.
+async function split(id, { path, outDir }) {
+  for (let i = 0; i < 5; i++) {
+    send({ id, progress: { stage: 'Splitting', fraction: i / 5 } })
+    await new Promise((r) => setTimeout(r, 40))
+  }
+  send({ id, result: { stems: [{ name: 'drums', path: `${outDir}/drums.wav` }, { name: 'bass', path: `${outDir}/bass.wav` }], model: 'stub.ckpt', seconds: 0.2, seenPath: path } })
+}
+
 createInterface({ input: process.stdin }).on('line', (line) => {
   const { id, method, params } = JSON.parse(line)
   if (mode === 'silent') return
+  if (method === 'stems.split') return void split(id, params)
   const handler = methods[method]
   if (!handler) return send({ id, error: { code: 'unknown_method', message: method } })
   try {

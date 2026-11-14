@@ -14,9 +14,15 @@ import { createApiKeys } from './keys/api-keys'
 import { createCredentialVault } from './keys/key-vault'
 import { REFERENCE_EXTENSIONS, type MixSetup } from '../shared/mix-setup'
 import type { ArtistProfile } from '../shared/profile'
+import { createTrackStems, type StemSplitter } from './stems'
 import { createTrackLibrary } from './tracks'
 
 const MIXDOWN_EXTENSIONS = ['wav', 'aif', 'aiff', 'flac', 'mp3']
+/**
+ * A split may go this long without a progress line before it counts as stuck.
+ * Long, because the first split downloads the ~700 MB model and only says so once.
+ */
+const SPLIT_IDLE_TIMEOUT_MS = 30 * 60 * 1000
 /** How often a running app checks whether today's backup is due (so it also runs past midnight). */
 const BACKUP_CHECK_MS = 60 * 60 * 1000
 
@@ -82,6 +88,42 @@ function start(): void {
     return helper.call('audio.probe', { path: helper.toHelperPath(track.mixdownPath) })
   })
   helper.start()
+
+  // Stems (V2): the owner's own bounces, or a split by the helper when there are none. Own stems always win.
+  const stemsRoot = join(app.getPath('userData'), 'stems')
+  const splitter: StemSplitter = async (track, onProgress) => {
+    // A fresh folder per split, so replacing a split set can delete exactly its files.
+    const folder = join(stemsRoot, String(track.id), `split-${Date.now()}`)
+    const result = await helper.call(
+      'stems.split',
+      { path: helper.toHelperPath(track.mixdownPath), outDir: helper.toHelperPath(folder) },
+      { timeoutMs: SPLIT_IDLE_TIMEOUT_MS, onProgress }
+    )
+    return {
+      folder,
+      model: result.model,
+      // The helper answers with its own view of the path (WSL under WSL2); store the app's.
+      stems: result.stems.map((s) => ({ name: s.name, path: join(folder, s.path.split(/[\\/]/).pop()!) }))
+    }
+  }
+  const stems = createTrackStems({ db, tracks, splitter })
+  stems.onJob((job) => {
+    for (const win of BrowserWindow.getAllWindows()) win.webContents.send(channels.splitJobChanged, job)
+  })
+  ipcMain.handle(channels.listStems, (_event, trackId: number) => stems.list(trackId))
+  ipcMain.handle(channels.splitJobs, () => stems.jobs())
+  ipcMain.handle(channels.splitStems, (_event, trackId: number) => stems.split(trackId))
+  ipcMain.handle(channels.removeOwnStem, (_event, stemId: number) => stems.removeOwn(stemId))
+  ipcMain.handle(channels.attachPickedStems, async (event, trackId: number) => {
+    const parent = BrowserWindow.fromWebContents(event.sender)
+    const options: Electron.OpenDialogOptions = {
+      title: 'Pick your stems for this track',
+      properties: ['openFile', 'multiSelections'],
+      filters: [{ name: 'Audio', extensions: MIXDOWN_EXTENSIONS }]
+    }
+    const result = parent ? await dialog.showOpenDialog(parent, options) : await dialog.showOpenDialog(options)
+    return result.canceled || result.filePaths.length === 0 ? null : stems.attachOwn(trackId, result.filePaths)
+  })
 
   // Only files the track library knows about can be read, never an arbitrary path from the UI.
   ipcMain.handle(channels.readMixdown, async (_event, trackId: number) => {

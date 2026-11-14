@@ -141,3 +141,18 @@ h2 { font-size: 12px; letter-spacing: 0.3em; text-transform: uppercase; color: v
 .dropzone { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 18px 16px; border: 1px dashed #3a3a46; border-radius: 6px; color: var(--muted); }
 .dropzone.over { border-color: #3db8ff; color: var(--text); background: #0d1620; }
 .hint.rough { color: #ffb13d; }
+.stems { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); font-size: 12px; }
+.stems-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.stems-label { font-weight: 700; letter-spacing: 0.2em; text-transform: uppercase; color: var(--muted); margin-right: 6px; display: inline-flex; align-items: center; gap: 8px; }
+.stem-badge { letter-spacing: 0.05em; text-transform: none; font-weight: 600; padding: 1px 8px; border-radius: 999px; border: 1px solid; }
+.stem-badge.own { color: #3dffb4; border-color: #3dffb466; }
+.stem-badge.split { color: #b43dff; border-color: #b43dff66; }
+.stem-list { list-style: none; padding: 0; margin: 8px 0 0; display: flex; flex-wrap: wrap; gap: 6px; }
+/* .tracks li styles a whole track card; undo that for these chips. */
+.tracks .stem-list li { flex-direction: row; align-items: center; background: #16161d; border: 1px solid var(--line); border-radius: 4px; padding: 3px 8px; }
+.stem-list .remove { padding: 0 0 0 6px; text-decoration: none; color: var(--muted); }
+.stem-list .remove:hover { color: #ff6b8b; }
+.split-progress { display: flex; align-items: center; gap: 10px; margin-top: 8px; color: var(--text); }
+.split-progress progress { flex: 1; max-width: 320px; accent-color: #3db8ff; }
+.stems-hint { color: var(--muted); margin: 6px 0 0; }
+.stems .error { margin: 6px 0 0; }

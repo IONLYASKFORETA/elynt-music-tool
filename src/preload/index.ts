@@ -1,12 +1,25 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import { channels, type ElyntApi } from '../shared/api'
 import type { HelperStatus } from '../shared/helper'
+import type { SplitJob } from '../shared/stems'
 
 const api: ElyntApi = {
   tracks: {
     list: () => ipcRenderer.invoke(channels.listTracks),
     addFromPickedMixdown: () => ipcRenderer.invoke(channels.addFromPickedMixdown),
     readMixdown: (trackId) => ipcRenderer.invoke(channels.readMixdown, trackId)
+  },
+  stems: {
+    list: (trackId) => ipcRenderer.invoke(channels.listStems, trackId),
+    attachPicked: (trackId) => ipcRenderer.invoke(channels.attachPickedStems, trackId),
+    removeOwn: (stemId) => ipcRenderer.invoke(channels.removeOwnStem, stemId),
+    split: (trackId) => ipcRenderer.invoke(channels.splitStems, trackId),
+    jobs: () => ipcRenderer.invoke(channels.splitJobs),
+    onJob: (listener) => {
+      const handler = (_event: Electron.IpcRendererEvent, job: SplitJob | { trackId: number; state: 'done' }) => listener(job)
+      ipcRenderer.on(channels.splitJobChanged, handler)
+      return () => ipcRenderer.off(channels.splitJobChanged, handler)
+    }
   },
   keys: {
     status: () => ipcRenderer.invoke(channels.keyStatus),

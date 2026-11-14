@@ -4,7 +4,7 @@
  */
 
 /** Bump together with PROTOCOL_VERSION in helper/src/elynt_helper/__init__.py. */
-export const HELPER_PROTOCOL_VERSION = 1
+export const HELPER_PROTOCOL_VERSION = 2
 
 export interface GpuInfo {
   available: boolean
@@ -35,10 +35,35 @@ export interface AudioProbe {
   format: string
 }
 
+/** A progress line the helper sends for a long call before its answer. */
+export interface HelperProgress {
+  /** What it is doing, in words ("Loading the stem model", "Splitting"). */
+  stage: string
+  /** 0 to 1 within the stage, when the helper can tell. */
+  fraction?: number
+}
+
+export interface SplitStem {
+  /** drums, bass, vocals, other, guitar or piano. */
+  name: string
+  /** Where the helper wrote it, as the helper sees it (a WSL path under WSL2). */
+  path: string
+}
+
+export interface StemSplit {
+  /** Drums and bass first: the stems the Visualizer leans on most. */
+  stems: SplitStem[]
+  /** The separation model's file name, e.g. BS-Roformer-SW.ckpt. */
+  model: string
+  seconds: number
+}
+
 export interface HelperMethods {
   'helper.info': { params: Record<string, never>; result: HelperInfo }
   /** Reads an audio file's header. `path` is as the helper sees it (a WSL path under WSL2). */
   'audio.probe': { params: { path: string }; result: AudioProbe }
+  /** Splits a mixdown into stems on the GPU (BS-RoFormer), writing one WAV per stem into `outDir`. Sends progress. */
+  'stems.split': { params: { path: string; outDir: string; model?: string }; result: StemSplit }
 }
 
 export type HelperMethod = keyof HelperMethods

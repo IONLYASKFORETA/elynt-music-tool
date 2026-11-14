@@ -6,6 +6,7 @@ import { ApiKeysPanel } from './ApiKeysPanel'
 import { BackupSettings } from './BackupSettings'
 import { MixSetupScreen } from './MixSetupScreen'
 import { ProfileScreen } from './ProfileScreen'
+import { TrackStems } from './TrackStems'
 
 const TOOLS = [
   { id: 'visualizer', name: 'Visualizer', nav: 'Visualizer', blurb: 'Turn a track into reactive visuals and render the video.' },
@@ -141,6 +142,7 @@ export function App() {
                     </>
                   )}
                   <MixdownFacts trackId={t.id} />
+                  <TrackStems trackId={t.id} />
                 </li>
               ))}
             </ul>

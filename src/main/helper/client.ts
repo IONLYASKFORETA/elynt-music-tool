@@ -1,6 +1,6 @@
 import { createInterface } from 'node:readline'
 import type { Readable, Writable } from 'node:stream'
-import type { HelperMethod, HelperMethods } from '../../shared/helper'
+import type { HelperMethod, HelperMethods, HelperProgress } from '../../shared/helper'
 
 /** A call that the helper answered with an error, or that never got an answer. */
 export class HelperCallError extends Error {
@@ -14,10 +14,19 @@ export class HelperCallError extends Error {
   }
 }
 
+export interface CallOptions {
+  /**
+   * How long to wait with no word from the helper. A progress line restarts the clock,
+   * so a split that keeps reporting can run as long as it needs.
+   */
+  timeoutMs?: number
+  onProgress?: (progress: HelperProgress) => void
+}
+
 export interface HelperClient {
   /** Resolves with the helper's ready line once it has started. */
   readonly ready: Promise<{ protocol: number; version: string }>
-  call<M extends HelperMethod>(method: M, params: HelperMethods[M]['params'], options?: { timeoutMs?: number }): Promise<HelperMethods[M]['result']>
+  call<M extends HelperMethod>(method: M, params: HelperMethods[M]['params'], options?: CallOptions): Promise<HelperMethods[M]['result']>
   /** Rejects every call still waiting. The supervisor calls this when the process exits. */
   close(reason: string): void
 }
@@ -26,6 +35,9 @@ interface Pending {
   resolve(result: unknown): void
   reject(error: Error): void
   timer: NodeJS.Timeout
+  /** Restarts the timeout clock. */
+  touch(): void
+  onProgress?: (progress: HelperProgress) => void
 }
 
 const DEFAULT_TIMEOUT_MS = 30_000
@@ -46,7 +58,15 @@ export function createHelperClient(io: { stdin: Writable; stdout: Readable }): H
   ready.catch(() => {})
 
   createInterface({ input: io.stdout }).on('line', (line) => {
-    let message: { id?: number; event?: string; result?: unknown; error?: { code: string; message: string }; protocol?: number; version?: string }
+    let message: {
+      id?: number
+      event?: string
+      result?: unknown
+      error?: { code: string; message: string }
+      progress?: HelperProgress
+      protocol?: number
+      version?: string
+    }
     try {
       message = JSON.parse(line)
     } catch {
@@ -59,6 +79,11 @@ export function createHelperClient(io: { stdin: Writable; stdout: Readable }): H
     if (typeof message.id !== 'number') return
     const call = pending.get(message.id)
     if (!call) return
+    if (message.progress) {
+      call.touch()
+      call.onProgress?.(message.progress)
+      return
+    }
     pending.delete(message.id)
     clearTimeout(call.timer)
     if (message.error) call.reject(new HelperCallError(message.error.code, message.error.message))
@@ -72,11 +97,21 @@ export function createHelperClient(io: { stdin: Writable; stdout: Readable }): H
       const id = nextId++
       const timeoutMs = options?.timeoutMs ?? DEFAULT_TIMEOUT_MS
       return new Promise((resolve, reject) => {
-        const timer = setTimeout(() => {
+        const expire = () => {
           pending.delete(id)
-          reject(new HelperCallError('timeout', `${method} took longer than ${timeoutMs} ms`))
-        }, timeoutMs)
-        pending.set(id, { resolve: resolve as (r: unknown) => void, reject, timer })
+          reject(new HelperCallError('timeout', `${method} went ${timeoutMs} ms without an answer`))
+        }
+        const entry: Pending = {
+          resolve: resolve as (r: unknown) => void,
+          reject,
+          timer: setTimeout(expire, timeoutMs),
+          touch() {
+            clearTimeout(entry.timer)
+            entry.timer = setTimeout(expire, timeoutMs)
+          },
+          onProgress: options?.onProgress
+        }
+        pending.set(id, entry)
         io.stdin.write(JSON.stringify({ id, method, params }) + '\n')
       })
     },

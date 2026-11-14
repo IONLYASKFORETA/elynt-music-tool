@@ -65,4 +65,4 @@ Getting there took three runs, and each one found something that's now fixed in 
 2. Ubuntu had no C compiler, and `pesq` builds from source. Fixed by installing `build-essential`, which the README now lists.
 3. In WSL2, `/tmp` is a 7.8 GB RAM disk, and the throwaway venv filled it. The check now builds its venv under `~/.cache/elynt-install-check`.
 
-That run also showed that installing SongFormer's list pulled in a CUDA 12 torch from PyPI over our CUDA 13.0 one. The run checked the GPU before that step but not after it. The check now holds torch at 2.13.0 with a constraint during that step, and it ends with a second GPU check that fails unless torch is still the `+cu130` build.
+That run also showed that installing SongFormer's list pulled in a CUDA 12 torch from PyPI over our CUDA 13.0 one. The run checked the GPU before that step but not after it. The cause was SongFormer's `triton==3.0.0` pin, so the check now leaves triton out (torch brings its own) and holds torch at 2.13.0 with a constraint during that step, and it ends with a second GPU check that fails unless torch is still the `+cu130` build.

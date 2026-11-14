@@ -40,7 +40,8 @@ GPU_CHECK = (
     "import torch; assert torch.cuda.is_available(), 'CUDA not available'; "
     "torch.ones(1, device='cuda'); print(torch.__version__, torch.cuda.get_device_name(0))"
 )
-SONGFORMER_SKIP = ("torch", "torchaudio", "torchvision")
+# triton too: its pin (3.0.0) is what dragged in an old CUDA 12 torch; torch brings its own.
+SONGFORMER_SKIP = ("torch", "torchaudio", "torchvision", "triton")
 # Pins in its list that can't install on Python 3.12 (found 2026-11-14):
 # - numpy==1.25.0 contradicts pandas==2.2.3, which needs numpy>=1.26.
 # - jams==0.3.4 is source-only and its setup.py imports `imp`, gone in 3.12; 0.3.5 ships a wheel.
@@ -142,7 +143,7 @@ class Checker:
         self.step(
             "SongFormer requirements",
             [self.pip("-r", str(req), "--constraint", str(constraints), "--extra-index-url", TORCH_INDEX, "--index-strategy", "unsafe-best-match")],
-            note="Installs SongFormer's pinned list minus torch/torchaudio/torchvision (torch kept at the CUDA 13.0 build), with the numpy and jams pins fixed for Python 3.12.",
+            note="Installs SongFormer's pinned list minus torch/torchaudio/torchvision/triton (torch kept at the CUDA 13.0 build), with the numpy and jams pins fixed for Python 3.12.",
         )
 
 

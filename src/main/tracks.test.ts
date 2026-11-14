@@ -65,4 +65,12 @@ describe('track library', () => {
 
     expect(tracks.list().map((t) => t.title)).toEqual(['b', 'a'])
   })
+
+  it('finds a track by id, or null when there is none', () => {
+    const tracks = createTrackLibrary(db)
+    const track = tracks.addFromMixdown('C:\\Music\\Bounces\\flip.wav')
+
+    expect(tracks.get(track.id)).toEqual(track)
+    expect(tracks.get(track.id + 1)).toBeNull()
+  })
 })

@@ -40,3 +40,18 @@ h2 { font-size: 12px; letter-spacing: 0.3em; text-transform: uppercase; color: v
 
 .empty { color: var(--muted); }
 .error { color: #ff6b8b; }
+
+.track-pick { all: unset; display: flex; flex-direction: column; cursor: pointer; }
+.tracks li:has(.track-pick:hover) { border-color: #3a3a46; }
+.tracks li:has(.track-pick.active) { border-color: #3db8ff; }
+
+.preview { margin-bottom: 32px; }
+.preview-stage { position: relative; aspect-ratio: 16 / 9; background: #000; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.preview-canvas { width: 100%; height: 100%; display: block; }
+.preview-note { position: absolute; inset: 0; display: grid; place-items: center; margin: 0; color: var(--muted); }
+.preview-fps { position: absolute; top: 8px; right: 10px; font: 600 11px/1 ui-monospace, monospace; color: #8b8b98; letter-spacing: 0.1em; }
+.preview-controls { display: flex; align-items: center; gap: 14px; margin-top: 12px; }
+.preview-controls input[type='range'] { flex: 1; accent-color: #3db8ff; }
+.preview-controls select { background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 8px; font: inherit; }
+.preview-time { font: 600 13px ui-monospace, monospace; color: var(--muted); min-width: 92px; text-align: right; }
+.add:disabled { opacity: 0.5; cursor: default; }

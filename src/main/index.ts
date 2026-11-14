@@ -1,4 +1,5 @@
 import { app, BrowserWindow, dialog, ipcMain } from 'electron'
+import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { channels } from '../shared/api'
 import { openSuiteDatabase } from './db/database'
@@ -50,6 +51,13 @@ function start(): void {
     const result = parent ? await dialog.showOpenDialog(parent, options) : await dialog.showOpenDialog(options)
     const [path] = result.filePaths
     return result.canceled || !path ? null : tracks.addFromMixdown(path)
+  })
+
+  // Only files the track library knows about can be read, never an arbitrary path from the UI.
+  ipcMain.handle(channels.readMixdown, async (_event, trackId: number) => {
+    const track = tracks.get(trackId)
+    if (!track) throw new Error(`No track with id ${trackId}.`)
+    return readFile(track.mixdownPath)
   })
 
   app.on('will-quit', () => db.close())

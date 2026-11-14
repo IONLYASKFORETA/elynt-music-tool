@@ -95,5 +95,24 @@ export const migrations: Migration[] = [
         updated_at       TEXT NOT NULL
       );
     `
+  },
+  {
+    version: 6,
+    name: 'stems',
+    // A track's stems, as file paths. source is 'own' (bounced by the owner) or 'split' (AI-split by the helper).
+    // A track holds one set at a time: the owner's own stems replace a split set.
+    sql: `
+      CREATE TABLE stems (
+        id        INTEGER PRIMARY KEY AUTOINCREMENT,
+        track_id  INTEGER NOT NULL REFERENCES tracks(id) ON DELETE CASCADE,
+        name      TEXT NOT NULL,
+        path      TEXT NOT NULL COLLATE NOCASE, -- Windows paths ignore case
+        source    TEXT NOT NULL CHECK (source IN ('own', 'split')),
+        model     TEXT,                         -- the separation model, for split stems
+        added_at  TEXT NOT NULL,
+        UNIQUE (track_id, path)
+      );
+      CREATE INDEX stems_track ON stems (track_id);
+    `
   }
 ]

@@ -134,6 +134,26 @@ describe('helper client', () => {
   })
 })
 
+describe('helper progress', () => {
+  it('passes progress lines to the caller, and each one restarts the timeout', async () => {
+    const proc = spawn(process.execPath, [STUB], { env: { ...process.env, STUB_MODE: 'normal' } })
+    try {
+      const client = createHelperClient({ stdin: proc.stdin, stdout: proc.stdout })
+      await client.ready
+      const seen: number[] = []
+      const split = await client.call(
+        'stems.split',
+        { path: '/mnt/d/SUPERFLY.wav', outDir: '/mnt/c/stems/1' },
+        { timeoutMs: 100, onProgress: (p) => seen.push(p.fraction ?? -1) }
+      )
+      expect(seen).toEqual([0, 0.2, 0.4, 0.6, 0.8])
+      expect(split.stems.map((s) => s.name)).toEqual(['drums', 'bass'])
+    } finally {
+      proc.kill()
+    }
+  })
+})
+
 describe('resolveHelperCommand', () => {
   it('uses WSL2 by default on Windows', () => {
     const cmd = resolveHelperCommand({ platform: 'win32', appRoot: 'C:\\elynt', env: {} })

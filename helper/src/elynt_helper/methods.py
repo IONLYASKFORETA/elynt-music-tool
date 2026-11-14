@@ -7,7 +7,7 @@ import platform
 import shutil
 import subprocess
 import sys
-from typing import Any
+from typing import Any, Callable, Protocol
 
 from . import PROTOCOL_VERSION, __version__
 
@@ -20,7 +20,16 @@ class HelperError(Exception):
         self.code = code
 
 
-def audio_probe(params: dict[str, Any]) -> dict[str, Any]:
+class Progress(Protocol):
+    """Reports how far a long call has got. `fraction` runs 0 to 1 within the stage, or is None if unknown."""
+
+    def __call__(self, stage: str, fraction: float | None = None, /) -> None: ...
+
+
+Handler = Callable[[dict[str, Any], Progress], Any]
+
+
+def audio_probe(params: dict[str, Any], _progress: Progress) -> dict[str, Any]:
     """Duration, sample rate and channels of an audio file, read from its header."""
     path = params.get("path")
     if not isinstance(path, str) or not path:
@@ -89,7 +98,7 @@ def gpu_info() -> dict[str, Any]:
     return {"available": False, "via": "none", "reason": "no PyTorch and no nvidia-smi"}
 
 
-def helper_info(_params: dict[str, Any]) -> dict[str, Any]:
+def helper_info(_params: dict[str, Any], _progress: Progress) -> dict[str, Any]:
     return {
         "version": __version__,
         "protocol": PROTOCOL_VERSION,
@@ -101,7 +110,15 @@ def helper_info(_params: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-METHODS = {
+def stems_split(params: dict[str, Any], progress: Progress) -> dict[str, Any]:
+    """Splits a mixdown into stems on the GPU and writes them as WAVs into outDir."""
+    from .stems import split_stems  # here, so the helper starts even if the separation stack is missing
+
+    return split_stems(params, progress)
+
+
+METHODS: dict[str, Handler] = {
     "helper.info": helper_info,
     "audio.probe": audio_probe,
+    "stems.split": stems_split,
 }

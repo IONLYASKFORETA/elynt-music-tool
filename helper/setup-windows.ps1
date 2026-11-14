@@ -11,7 +11,7 @@ if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
 }
 
 uv sync --inexact --python 3.12
-uv pip install --python .venv\Scripts\python.exe torch==2.13.0 torchaudio==2.13.0 --index-url https://download.pytorch.org/whl/cu130
+uv pip install --python .venv\Scripts\python.exe torch==2.13.0 --index-url https://download.pytorch.org/whl/cu130
 
 Write-Host "`nHelper venv ready in helper\.venv. Checking it:"
 '{"id":1,"method":"helper.info"}' | .venv\Scripts\python.exe -m elynt_helper

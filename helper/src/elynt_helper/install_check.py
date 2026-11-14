@@ -97,7 +97,8 @@ class Checker:
         self.step(
             f"PyTorch {TORCH_VERSION} (CUDA 13.0) sees the GPU",
             [
-                self.pip(f"torch=={TORCH_VERSION}", f"torchaudio=={TORCH_VERSION}", "--index-url", TORCH_INDEX),
+                # No torchaudio: PyTorch stopped releasing it after 2.9, so there is none for torch 2.13.
+                self.pip(f"torch=={TORCH_VERSION}", "--index-url", TORCH_INDEX),
                 self.py(
                     "import torch; assert torch.cuda.is_available(), 'CUDA not available'; "
                     "print(torch.__version__, torch.cuda.get_device_name(0))"
@@ -130,7 +131,7 @@ class Checker:
         self.step(
             "SongFormer requirements",
             [self.pip("-r", str(req))],
-            note="Installs SongFormer's pinned list minus torch/torchaudio (kept at the CUDA 13.0 build), with the numpy and jams pins fixed for Python 3.12.",
+            note="Installs SongFormer's pinned list minus torch/torchaudio/torchvision (torch kept at the CUDA 13.0 build), with the numpy and jams pins fixed for Python 3.12.",
         )
 
 

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import type { FormatId } from '../../../shared/formats'
 import type { Track } from '../../../shared/track'
 import { useTrackAnalysis } from './AnalysisStrip'
 import { HeardCheck } from './HeardCheck'
@@ -38,6 +39,8 @@ export function VisualizerTrack({ track, onRenamed }: { track: Track; onRenamed:
   })
   const { vision, setVision } = history
   const [section, setSection] = useState(0)
+  // The format the preview shows and the scene panel tweaks (V16). Edits to the vision apply to every format.
+  const [format, setFormat] = useState<FormatId>('wide')
 
   // Poster layers set the track's title and the artist's name from the artist profile.
   const [artistName, setArtistName] = useState('')
@@ -80,8 +83,10 @@ export function VisualizerTrack({ track, onRenamed }: { track: Track; onRenamed:
         onVisionChange={setVision}
         section={section}
         onSection={setSection}
+        format={format}
+        onFormatChange={setFormat}
       />
-      <ScenePanel vision={credited} onChange={setVision} section={section} onSection={setSection} />
+      <ScenePanel vision={credited} trackId={track.id} format={format} onChange={setVision} section={section} onSection={setSection} />
       <HistoryPanel visionKey={visionKey} history={history} section={section} />
     </>
   )

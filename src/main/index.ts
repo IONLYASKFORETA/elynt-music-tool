@@ -1,8 +1,9 @@
-import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, net, protocol, shell } from 'electron'
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import type { BenchConfig, BenchReport } from '../shared/bench'
 import { EXPORT_FORMATS, isExportFormatId, type ExportRequest } from '../shared/export'
 import { benchPassed, formatBenchReport, lumaPsnr, parseBenchArgs } from './export/bench'
@@ -29,7 +30,10 @@ import { REFERENCE_EXTENSIONS, type MixSetup } from '../shared/mix-setup'
 import type { ArtistProfile } from '../shared/profile'
 import type { StartRelease } from '../shared/release'
 import { createTrackStems, type StemSplitter } from './stems'
+import { createSubjectImages, type SubjectGenerator } from './subject-images'
+import { MEDIA_SCHEME, mediaPath, type SubjectImageRequest } from '../shared/subject-images'
 import { createTrackLibrary } from './tracks'
+import { loadSafeZones } from './safe-zones'
 
 const MIXDOWN_EXTENSIONS = ['wav', 'aif', 'aiff', 'flac', 'mp3']
 /**
@@ -37,6 +41,13 @@ const MIXDOWN_EXTENSIONS = ['wav', 'aif', 'aiff', 'flac', 'mp3']
  * Long, because the first split downloads the ~700 MB model and only says so once.
  */
 const SPLIT_IDLE_TIMEOUT_MS = 30 * 60 * 1000
+/**
+ * An image may go this long without a progress line before it counts as stuck. Long, because the
+ * first one downloads FLUX.2 klein 4B and its text encoder (about 16 GB) and only says so once.
+ */
+const IMAGE_IDLE_TIMEOUT_MS = 60 * 60 * 1000
+/** Most subject options one press can ask for. */
+const MAX_SUBJECT_OPTIONS = 6
 /** How often a running app checks whether today's backup is due (so it also runs past midnight). */
 const BACKUP_CHECK_MS = 60 * 60 * 1000
 
@@ -62,6 +73,12 @@ function createWindow(): BrowserWindow {
   }
   return win
 }
+
+// Media on disk (subject images) reaches the renderer through the app's own scheme, so the
+// preview and export can fetch it like any URL. Registered before the app is ready, as Electron asks.
+protocol.registerSchemesAsPrivileged([
+  { scheme: MEDIA_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } }
+])
 
 // The export benchmark runs against a throwaway library, never the owner's own database.
 const bench = parseBenchArgs(process.argv)
@@ -142,6 +159,21 @@ function start(): void {
     for (const win of BrowserWindow.getAllWindows()) win.webContents.send(channels.helperStatusChanged, status)
   })
   ipcMain.handle(channels.helperStatus, () => helper.status())
+  // The Live Set reader (M1): the helper parses the .als.
+  ipcMain.handle(channels.pickAndReadLiveSet, async (event) => {
+    const parent = BrowserWindow.fromWebContents(event.sender)
+    const options: Electron.OpenDialogOptions = {
+      title: 'Pick a Live Set',
+      properties: ['openFile'],
+      filters: [{ name: 'Ableton Live Set', extensions: ['als'] }]
+    }
+    const result = parent ? await dialog.showOpenDialog(parent, options) : await dialog.showOpenDialog(options)
+    const [path] = result.filePaths
+    if (result.canceled || !path) return null
+    const liveSet = await helper.call('liveset.read', { path: helper.toHelperPath(path) })
+    // The helper answers with its own view of the path (WSL under WSL2); hand back the app's.
+    return { ...liveSet, path }
+  })
   ipcMain.handle(channels.probeTrack, (_event, trackId: number) => {
     const track = tracks.get(trackId)
     if (!track) throw new Error(`No track with id ${trackId}`)
@@ -191,6 +223,38 @@ function start(): void {
     return result.canceled || result.filePaths.length === 0 ? null : stems.attachOwn(trackId, result.filePaths)
   })
 
+  // Subject images (V9): the helper's local image model makes them ahead of time; they stay on disk.
+  const subjectsRoot = join(app.getPath('userData'), 'subjects')
+  const generator: SubjectGenerator = async (request, onProgress) => {
+    const result = await helper.call(
+      'image.generate',
+      { prompt: request.prompt, outPath: helper.toHelperPath(request.outPath), ...(request.seed === undefined ? {} : { seed: request.seed }) },
+      { timeoutMs: IMAGE_IDLE_TIMEOUT_MS, onProgress }
+    )
+    console.log(`Subject image made in ${result.seconds} s (${result.model}, ${result.width}x${result.height})`)
+    return { seed: result.seed, model: result.model, width: result.width, height: result.height, seconds: result.seconds }
+  }
+  const subjectImages = createSubjectImages({ db, tracks, generator, root: subjectsRoot })
+  subjectImages.onJob((job) => {
+    for (const win of BrowserWindow.getAllWindows()) win.webContents.send(channels.subjectJobChanged, job)
+  })
+  ipcMain.handle(channels.listSubjectImages, (_event, trackId: number) => subjectImages.list(trackId))
+  ipcMain.handle(channels.generateSubjectImages, (_event, trackId: number, request: SubjectImageRequest, count: unknown) => {
+    if (request?.ground !== 'black' && request?.ground !== 'off-white') throw new Error(`Unknown ground: ${String(request?.ground)}`)
+    const palette = Array.isArray(request.palette) ? request.palette.filter((c) => /^#[0-9a-f]{6}$/i.test(String(c))) : undefined
+    const n = Math.min(MAX_SUBJECT_OPTIONS, Math.max(1, Math.floor(Number(count) || 1)))
+    return subjectImages.generate(trackId, { motif: String(request.motif ?? ''), ground: request.ground, ...(palette ? { palette } : {}) }, n)
+  })
+  ipcMain.handle(channels.regenerateSubjectImage, (_event, imageId: number) => subjectImages.regenerate(imageId))
+  ipcMain.handle(channels.removeSubjectImage, (_event, imageId: number) => subjectImages.remove(imageId))
+  ipcMain.handle(channels.subjectJobs, () => subjectImages.jobs())
+  // Only files the app made (or, later, put on the media shelf) are served, never an arbitrary path.
+  protocol.handle(MEDIA_SCHEME, (request) => {
+    const path = mediaPath(request.url)
+    if (!path || !subjectImages.isKnownPath(path)) return new Response('Not found', { status: 404 })
+    return net.fetch(pathToFileURL(path).toString())
+  })
+
   // Only files the track library knows about can be read, never an arbitrary path from the UI.
   ipcMain.handle(channels.readMixdown, async (_event, trackId: number) => {
     const track = tracks.get(trackId)
@@ -237,6 +301,7 @@ function start(): void {
     limitSeconds: bench.limitSeconds,
     outDir: mkdtempSync(join(tmpdir(), 'elynt-bench-videos-'))
   }
+  ipcMain.handle(channels.safeZones, () => loadSafeZones(join(app.getPath('userData'), 'safe-zones.json')))
   ipcMain.handle(channels.benchConfig, () => benchConfig)
   ipcMain.handle(channels.benchCheckFile, async (_event, path: string, frame: number, renders: Uint8Array[], width: number, height: number) => {
     if (!benchConfig || !finishedExports.has(path)) throw new Error('Only the benchmark can check its own videos.')

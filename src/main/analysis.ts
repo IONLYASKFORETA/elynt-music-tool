@@ -1,4 +1,5 @@
 import type { AnalysisStatus, TrackAnalysis, TrackAnalysisState } from '../shared/analysis'
+import type { MoodListen } from './gemini/mood-listen'
 import type { HelperMethod, HelperMethods, HelperStatus } from '../shared/helper'
 import type { SuiteDatabase } from './db/database'
 import { HelperCallError } from './helper/client'
@@ -115,6 +116,8 @@ export interface AnalysisQueueOptions {
   /** Every state change, for the UI. */
   onChange?: (state: TrackAnalysisState) => void
   timeoutMs?: number
+  /** The optional Gemini mood listen (V12), run after the local read. Null means keep the coarse mood. */
+  moodListen?: MoodListen
 }
 
 /** A five-minute track takes well under a minute on the GPU; this only catches a stuck helper. */
@@ -132,7 +135,14 @@ const FRIENDLY: Record<string, string> = {
 }
 
 /** Runs analysis one track at a time whenever the helper is up, and saves results on the track. */
-export function createAnalysisQueue({ store, tracks, helper, onChange = () => {}, timeoutMs = ANALYSIS_TIMEOUT_MS }: AnalysisQueueOptions): AnalysisQueue {
+export function createAnalysisQueue({
+  store,
+  tracks,
+  helper,
+  onChange = () => {},
+  timeoutMs = ANALYSIS_TIMEOUT_MS,
+  moodListen
+}: AnalysisQueueOptions): AnalysisQueue {
   let running: Promise<void> | null = null
   const crashes = new Map<number, number>()
   const emit = (state: TrackAnalysisState) => onChange(state)
@@ -145,6 +155,7 @@ export function createAnalysisQueue({ store, tracks, helper, onChange = () => {}
       const analysis = await helper.call('track.analyze', { path: helper.toHelperPath(track.mixdownPath) }, { timeoutMs })
       crashes.delete(trackId)
       emit(store.saveResult(trackId, analysis))
+      if (moodListen) await listenForMood(trackId, track.mixdownPath, analysis)
     } catch (error) {
       const code = error instanceof HelperCallError ? error.code : 'internal'
       const helperWentAway = code === 'helper_exited' || code === 'not_running'
@@ -160,6 +171,12 @@ export function createAnalysisQueue({ store, tracks, helper, onChange = () => {}
         : (FRIENDLY[code] ?? (error instanceof Error ? error.message : String(error)))
       emit(store.saveFailure(trackId, message))
     }
+  }
+
+  /** The local result is already saved, so a missing key, no internet or a bad answer changes nothing. */
+  const listenForMood = async (trackId: number, mixdownPath: string, analysis: TrackAnalysis) => {
+    const moodDetail = await moodListen?.({ trackId, mixdownPath, analysis }).catch(() => null)
+    if (moodDetail) emit(store.saveResult(trackId, { ...analysis, moodDetail }))
   }
 
   const drain = async () => {

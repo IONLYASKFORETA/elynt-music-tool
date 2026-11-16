@@ -18,6 +18,7 @@ import { createMixSetupStore } from './mix-setup'
 import { createProfileStore } from './profile'
 import { isKeyName } from '../shared/keys'
 import { ClaudeError, createClaudeClient, createUsageLog } from './claude'
+import { createGeminiTransport, createMoodListener } from './gemini'
 import { createApiKeys } from './keys/api-keys'
 import { createCredentialVault } from './keys/key-vault'
 import { REFERENCE_EXTENSIONS, type MixSetup } from '../shared/mix-setup'
@@ -72,6 +73,9 @@ function start(): void {
   const tracks = createTrackLibrary(db)
   const profile = createProfileStore(db)
   const mixSetup = createMixSetupStore(db, tracks)
+  // Keys stay in the Windows credential vault (ADR 0001). Every Claude and Gemini call is costed in api_usage.
+  const keys = createApiKeys(createCredentialVault())
+  const usage = createUsageLog(db)
 
   ipcMain.handle(channels.listTracks, () => tracks.list())
   ipcMain.handle(channels.addFromPickedMixdown, async (event) => {
@@ -101,6 +105,13 @@ function start(): void {
     store: analysisStore,
     tracks,
     helper,
+    // With a Gemini key, Gemini also listens for mood detail (V12). Without one, or offline, it's skipped.
+    moodListen: createMoodListener({
+      keys,
+      usage,
+      transport: createGeminiTransport(),
+      onError: (error) => console.warn('Gemini mood listen skipped:', error instanceof Error ? error.message : error)
+    }),
     onChange: (state) => {
       for (const win of BrowserWindow.getAllWindows()) win.webContents.send(channels.analysisChanged, state)
     }
@@ -228,10 +239,8 @@ function start(): void {
     app.exit(passed ? 0 : 1)
   })
 
-  // Keys stay in the Windows credential vault (ADR 0001). The Claude client is
-  // shared by all three tools and logs the cost of every call to api_usage.
-  const keys = createApiKeys(createCredentialVault())
-  const claude = createClaudeClient({ keys, usage: createUsageLog(db) })
+  // The Claude client is shared by all three tools and logs the cost of every call to api_usage.
+  const claude = createClaudeClient({ keys, usage })
 
   const keyName = (name: unknown) => {
     if (!isKeyName(name)) throw new Error(`Unknown key: ${String(name)}`)

@@ -18,7 +18,7 @@ export interface UsageFilter {
   releaseId?: number
 }
 
-/** The `api_usage` table: one row per Claude call. */
+/** The `api_usage` table: one row per Claude or Gemini call. Gemini calls are logged as the fast tier. */
 export interface UsageLog {
   record(entry: UsageEntry): void
   list(filter?: UsageFilter): UsageEntry[]

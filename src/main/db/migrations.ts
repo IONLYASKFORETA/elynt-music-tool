@@ -141,5 +141,40 @@ export const migrations: Migration[] = [
         CHECK (check_state IN ('unchecked', 'confirmed', 'skipped'));
       ALTER TABLE track_analysis ADD COLUMN checked_at TEXT;
     `
+  },
+  {
+    version: 9,
+    name: 'releases and plan steps',
+    // Release Assistant (R1). A release records the playbook version that built its plan; a plan
+    // step holds only its dates and status, and reads its What/Why/How from that playbook version,
+    // so an app update with a newer playbook never rewrites a running release.
+    sql: `
+      CREATE TABLE releases (
+        id                INTEGER PRIMARY KEY AUTOINCREMENT,
+        track_id          INTEGER NOT NULL REFERENCES tracks(id) ON DELETE CASCADE,
+        release_day       TEXT NOT NULL,               -- YYYY-MM-DD
+        playbook_version  INTEGER NOT NULL,
+        subgenre_override TEXT,                        -- per-release overrides; null uses the profile
+        budget_override   REAL,
+        goal_override     TEXT,
+        status            TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'closed')),
+        started_at        TEXT NOT NULL
+      );
+      CREATE INDEX releases_track ON releases (track_id);
+
+      CREATE TABLE plan_steps (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        release_id    INTEGER NOT NULL REFERENCES releases(id) ON DELETE CASCADE,
+        position      INTEGER NOT NULL,              -- order in the plan
+        step_id       TEXT NOT NULL,                 -- the playbook step id
+        offset_days   INTEGER NOT NULL,              -- days from release day, as the playbook placed it
+        due_date      TEXT NOT NULL,                 -- YYYY-MM-DD
+        hard_deadline INTEGER NOT NULL CHECK (hard_deadline IN (0, 1)),
+        status        TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'done', 'skipped', 'missed')),
+        moved_from    TEXT,                          -- the due date before the owner moved it
+        UNIQUE (release_id, step_id)
+      );
+      CREATE INDEX plan_steps_release ON plan_steps (release_id, position);
+    `
   }
 ]

@@ -1,8 +1,16 @@
 import { Fragment, useCallback, useEffect, useState } from 'react'
 import { formatOffset, LANES, STEP_RULES, TAGS } from '../../shared/playbook'
-import type { Release, ReleaseWithPlan } from '../../shared/release'
+import type { Release, ReleaseToday, ReleaseWithPlan } from '../../shared/release'
 import { boardOf } from '../../shared/release-board'
 import { stepsByPhase, type PlanStep, type ReleasePlan } from '../../shared/release-plan'
+import {
+  countdownLabel,
+  stepActionWarning,
+  todayView,
+  type LostDeadline,
+  type StepAction,
+  type TodayView
+} from '../../shared/release-plan-actions'
 import type { Track } from '../../shared/track'
 
 function message(e: unknown): string {
@@ -20,18 +28,14 @@ function formatDay(date: string, withYear = true): string {
   })
 }
 
-/** Today as YYYY-MM-DD on this computer's clock. */
-function localToday(): string {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
-
 const PLAN_TABS = [
+  { id: 'today', name: 'Today' },
   { id: 'timeline', name: 'Timeline' },
   { id: 'board', name: 'Board' }
 ] as const
 
 type PlanTab = (typeof PLAN_TABS)[number]['id']
+type OnAct = (step: PlanStep, action: StepAction) => void
 
 /** The Release Assistant: start a release, then see its plan. */
 export function ReleaseScreen({ tracks }: { tracks: Track[] }) {
@@ -139,18 +143,47 @@ function StartRelease({ tracks, onStarted }: { tracks: Track[]; onStarted: (r: R
 }
 
 function ReleasePlanView({ releaseId }: { releaseId: number }) {
-  const [data, setData] = useState<ReleaseWithPlan | null>(null)
+  const [data, setData] = useState<ReleaseToday | null>(null)
+  const [lost, setLost] = useState<LostDeadline[]>([])
+  const [tab, setTab] = useState<PlanTab>('today')
+  const [newDay, setNewDay] = useState('')
   const [error, setError] = useState<string | null>(null)
-  const [tab, setTab] = useState<PlanTab>('timeline')
+
+  const show = useCallback((next: ReleaseToday | null) => {
+    setData(next)
+    if (next && next.lost.length > 0) setLost((old) => [...old, ...next.lost])
+  }, [])
 
   useEffect(() => {
-    window.elynt.releases.get(releaseId).then(setData, (e: unknown) => setError(message(e)))
-  }, [releaseId])
+    window.elynt.releases.openToday(releaseId).then(show, (e: unknown) => setError(message(e)))
+  }, [releaseId, show])
 
-  if (error) return <p className="error">{error}</p>
-  if (!data) return null
+  const run = async (call: () => Promise<ReleaseToday>) => {
+    setError(null)
+    try {
+      show(await call())
+    } catch (e) {
+      setError(message(e))
+    }
+  }
+
+  const act: OnAct = (step, action) => {
+    const warning = stepActionWarning(step, action)
+    if (warning && !window.confirm(warning)) return
+    void run(() => window.elynt.releases.actOnStep(releaseId, step.stepId, action))
+  }
+
+  const moveDay = () => {
+    if (!newDay || !data || newDay === data.release.releaseDay) return
+    const ok = window.confirm(
+      `Move release day to ${formatDay(newDay)}? Every step moves with it; steps you finished stay finished.`
+    )
+    if (ok) void run(() => window.elynt.releases.moveReleaseDay(releaseId, newDay)).then(() => setNewDay(''))
+  }
+
+  if (!data) return error ? <p className="error">{error}</p> : null
   const { release, plan } = data
-  const done = plan.steps.filter((s) => s.status === 'done').length
+  const view = todayView(plan, data.today)
 
   return (
     <section className="plan">
@@ -158,11 +191,34 @@ function ReleasePlanView({ releaseId }: { releaseId: number }) {
         <div>
           <h2>{release.trackTitle}</h2>
           <p>
-            Release day <strong>{formatDay(release.releaseDay)}</strong> · {done} of {plan.steps.length} steps done ·
-            playbook v{release.playbookVersion}
+            Release day <strong>{formatDay(release.releaseDay)}</strong> · playbook v{release.playbookVersion}
           </p>
         </div>
+        <div className="plan-stats">
+          <div>
+            <strong>{countdownLabel(view.daysToRelease)}</strong>
+          </div>
+          <div>
+            <strong>
+              {view.stepsDone} of {view.stepsTotal}
+            </strong>{' '}
+            steps done
+          </div>
+          <label className="plan-move-day">
+            <span>Move release day</span>
+            <input type="date" value={newDay} onChange={(e) => setNewDay(e.target.value)} />
+            <button onClick={moveDay} disabled={!newDay || newDay === release.releaseDay}>
+              Move
+            </button>
+          </label>
+        </div>
       </header>
+      {error && <p className="error">{error}</p>}
+      {lost.map((l) => (
+        <p key={l.stepId} className="plan-lost" role="alert">
+          {l.message}
+        </p>
+      ))}
       <div className="plan-tabs" role="tablist">
         {PLAN_TABS.map((t) => (
           <button
@@ -176,12 +232,41 @@ function ReleasePlanView({ releaseId }: { releaseId: number }) {
           </button>
         ))}
       </div>
-      {tab === 'timeline' ? <Timeline plan={plan} /> : <Board plan={plan} />}
+      {tab === 'today' && <Today view={view} today={data.today} onAct={act} />}
+      {tab === 'timeline' && <Timeline plan={plan} onAct={act} />}
+      {tab === 'board' && <Board plan={plan} today={data.today} onAct={act} />}
     </section>
   )
 }
 
-function Timeline({ plan }: { plan: ReleasePlan }) {
+/** Today (#63): what to do now, what slipped, the week ahead and the deadlines that matter. */
+function Today({ view, today, onAct }: { view: TodayView; today: string; onAct: OnAct }) {
+  const section = (title: string, steps: PlanStep[], empty: string | null) =>
+    steps.length === 0 && empty === null ? null : (
+      <section className="phase">
+        <h3>{title}</h3>
+        {steps.length === 0 ? (
+          <p className="empty">{empty}</p>
+        ) : (
+          <ul className="steps">
+            {steps.map((s) => (
+              <StepRow key={s.stepId} step={s} onAct={onAct} />
+            ))}
+          </ul>
+        )}
+      </section>
+    )
+  return (
+    <div className="timeline">
+      {section(`Today · ${formatDay(today)}`, view.today, 'Nothing due today.')}
+      {section('Overdue', view.overdue, null)}
+      {section('Next 7 days', view.nextWeek, 'Nothing due in the next week.')}
+      {section('Upcoming hard deadlines', view.hardDeadlines, 'No hard deadlines left.')}
+    </div>
+  )
+}
+
+function Timeline({ plan, onAct }: { plan: ReleasePlan; onAct: OnAct }) {
   return (
     <div className="timeline">
       {stepsByPhase(plan).map((group) => (
@@ -199,7 +284,7 @@ function Timeline({ plan }: { plan: ReleasePlan }) {
           ) : (
             <ul className="steps">
               {group.steps.map((s) => (
-                <StepRow key={s.stepId} step={s} />
+                <StepRow key={s.stepId} step={s} onAct={onAct} />
               ))}
             </ul>
           )}
@@ -210,9 +295,9 @@ function Timeline({ plan }: { plan: ReleasePlan }) {
 }
 
 /** Weeks as columns, lanes as rows (#64). Clicking a step opens the same detail as Timeline. */
-function Board({ plan }: { plan: ReleasePlan }) {
+function Board({ plan, today, onAct }: { plan: ReleasePlan; today: string; onAct: OnAct }) {
   const [selected, setSelected] = useState<string | null>(null)
-  const board = boardOf(plan, localToday())
+  const board = boardOf(plan, today)
   const picked = plan.steps.find((s) => s.stepId === selected) ?? null
 
   return (
@@ -261,7 +346,7 @@ function Board({ plan }: { plan: ReleasePlan }) {
           <div className="step-row">
             <StepSummary step={picked} />
           </div>
-          <StepDetail step={picked} />
+          <StepDetail step={picked} onAct={onAct} />
         </div>
       ) : (
         <p className="hint">Click a step to see what to do, why and how.</p>
@@ -270,15 +355,15 @@ function Board({ plan }: { plan: ReleasePlan }) {
   )
 }
 
-function StepRow({ step: s }: { step: PlanStep }) {
+function StepRow({ step: s, onAct }: { step: PlanStep; onAct: OnAct }) {
   const [open, setOpen] = useState(false)
 
   return (
-    <li className={s.hardDeadline ? 'step step-hard' : 'step'}>
+    <li className={`step${s.hardDeadline ? ' step-hard' : ''} step-${s.status}`}>
       <button className="step-row" aria-expanded={open} onClick={() => setOpen(!open)}>
         <StepSummary step={s} />
       </button>
-      {open && <StepDetail step={s} />}
+      {open && <StepDetail step={s} onAct={onAct} />}
     </li>
   )
 }
@@ -295,6 +380,8 @@ function StepSummary({ step: s }: { step: PlanStep }) {
       </span>
       <span className="step-title">{s.step.title}</span>
       <span className="step-tags">
+        {STATUS_NAMES[s.status] && <span className={`badge badge-status-${s.status}`}>{STATUS_NAMES[s.status]}</span>}
+        {s.movedFrom && <span className="badge">Moved from {formatDay(s.movedFrom, false)}</span>}
         {s.hardDeadline && <span className="badge badge-hard">Hard deadline</span>}
         <span className={`badge badge-${s.step.tag}`}>{tag}</span>
         <span className="badge">{lane}</span>
@@ -303,8 +390,19 @@ function StepSummary({ step: s }: { step: PlanStep }) {
   )
 }
 
-/** The step detail: When (for rule steps), What, Why and How. Shared by Timeline and Board. */
-function StepDetail({ step: s }: { step: PlanStep }) {
+const STATUS_NAMES: Record<PlanStep['status'], string | null> = {
+  open: null,
+  done: 'Done',
+  skipped: 'Skipped',
+  missed: 'Missed'
+}
+
+/**
+ * The step detail: When (for rule steps), What, Why and How, and the step actions (done, skip,
+ * move, undo). Shared by Today, Timeline and Board.
+ */
+function StepDetail({ step: s, onAct }: { step: PlanStep; onAct: OnAct }) {
+  const [moveTo, setMoveTo] = useState('')
   const when = s.step.when
   const rule = 'rule' in when ? STEP_RULES.find((r) => r.id === when.rule) : null
 
@@ -324,6 +422,28 @@ function StepDetail({ step: s }: { step: PlanStep }) {
       <dd>{s.step.why}</dd>
       <dt>How</dt>
       <dd>{s.step.how}</dd>
+      <dd className="step-actions">
+        {s.status === 'done' || s.status === 'skipped' ? (
+          <button onClick={() => onAct(s, { kind: 'reopen' })}>{s.status === 'done' ? 'Mark not done' : 'Unskip'}</button>
+        ) : (
+          <>
+            <button className="add" onClick={() => onAct(s, { kind: 'done' })}>
+              Mark done
+            </button>
+            <button onClick={() => onAct(s, { kind: 'skip' })}>Skip</button>
+          </>
+        )}
+        <input type="date" aria-label="Move to" value={moveTo} onChange={(e) => setMoveTo(e.target.value)} />
+        <button
+          disabled={!moveTo || moveTo === s.dueDate}
+          onClick={() => {
+            onAct(s, { kind: 'move', to: moveTo })
+            setMoveTo('')
+          }}
+        >
+          Move
+        </button>
+      </dd>
     </dl>
   )
 }

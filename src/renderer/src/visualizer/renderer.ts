@@ -29,6 +29,8 @@ export class SceneRenderer {
   /** The target the last encodeLayers left the finished picture in. */
   private finished: GPUTexture | null = null
   private readonly readbacks: GPUBuffer[] = []
+  /** The export's frames, each with its clips seeked, drawn one after the other. */
+  private exactQueue: Promise<void> = Promise.resolve()
   private width = 0
   private height = 0
   private configured = false
@@ -63,7 +65,7 @@ export class SceneRenderer {
     this.pipelines = Object.fromEntries(
       (Object.keys(PASS_SHADERS) as DrawnKind[]).map((kind) => [kind, make(PASS_SHADERS[kind], WORK_FORMAT)])
     ) as Record<DrawnKind, GPURenderPipeline>
-    this.images = new LayerImages(device)
+    this.images = new LayerImages(device, context !== null)
     this.blitPipeline = make(BLIT_WGSL, canvasFormat)
     this.pixelBlitPipeline = canvasFormat === PIXEL_FORMAT ? this.blitPipeline : make(BLIT_WGSL, PIXEL_FORMAT)
     this.sampler = device.createSampler({ magFilter: 'linear', minFilter: 'linear' })
@@ -160,6 +162,22 @@ export class SceneRenderer {
     const encoder = this.encodeLayers(plan)
     this.blitTo(encoder, this.pixelBlitPipeline, plan, this.pixels.createView())
     return this.readBack(encoder, this.pixels, false)
+  }
+
+  /**
+   * Like `renderPixels`, but first seeks every clip the frame shows to the exact frame its plan
+   * names (V18). Frames are drawn in the order asked, so a clip's texture always holds the frame
+   * that frame needs; their readbacks still overlap.
+   */
+  renderExactPixels(plan: FramePlan): Promise<Uint8Array> {
+    const drawn = this.exactQueue
+      .then(() => this.images.prepare(plan.passes.map((p) => p.image)))
+      .then(() => ({ pixels: this.renderPixels(plan) }))
+    this.exactQueue = drawn.then(
+      () => undefined,
+      () => undefined
+    )
+    return drawn.then((d) => d.pixels)
   }
 
   private submitToCanvas(plan: FramePlan, capture: boolean): Promise<Uint8Array> | undefined {

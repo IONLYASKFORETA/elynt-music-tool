@@ -18,21 +18,29 @@ import { resolveHelperCommand } from './helper/command'
 import { createHelperSupervisor } from './helper/supervisor'
 import { createMixProjects } from './mix-project'
 import { watchMixProject, type MixProjectWatcher } from './mix-project-watcher'
+import { createMediaShelf } from './media-shelf'
 import { createMixSetupStore } from './mix-setup'
 import { createProfileStore } from './profile'
 import { createReleaseStore } from './releases'
+import type { PresetLevel } from '../shared/vision-history'
+import { createPresetStore, createVisionHistoryStore } from './vision-history'
 import { isKeyName } from '../shared/keys'
 import { ClaudeError, createClaudeClient, createUsageLog } from './claude'
 import { createGeminiTransport, createMoodListener } from './gemini'
 import { createApiKeys } from './keys/api-keys'
 import { createCredentialVault } from './keys/key-vault'
+import { CLIP_EXTENSIONS, IMAGE_EXTENSIONS } from '../shared/media'
 import { REFERENCE_EXTENSIONS, type MixSetup } from '../shared/mix-setup'
 import type { ArtistProfile } from '../shared/profile'
 import type { StartRelease } from '../shared/release'
+import { parseStepAction, type StepAction } from '../shared/release-plan-actions'
 import { createTrackStems, type StemSplitter } from './stems'
 import { createSubjectImages, type SubjectGenerator } from './subject-images'
 import { MEDIA_SCHEME, mediaPath, type SubjectImageRequest } from '../shared/subject-images'
 import { createTrackLibrary } from './tracks'
+import { createVisionFlow } from './visions/flow'
+import { createVisionStore } from './visions/store'
+import type { VisionFlowRequest, WorkingVision } from '../shared/visions'
 import { loadSafeZones } from './safe-zones'
 
 const MIXDOWN_EXTENSIONS = ['wav', 'aif', 'aiff', 'flac', 'mp3']
@@ -74,10 +82,11 @@ function createWindow(): BrowserWindow {
   return win
 }
 
-// Media on disk (subject images) reaches the renderer through the app's own scheme, so the
-// preview and export can fetch it like any URL. Registered before the app is ready, as Electron asks.
+// Media on disk reaches the renderer through the app's own scheme, so the preview and export can
+// fetch it like any URL: subject images (V9), and the media shelf and cover art (V18). Clips must be
+// seekable and CORS-clean for WebGPU to copy their frames. Registered before the app is ready.
 protocol.registerSchemesAsPrivileged([
-  { scheme: MEDIA_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } }
+  { scheme: MEDIA_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true, corsEnabled: true } }
 ])
 
 // The export benchmark runs against a throwaway library, never the owner's own database.
@@ -288,12 +297,6 @@ function start(): void {
   ipcMain.handle(channels.regenerateSubjectImage, (_event, imageId: number) => subjectImages.regenerate(imageId))
   ipcMain.handle(channels.removeSubjectImage, (_event, imageId: number) => subjectImages.remove(imageId))
   ipcMain.handle(channels.subjectJobs, () => subjectImages.jobs())
-  // Only files the app made (or, later, put on the media shelf) are served, never an arbitrary path.
-  protocol.handle(MEDIA_SCHEME, (request) => {
-    const path = mediaPath(request.url)
-    if (!path || !subjectImages.isKnownPath(path)) return new Response('Not found', { status: 404 })
-    return net.fetch(pathToFileURL(path).toString())
-  })
 
   // Only files the track library knows about can be read, never an arbitrary path from the UI.
   ipcMain.handle(channels.readMixdown, async (_event, trackId: number) => {
@@ -382,6 +385,40 @@ function start(): void {
     await keys.remove(keyName(name))
     return keys.status()
   })
+  // The vision flow (V10): Claude writes three visions; each call is costed against the track.
+  // With ELYNT_RECORD_CLAUDE_DIR set, every raw reply is also saved there, to replay in tests.
+  const visionStore = createVisionStore(db)
+  const recordDir = process.env['ELYNT_RECORD_CLAUDE_DIR']
+  const visionFlow = createVisionFlow({
+    claude,
+    usage,
+    store: visionStore,
+    tracks,
+    analysis: (trackId) => analysisStore.get(trackId)?.analysis ?? null,
+    artistName: () => profile.get().artistName ?? '',
+    onReply: recordDir
+      ? (reply) => {
+          mkdirSync(recordDir, { recursive: true })
+          writeFileSync(join(recordDir, `visions-${Date.now()}.json`), JSON.stringify(reply, null, 1))
+        }
+      : undefined
+  })
+  ipcMain.handle(channels.latestVisions, (_event, trackId: number) => visionStore.latestSet(trackId))
+  ipcMain.handle(channels.generateVisions, async (_event, request: VisionFlowRequest) => {
+    const result = await visionFlow.run(request)
+    console.log(
+      `Visions for track ${request.trackId}: $${result.set.costUsd.toFixed(3)} in ${result.set.attempts} call(s); ` +
+        `Visualizer total for the track $${result.trackCostUsd.toFixed(3)}.`
+    )
+    return result
+  })
+  ipcMain.handle(channels.getWorkingVision, (_event, trackId: number) => visionStore.getWorking(trackId))
+  ipcMain.handle(channels.saveWorkingVision, (_event, trackId: number, vision: unknown, from: WorkingVision['from']) => {
+    if (!tracks.get(trackId)) throw new Error(`No track with id ${trackId}.`)
+    return visionStore.saveWorking(trackId, vision, from)
+  })
+  ipcMain.handle(channels.visionTrackCost, (_event, trackId: number) => usage.totalCostUsd({ tool: 'visualizer', trackId }))
+
   ipcMain.handle(channels.testAnthropicKey, async () => {
     try {
       await claude.text({ tool: 'suite', tier: 'fast', prompt: 'Reply with the word ok.', maxTokens: 64 })
@@ -429,6 +466,61 @@ function start(): void {
     return result.filePath
   })
 
+  // The media shelf (V18): own images, clips and logo by path, for any track; and each track's cover art.
+  const media = createMediaShelf({
+    db,
+    tracks,
+    probeClip: async (path) => {
+      const facts = await probeExport(ffmpegPath, path)
+      return { durationSeconds: facts.video.seconds, fps: facts.video.fps }
+    }
+  })
+  // Only files the app made (subject images) or the owner put on the media shelf or as cover art
+  // are served, never an arbitrary path.
+  protocol.handle(MEDIA_SCHEME, async (request) => {
+    const generated = mediaPath(request.url)
+    const path = media.pathFor(request.url) ?? (generated && subjectImages.isKnownPath(generated) ? generated : null)
+    if (!path) return new Response('Not found', { status: 404 })
+    // Range headers pass through, so a clip can seek.
+    const response = await net.fetch(pathToFileURL(path).toString(), { headers: request.headers })
+    const headers = new Headers(response.headers)
+    headers.set('Access-Control-Allow-Origin', '*')
+    return new Response(response.body, { status: response.status, statusText: response.statusText, headers })
+  })
+  ipcMain.handle(channels.listMedia, () => media.list())
+  ipcMain.handle(channels.addPickedMedia, async (event) => {
+    const parent = BrowserWindow.fromWebContents(event.sender)
+    const options: Electron.OpenDialogOptions = {
+      title: 'Add images and clips to the media shelf',
+      properties: ['openFile', 'multiSelections'],
+      filters: [{ name: 'Images and clips', extensions: [...IMAGE_EXTENSIONS, ...CLIP_EXTENSIONS] }]
+    }
+    const result = parent ? await dialog.showOpenDialog(parent, options) : await dialog.showOpenDialog(options)
+    return result.canceled ? [] : media.add(result.filePaths)
+  })
+  ipcMain.handle(channels.removeMedia, (_event, id: number) => {
+    media.remove(id)
+    return media.list()
+  })
+  ipcMain.handle(channels.setLogo, (_event, id: number | null) => {
+    media.setLogo(id)
+    return media.list()
+  })
+  ipcMain.handle(channels.getCoverArt, (_event, trackId: number) => media.coverArt(trackId))
+  ipcMain.handle(channels.attachPickedCoverArt, async (event, trackId: number) => {
+    const parent = BrowserWindow.fromWebContents(event.sender)
+    const options: Electron.OpenDialogOptions = {
+      title: "Pick this track's cover art",
+      properties: ['openFile'],
+      filters: [{ name: 'Images', extensions: IMAGE_EXTENSIONS }]
+    }
+    const result = parent ? await dialog.showOpenDialog(parent, options) : await dialog.showOpenDialog(options)
+    const [path] = result.filePaths
+    if (!result.canceled && path) media.setCoverArt(trackId, path)
+    return media.coverArt(trackId)
+  })
+  ipcMain.handle(channels.removeCoverArt, (_event, trackId: number) => media.setCoverArt(trackId, null))
+
   ipcMain.handle(channels.getProfile, () => profile.get())
   ipcMain.handle(channels.saveProfile, (_event, input: ArtistProfile) => profile.save(input))
 
@@ -437,6 +529,27 @@ function start(): void {
   ipcMain.handle(channels.startRelease, (_event, input: StartRelease) =>
     releases.start({ trackId: Number(input.trackId), releaseDay: String(input.releaseDay) })
   )
+  ipcMain.handle(channels.openReleaseToday, (_event, releaseId: number) => releases.openToday(Number(releaseId)))
+  ipcMain.handle(channels.actOnPlanStep, (_event, releaseId: number, stepId: string, action: StepAction) =>
+    releases.actOnStep(Number(releaseId), String(stepId), parseStepAction(action))
+  )
+  ipcMain.handle(channels.moveReleaseDay, (_event, releaseId: number, newDay: string) =>
+    releases.moveReleaseDay(Number(releaseId), String(newDay))
+  )
+
+  const visionHistory = createVisionHistoryStore(db)
+  const presets = createPresetStore(db)
+  ipcMain.handle(channels.currentVisionHistory, (_event, key: unknown) => visionHistory.current(String(key)))
+  ipcMain.handle(channels.recordVisionHistory, (_event, key: unknown, vision: unknown) => visionHistory.record(String(key), vision))
+  ipcMain.handle(channels.undoVision, (_event, key: unknown) => visionHistory.undo(String(key)))
+  ipcMain.handle(channels.redoVision, (_event, key: unknown) => visionHistory.redo(String(key)))
+  ipcMain.handle(channels.saveVisionSnapshot, (_event, key: unknown, name: unknown) => visionHistory.saveSnapshot(String(key), String(name)))
+  ipcMain.handle(channels.listVisionSnapshots, (_event, key: unknown) => visionHistory.listSnapshots(String(key)))
+  ipcMain.handle(channels.restoreVisionSnapshot, (_event, id: unknown) => visionHistory.restoreSnapshot(Number(id)))
+  ipcMain.handle(channels.deleteVisionSnapshot, (_event, id: unknown) => visionHistory.deleteSnapshot(Number(id)))
+  ipcMain.handle(channels.savePreset, (_event, level: PresetLevel, name: unknown, data: unknown) => presets.save(level, String(name), data))
+  ipcMain.handle(channels.listPresets, (_event, level?: PresetLevel) => presets.list(level))
+  ipcMain.handle(channels.deletePreset, (_event, id: unknown) => presets.delete(Number(id)))
 
   ipcMain.handle(channels.getMixSetup, (_event, trackId: number) => mixSetup.get(trackId))
   ipcMain.handle(channels.saveMixSetup, (_event, input: MixSetup) => mixSetup.save(input))

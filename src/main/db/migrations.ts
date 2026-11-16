@@ -201,6 +201,93 @@ export const migrations: Migration[] = [
     `
   },
   {
+    version: 11,
+    name: 'media shelf and cover art',
+    // The media shelf (V18): the owner's own images, clips and logo, by path, for any track.
+    // At most one row is the logo. A track's cover art is offered to its vision, never required.
+    sql: `
+      CREATE TABLE media_shelf (
+        id               INTEGER PRIMARY KEY AUTOINCREMENT,
+        type             TEXT NOT NULL CHECK (type IN ('image', 'clip')),
+        path             TEXT NOT NULL UNIQUE COLLATE NOCASE, -- Windows paths ignore case
+        is_logo          INTEGER NOT NULL DEFAULT 0 CHECK (is_logo IN (0, 1)),
+        duration_seconds REAL,          -- clips only
+        fps              REAL,          -- clips only
+        added_at         TEXT NOT NULL
+      );
+      CREATE UNIQUE INDEX media_shelf_one_logo ON media_shelf (is_logo) WHERE is_logo = 1;
+      CREATE TABLE track_cover_art (
+        track_id INTEGER PRIMARY KEY REFERENCES tracks(id) ON DELETE CASCADE,
+        path     TEXT NOT NULL
+      );
+    `
+  },
+  {
+    version: 12,
+    name: 'vision history, snapshots and presets',
+    // Visualizer undo, snapshots and presets (V15). History keeps every state of a vision as a
+    // whole, as JSON, keyed by a vision key (the editor's vision of a track for now), so whatever
+    // a vision holds gets undo. cursor is the seq of the state showing; later seqs are redo.
+    sql: `
+      CREATE TABLE vision_history (
+        vision_key  TEXT NOT NULL,
+        seq         INTEGER NOT NULL,
+        vision      TEXT NOT NULL,
+        recorded_at TEXT NOT NULL,
+        PRIMARY KEY (vision_key, seq)
+      );
+      CREATE TABLE vision_history_cursor (
+        vision_key TEXT PRIMARY KEY,
+        seq        INTEGER NOT NULL
+      );
+      CREATE TABLE vision_snapshots (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        vision_key TEXT NOT NULL,
+        name       TEXT NOT NULL,
+        vision     TEXT NOT NULL,
+        saved_at   TEXT NOT NULL
+      );
+      CREATE INDEX vision_snapshots_key ON vision_snapshots (vision_key);
+      -- Presets are the owner's, not a track's: a layer, a scene or a whole vision, as JSON.
+      CREATE TABLE presets (
+        id       INTEGER PRIMARY KEY AUTOINCREMENT,
+        level    TEXT NOT NULL CHECK (level IN ('layer', 'scene', 'vision')),
+        name     TEXT NOT NULL,
+        data     TEXT NOT NULL,
+        saved_at TEXT NOT NULL
+      );
+    `
+  },
+  {
+    version: 13,
+    name: 'visions',
+    // The vision flow (V10). vision_sets keeps every run: the brief, the tap questions and answers,
+    // and Claude's three checked visions (VisionPlan[] as JSON), with what the run cost.
+    // track_vision is the vision the scene editor shows and saves, as the renderer's Vision JSON;
+    // from_set/from_index say which of a set's visions it was built from (null: the default one).
+    sql: `
+      CREATE TABLE vision_sets (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        track_id   INTEGER NOT NULL REFERENCES tracks(id) ON DELETE CASCADE,
+        brief      TEXT NOT NULL DEFAULT '',
+        questions  TEXT NOT NULL DEFAULT '[]',
+        answers    TEXT NOT NULL DEFAULT '{}',
+        visions    TEXT NOT NULL,
+        attempts   INTEGER NOT NULL,
+        cost_usd   REAL NOT NULL,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX vision_sets_track ON vision_sets (track_id);
+      CREATE TABLE track_vision (
+        track_id   INTEGER PRIMARY KEY REFERENCES tracks(id) ON DELETE CASCADE,
+        vision     TEXT NOT NULL,
+        from_set   INTEGER REFERENCES vision_sets(id) ON DELETE SET NULL,
+        from_index INTEGER,
+        updated_at TEXT NOT NULL
+      );
+    `
+  },
+  {
     version: 14,
     name: 'mix projects',
     // The Mix & Master project folder (M2), picked once per track. The app reads the newest .als

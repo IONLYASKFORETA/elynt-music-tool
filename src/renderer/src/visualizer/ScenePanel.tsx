@@ -1,5 +1,7 @@
 import type { FormatId } from '../../../shared/formats'
 import { FormatTweakControls } from './FormatTweakControls'
+import { MediaControls } from './MediaControls'
+import type { OwnMedia } from './MediaShelf'
 import { PosterLayerControls } from './PosterLayerControls'
 import { MAX_COLORS, MIN_COLORS } from './palette'
 import { PICKABLE_SIGNALS, signalLabel, type Reactivity } from './reactivity'
@@ -14,7 +16,15 @@ import {
   type LayerKind
 } from './scene'
 import { SIGNALS } from './signals'
-import { addSectionLayer, removeSectionLayer, setVisionPalette, updateSectionLayer, type Vision } from './vision'
+import {
+  acceptCoverArt,
+  addSectionLayer,
+  removeSectionLayer,
+  setVisionPalette,
+  updateSectionLayer,
+  visionImages,
+  type Vision
+} from './vision'
 
 /** Layer kinds the owner can add between Ground and Finish: every kind in the layer library but those two. */
 const ADDABLE_KINDS = (Object.keys(LAYER_NAMES) as LayerKind[]).filter((k) => !EXEMPT_KINDS.includes(k))
@@ -24,10 +34,13 @@ const ADDABLE_KINDS = (Object.keys(LAYER_NAMES) as LayerKind[]).filter((k) => !E
  * strongly. Active layers can be added (up to the limit) and removed. Poster layers also take
  * tweaks for the format the preview shows (V16).
  */
+const NO_MEDIA: OwnMedia = { shelf: [], coverArt: null }
+
 export function ScenePanel({
   vision,
   trackId,
   format,
+  media = NO_MEDIA,
   onChange,
   section: picked,
   onSection: setPicked
@@ -37,6 +50,8 @@ export function ScenePanel({
   trackId?: number
   /** The format the preview shows, which the poster layers' tweaks apply to. */
   format: FormatId
+  /** The media shelf and the track's cover art, which Subject, Ground, Chrome and Poster Frame can use. */
+  media?: OwnMedia
   onChange(vision: Vision): void
   /** The picked section; the timeline picks it too. */
   section: number
@@ -52,6 +67,10 @@ export function ScenePanel({
 
   const palette = vision.palette
   const setPalette = (colors: string[]) => onChange(setVisionPalette(vision, colors))
+
+  // The vision never asks for media; with cover art on the track, it offers it as a Subject.
+  const cover = media.coverArt
+  const offerCover = cover && !visionImages(vision).includes(cover.url) && canAddLayer(scene, 'subject')
 
   return (
     <section className="scene-panel" aria-label="Scenes">
@@ -93,6 +112,15 @@ export function ScenePanel({
         ))}
       </div>
 
+      {offerCover && (
+        <div className="scene-cover-offer">
+          This track has cover art.{' '}
+          <button className="link" onClick={() => onChange(acceptCoverArt(vision, index, cover))}>
+            Use it as the Subject here
+          </button>
+        </div>
+      )}
+
       <ol className="scene-layers">
         {scene.layers.map((layer, i) => (
           <li key={i} className="scene-layer">
@@ -133,6 +161,7 @@ export function ScenePanel({
               onChange={(patch) => onChange(updateSectionLayer(vision, index, i, patch))}
             />
             <FormatTweakControls vision={vision} sectionIndex={index} layerIndex={i} format={format} onChange={onChange} />
+            <MediaControls layer={layer} media={media} onChange={(patch) => onChange(updateSectionLayer(vision, index, i, patch))} />
             {countsTowardLimit(layer.kind) && (
               <button className="link" onClick={() => onChange(removeSectionLayer(vision, index, i))}>
                 Remove

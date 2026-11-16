@@ -1,0 +1,603 @@
+{
+ "visions": [
+  {
+   "name": "Chrome Seraph",
+   "concept": "A holographic chrome angel unfolds over a black void and shatters into light on the drop.",
+   "palette": [
+    "#05060f",
+    "#c9d6ff",
+    "#ff3ea5",
+    "#22e0ff"
+   ],
+   "motifs": [
+    "chrome wings",
+    "halo sigil",
+    "falling feathers of light"
+   ],
+   "sections": [
+    {
+     "section": 0,
+     "look": "cold chrome breathing in the dark",
+     "layers": [
+      {
+       "kind": "ground",
+       "reactsTo": "energy",
+       "strength": 0.4,
+       "params": {
+        "hueSpeed": 0.6,
+        "lift": 0.04
+       }
+      },
+      {
+       "kind": "chrome",
+       "reactsTo": "snare",
+       "strength": 0.4,
+       "params": {
+        "size": 0.3,
+        "spikes": 0.05,
+        "film": 0.7,
+        "flow": 1.5
+       }
+      },
+      {
+       "kind": "posterType",
+       "reactsTo": "downbeat",
+       "strength": 0.5,
+       "params": {
+        "chrome": 0.6,
+        "glitch": 0.2
+       }
+      },
+      {
+       "kind": "finish",
+       "reactsTo": "energy",
+       "strength": 0.5,
+       "params": {
+        "grain": 0.15,
+        "scanlines": 0.2,
+        "vignette": 0.7,
+        "energyResponse": 0.6
+       }
+      }
+     ]
+    },
+    {
+     "section": 1,
+     "look": "the metal tightens and spikes",
+     "layers": [
+      {
+       "kind": "chrome",
+       "reactsTo": "snare",
+       "strength": 0.7,
+       "params": {
+        "size": 0.45,
+        "spikes": 0.35,
+        "film": 0.6,
+        "flow": 4
+       }
+      },
+      {
+       "kind": "colorBleed",
+       "reactsTo": "kickSnare",
+       "strength": 0.5,
+       "params": {
+        "drip": 0.2,
+        "smear": 4,
+        "tint": 0.6,
+        "growth": 1,
+        "band": 0.3
+       }
+      },
+      {
+       "kind": "posterFrame",
+       "reactsTo": "drop",
+       "strength": 0.4,
+       "params": {
+        "columns": 4,
+        "rows": 3,
+        "weight": 0.3,
+        "marks": 1,
+        "logo": 0.8,
+        "opacity": 0.4
+       }
+      }
+     ]
+    },
+    {
+     "section": 2,
+     "look": "pillars slam, the seraph cracks open",
+     "layers": [
+      {
+       "kind": "lightPillar",
+       "reactsTo": "dropDownbeat",
+       "strength": 1,
+       "params": {
+        "fire": 0,
+        "count": 5,
+        "width": 14,
+        "bloom": 0.8
+       }
+      },
+      {
+       "kind": "chrome",
+       "reactsTo": "snare",
+       "strength": 0.9,
+       "params": {
+        "size": 0.6,
+        "spikes": 0.6,
+        "film": 0.8,
+        "flow": 6
+       }
+      },
+      {
+       "kind": "glitch",
+       "reactsTo": "dropDownbeat",
+       "strength": 0.8,
+       "params": {
+        "amount": 0.08,
+        "block": 64,
+        "split": 6,
+        "drag": 0.2,
+        "mosh": 0.3
+       }
+      },
+      {
+       "kind": "colorBleed",
+       "reactsTo": "kickSnare",
+       "strength": 0.8,
+       "params": {
+        "drip": 0.35,
+        "smear": 8,
+        "tint": 0.4,
+        "growth": 0.5,
+        "band": 1
+       }
+      },
+      {
+       "kind": "posterType",
+       "reactsTo": "downbeat",
+       "strength": 0.7,
+       "params": {
+        "chrome": 0.8,
+        "glitch": 0.7
+       }
+      }
+     ]
+    },
+    {
+     "section": 3,
+     "look": "floating fragments, held breath",
+     "layers": [
+      {
+       "kind": "ground",
+       "reactsTo": "energy",
+       "strength": 0.3,
+       "params": {
+        "hueSpeed": 0.3,
+        "lift": 0.08
+       }
+      },
+      {
+       "kind": "chrome",
+       "reactsTo": "energy",
+       "strength": 0.3,
+       "params": {
+        "size": 0.25,
+        "spikes": 0,
+        "film": 0.9,
+        "flow": 1
+       }
+      }
+     ]
+    },
+    {
+     "section": 4,
+     "look": "the halo fades to a single line",
+     "layers": [
+      {
+       "kind": "posterFrame",
+       "reactsTo": "drop",
+       "strength": 0.2,
+       "params": {
+        "columns": 2,
+        "rows": 1,
+        "weight": 0.2,
+        "marks": 0.6,
+        "logo": 1,
+        "opacity": 0.5
+       }
+      },
+      {
+       "kind": "posterType",
+       "reactsTo": "downbeat",
+       "strength": 0.4,
+       "params": {
+        "chrome": 0.4,
+        "glitch": 0.1
+       }
+      }
+     ]
+    }
+   ],
+   "drop": {
+    "lands": "Five white-hot pillars slam down on the first downbeat while the chrome spikes and tears.",
+    "intensity": 0.85
+   },
+   "type": {
+    "treatment": "Huge condensed title centred, katakana stacked beside it, crop marks at the corners.",
+    "words": "",
+    "katakana": true
+   }
+  },
+  {
+   "name": "Datamosh Rave",
+   "concept": "A corrupted VHS of a warehouse rave, every kick tearing the tape further apart.",
+   "palette": [
+    "#0a0a0a",
+    "#d8ff3c",
+    "#ff2e88",
+    "#7a5cff",
+    "#f2f2ea"
+   ],
+   "motifs": [
+    "torn tape",
+    "strobing grid",
+    "warning labels"
+   ],
+   "sections": [
+    {
+     "section": 0,
+     "look": "a flickering test card",
+     "layers": [
+      {
+       "kind": "classic",
+       "reactsTo": "kick",
+       "strength": 0.5,
+       "params": {
+        "height": 0.4,
+        "bleed": 4,
+        "barFill": 0.6,
+        "glitch": 0.3
+       }
+      },
+      {
+       "kind": "posterFrame",
+       "reactsTo": "drop",
+       "strength": 0.3,
+       "params": {
+        "columns": 6,
+        "rows": 4,
+        "weight": 0.5,
+        "marks": 1,
+        "logo": 0.6,
+        "opacity": 0.6
+       }
+      }
+     ]
+    },
+    {
+     "section": 1,
+     "look": "the tape starts to slip",
+     "layers": [
+      {
+       "kind": "classic",
+       "reactsTo": "kick",
+       "strength": 0.7,
+       "params": {
+        "height": 0.7,
+        "bleed": 8,
+        "barFill": 0.7,
+        "glitch": 0.6
+       }
+      },
+      {
+       "kind": "glitch",
+       "reactsTo": "kickSnare",
+       "strength": 0.5,
+       "params": {
+        "amount": 0.1,
+        "block": 32,
+        "split": 4,
+        "drag": 0.4,
+        "mosh": 0.3
+       }
+      },
+      {
+       "kind": "posterType",
+       "reactsTo": "downbeat",
+       "strength": 0.6,
+       "params": {
+        "chrome": 0.1,
+        "glitch": 0.9
+       }
+      }
+     ]
+    },
+    {
+     "section": 2,
+     "look": "full datamosh, strobing acid yellow",
+     "layers": [
+      {
+       "kind": "glitch",
+       "reactsTo": "dropDownbeat",
+       "strength": 1,
+       "params": {
+        "amount": 0.2,
+        "block": 96,
+        "split": 12,
+        "drag": 0.6,
+        "mosh": 0.9
+       }
+      },
+      {
+       "kind": "classic",
+       "reactsTo": "kick",
+       "strength": 0.9,
+       "params": {
+        "height": 1,
+        "bleed": 14,
+        "barFill": 0.9,
+        "glitch": 1
+       }
+      },
+      {
+       "kind": "colorBleed",
+       "reactsTo": "kickSnare",
+       "strength": 0.9,
+       "params": {
+        "drip": 0.5,
+        "smear": 16,
+        "tint": 0.9,
+        "growth": 0.4,
+        "band": 0.6
+       }
+      },
+      {
+       "kind": "lightPillar",
+       "reactsTo": "drop",
+       "strength": 0.7,
+       "params": {
+        "fire": 0,
+        "count": 7,
+        "width": 6,
+        "bloom": 0.4
+       }
+      }
+     ]
+    },
+    {
+     "section": 3,
+     "look": "freeze frame, slow roll",
+     "layers": [
+      {
+       "kind": "glitch",
+       "reactsTo": "energy",
+       "strength": 0.3,
+       "params": {
+        "amount": 0.03,
+        "block": 120,
+        "split": 2,
+        "drag": 0.8,
+        "mosh": 0.2
+       }
+      }
+     ]
+    },
+    {
+     "section": 4,
+     "look": "tape runs out",
+     "layers": [
+      {
+       "kind": "classic",
+       "reactsTo": "energy",
+       "strength": 0.4,
+       "params": {
+        "height": 0.3,
+        "bleed": 3,
+        "barFill": 0.5,
+        "glitch": 0.2
+       }
+      },
+      {
+       "kind": "posterType",
+       "reactsTo": "downbeat",
+       "strength": 0.3,
+       "params": {
+        "chrome": 0,
+        "glitch": 0.5
+       }
+      }
+     ]
+    }
+   ],
+   "drop": {
+    "lands": "The picture tears into blocks on the downbeat and the spectrum floods the frame in acid yellow.",
+    "intensity": 1.0
+   },
+   "type": {
+    "treatment": "Stencil-like title slicing in sideways with each downbeat, off-white on black.",
+    "words": "play loud",
+    "katakana": true
+   }
+  },
+  {
+   "name": "Neon Shrine",
+   "concept": "An occult shrine of light: a subject idol glowing inside a poster grid, worshipped by beams.",
+   "palette": [
+    "#0b0f2a",
+    "#ff3ea5",
+    "#ffb000"
+   ],
+   "motifs": [
+    "idol",
+    "sigils",
+    "candle glow"
+   ],
+   "sections": [
+    {
+     "section": 0,
+     "look": "the idol in silhouette",
+     "layers": [
+      {
+       "kind": "subject",
+       "reactsTo": "kick",
+       "strength": 0.4,
+       "params": {
+        "scale": 0.5,
+        "x": 0.5,
+        "y": 0.55,
+        "glow": 0.5
+       }
+      },
+      {
+       "kind": "posterFrame",
+       "reactsTo": "drop",
+       "strength": 0.3,
+       "params": {
+        "columns": 3,
+        "rows": 3,
+        "weight": 0.4,
+        "marks": 0.8,
+        "logo": 0.9,
+        "opacity": 0.5
+       }
+      }
+     ]
+    },
+    {
+     "section": 1,
+     "look": "candles flare with the snare",
+     "layers": [
+      {
+       "kind": "subject",
+       "reactsTo": "kick",
+       "strength": 0.6,
+       "params": {
+        "scale": 0.55,
+        "x": 0.5,
+        "y": 0.55,
+        "glow": 0.7
+       }
+      },
+      {
+       "kind": "colorBleed",
+       "reactsTo": "kickSnare",
+       "strength": 0.6,
+       "params": {
+        "drip": 0.3,
+        "smear": 3,
+        "tint": 1,
+        "growth": 1,
+        "band": 0
+       }
+      },
+      {
+       "kind": "lightPillar",
+       "reactsTo": "build",
+       "strength": 0.4,
+       "params": {
+        "fire": 0.1,
+        "count": 3,
+        "width": 8,
+        "bloom": 0.9
+       }
+      }
+     ]
+    },
+    {
+     "section": 2,
+     "look": "beams worship the idol",
+     "layers": [
+      {
+       "kind": "subject",
+       "reactsTo": "kick",
+       "strength": 0.9,
+       "params": {
+        "scale": 0.65,
+        "x": 0.5,
+        "y": 0.55,
+        "glow": 1
+       }
+      },
+      {
+       "kind": "lightPillar",
+       "reactsTo": "dropDownbeat",
+       "strength": 1,
+       "params": {
+        "fire": 0,
+        "count": 3,
+        "width": 22,
+        "bloom": 1
+       }
+      },
+      {
+       "kind": "posterType",
+       "reactsTo": "downbeat",
+       "strength": 0.8,
+       "params": {
+        "chrome": 0.5,
+        "glitch": 0.4
+       }
+      },
+      {
+       "kind": "finish",
+       "reactsTo": "drop",
+       "strength": 0.6,
+       "params": {
+        "grain": 0.2,
+        "scanlines": 0.1,
+        "vignette": 0.8,
+        "energyResponse": 0.9
+       }
+      }
+     ]
+    },
+    {
+     "section": 3,
+     "look": "the shrine dims",
+     "layers": [
+      {
+       "kind": "subject",
+       "reactsTo": "energy",
+       "strength": 0.3,
+       "params": {
+        "scale": 0.45,
+        "x": 0.5,
+        "y": 0.6,
+        "glow": 0.3
+       }
+      }
+     ]
+    },
+    {
+     "section": 4,
+     "look": "one sigil remains",
+     "layers": [
+      {
+       "kind": "posterFrame",
+       "reactsTo": "drop",
+       "strength": 0.2,
+       "params": {
+        "columns": 1,
+        "rows": 1,
+        "weight": 0.6,
+        "marks": 1,
+        "logo": 1,
+        "opacity": 0.6
+       }
+      }
+     ]
+    }
+   ],
+   "drop": {
+    "lands": "Three thick pillars burn in behind the idol on the drop and its glow floods the grid.",
+    "intensity": 0.7
+   },
+   "type": {
+    "treatment": "Title in a tight grid cell under the idol, katakana in gold.",
+    "words": "",
+    "katakana": true
+   }
+  }
+ ]
+}

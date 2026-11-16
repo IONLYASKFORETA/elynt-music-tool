@@ -142,9 +142,37 @@ export const BUILD_OFFSET = 12
 export const PALETTE_OFFSET = 16
 export const UNIFORM_FLOATS = PALETTE_OFFSET + PALETTE_FLOATS
 
+/**
+ * Passes that are not layers of the library: a white flash (a moment), and the transition
+ * that composites two scenes (V13).
+ */
+export type EffectKind = 'flash' | 'transition'
+/**
+ * What one step of a frame does. A "hold" step draws nothing: it sets the picture so far aside
+ * and starts the next passes from black, and the next transition pass reads the held picture.
+ */
+export type PassKind = LayerKind | EffectKind | 'hold'
+
 export interface LayerPass {
-  kind: LayerKind
+  kind: PassKind
   uniforms: Float32Array
+}
+
+/** One pass's uniforms: the frame row, up to 8 floats of its own parameters, the build, the palette. */
+export function passUniforms(
+  t: number,
+  features: AudioFeatures,
+  size: { width: number; height: number },
+  params: number[],
+  build: number,
+  palette: Palette
+): Float32Array {
+  const uniforms = new Float32Array(UNIFORM_FLOATS)
+  uniforms.set([t, features.energy, size.width, size.height])
+  uniforms.set(params, 4)
+  uniforms[BUILD_OFFSET] = build
+  uniforms.set(packPalette(palette), PALETTE_OFFSET)
+  return uniforms
 }
 
 export interface FramePlan {
@@ -164,18 +192,13 @@ export function planFrame(
   signals: TrackSignals = NO_SIGNALS,
   palette: Palette = DEFAULT_PALETTE
 ): FramePlan {
-  const colors = packPalette(palette)
   const build = signalAt(signals, 'build', t)
   return {
     spectrum: features.bands,
-    passes: drawnLayers(scene).map((layer) => {
-      const uniforms = new Float32Array(UNIFORM_FLOATS)
-      uniforms.set([t, features.energy, size.width, size.height])
-      uniforms.set(layerParams(react(layer, reactionAt(layer.reactivity, signals, t))), 4)
-      uniforms[BUILD_OFFSET] = build
-      uniforms.set(colors, PALETTE_OFFSET)
-      return { kind: layer.kind, uniforms }
-    })
+    passes: drawnLayers(scene).map((layer) => ({
+      kind: layer.kind,
+      uniforms: passUniforms(t, features, size, layerParams(react(layer, reactionAt(layer.reactivity, signals, t))), build, palette)
+    }))
   }
 }
 
@@ -216,7 +239,7 @@ function react(layer: Layer, reaction: Reaction): Layer {
   return respond(layer, reaction.amount)
 }
 
-function layerParams(layer: Layer): number[] {
+export function layerParams(layer: Layer): number[] {
   switch (layer.kind) {
     case 'ground':
       return [layer.hueSpeed, layer.lift]

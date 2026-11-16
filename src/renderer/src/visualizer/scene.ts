@@ -1,4 +1,5 @@
 import type { AudioFeatures } from './audio-features'
+import { mediaFlag, mediaImage, type LayerMedia } from './media'
 import { DEFAULT_REACTIVITY, reactionAt, type Reaction, type Reactivity } from './reactivity'
 import { COLOR_BLEED, type ColorBleedLayer } from './layers/color-bleed'
 import { CHROME, type ChromeLayer } from './layers/chrome'
@@ -9,7 +10,8 @@ import { NO_SIGNALS, signalAt, type Tier, type TrackSignals } from './signals'
 import { POSTER_FRAME, type PosterFrameLayer } from './layers/poster-frame'
 import { POSTER_TYPE, type PosterTypeLayer } from './layers/poster-type'
 import { SUBJECT, type SubjectLayer } from './layers/subject'
-import type { TypeAnchors, TypeText } from './type-layout'
+import type { TypeAnchors, TypeBounds, TypeText } from './type-layout'
+import { WIDE_LAYOUT, type FormatLayout } from '../../../shared/formats'
 
 /**
  * The layer data model (GLOSSARY: Layer, Scene). A scene is plain data: the
@@ -37,6 +39,8 @@ export interface GroundLayer extends LayerBase {
   hueSpeed: number
   /** How far the field lifts off pure black, 0 to 1. */
   lift: number
+  /** The owner's own image or clip (V18) as a background texture under the color shift; null is the plain field. */
+  media: LayerMedia | null
 }
 
 /** The spectrum, drawn in the house style. Follows the spectrum directly. */
@@ -93,7 +97,7 @@ export function newLayer(kind: LayerKind): Layer {
   const reactivity = { ...DEFAULT_REACTIVITY[kind] }
   switch (kind) {
     case 'ground':
-      return { kind, hueSpeed: 1.5, lift: 0.06, reactivity }
+      return { kind, hueSpeed: 1.5, lift: 0.06, media: null, reactivity }
     case 'classic':
       return { kind, height: 0.8, bleed: 6, barFill: 0.72, glitch: 0.6, reactivity }
     case 'finish':
@@ -199,8 +203,13 @@ export function passUniforms(
  * its text and anchors (cached by `key` and the frame size); a picture is loaded from its URL.
  */
 export type PassImage =
-  | { kind: 'type'; key: string; text: TypeText; anchors: TypeAnchors }
+  | { kind: 'type'; key: string; text: TypeText; anchors: TypeAnchors; bounds: TypeBounds }
   | { kind: 'picture'; url: string }
+  /**
+   * One frame of a clip (V18): frame `frame` of the video at `url`, which `time` (seconds into the
+   * clip) seeks to. `key` names the clip and its timing; `speed` is how fast the preview plays it.
+   */
+  | { kind: 'clip'; url: string; key: string; frame: number; time: number; speed: number }
 
 /** The track's credits, as poster layers set them: the title from the track, the name from the artist profile. */
 export interface Credits {
@@ -214,9 +223,11 @@ export interface FrameContext {
   sectionIndex: number
   sectionStart: number
   credits: Credits
+  /** The format the frame is laid out for and its safe zone (V16). */
+  layout: FormatLayout
 }
 
-export const NO_CONTEXT: FrameContext = { sectionIndex: 0, sectionStart: 0, credits: { title: '', artist: '' } }
+export const NO_CONTEXT: FrameContext = { sectionIndex: 0, sectionStart: 0, credits: { title: '', artist: '' }, layout: WIDE_LAYOUT }
 
 export interface FramePlan {
   passes: LayerPass[]
@@ -240,7 +251,8 @@ export function planFrame(
   return {
     spectrum: features.bands,
     passes: drawnLayers(scene).map((layer) => {
-      const { params, image } = layerParams(react(layer, reactionAt(layer.reactivity, signals, t)), context, signals, t)
+      const placed = place(layer, context.layout)
+      const { params, image } = layerParams(react(placed, reactionAt(placed.reactivity, signals, t)), context, signals, t)
       const uniforms = passUniforms(t, features, size, params, build, palette)
       return image ? { kind: layer.kind, uniforms, image } : { kind: layer.kind, uniforms }
     })
@@ -281,6 +293,18 @@ const TIER_RESPONSES: { [K in LayerKind]: TierResponse<K> } = {
   subject: SUBJECT.respond
 }
 
+/** Re-flows a layer for the frame's format; only the poster layers move. */
+function place(layer: Layer, layout: FormatLayout): Layer {
+  switch (layer.kind) {
+    case 'posterFrame':
+      return POSTER_FRAME.place!(layer, layout)
+    case 'subject':
+      return SUBJECT.place!(layer, layout)
+    default:
+      return layer
+  }
+}
+
 function react(layer: Layer, reaction: Reaction): Layer {
   if (reaction.amount <= 0) return layer
   const respond = TIER_RESPONSES[layer.kind][reaction.tier] as (l: Layer, a: number) => Layer
@@ -295,8 +319,11 @@ export function layerParams(
   t: number
 ): { params: number[]; image?: PassImage } {
   switch (layer.kind) {
-    case 'ground':
-      return { params: [layer.hueSpeed, layer.lift] }
+    case 'ground': {
+      // p0 = (hueSpeed, lift, own media: 0 none, 1 treated, 2 untreated)
+      const params = [layer.hueSpeed, layer.lift, mediaFlag(layer.media)]
+      return layer.media ? { params, image: mediaImage(layer.media, t, context.sectionStart) } : { params }
+    }
     case 'classic':
       return { params: [layer.height, layer.bleed, layer.barFill, layer.glitch] }
     case 'finish':
@@ -304,7 +331,7 @@ export function layerParams(
     case 'colorBleed':
       return { params: COLOR_BLEED.params(layer) }
     case 'chrome':
-      return { params: CHROME.params(layer) }
+      return CHROME.pass(layer, { context, signals, t })
     case 'glitch':
       return { params: GLITCH.params(layer) }
     case 'lightPillar':

@@ -1,6 +1,22 @@
 import { layoutPosterType, TYPE_BLOCKS, type Measure, type TypeLayout } from './type-layout'
 import type { PassImage } from './scene'
 
+/** How far a playing preview clip may drift from where the vision says it should be before it is re-seeked, in seconds. */
+const PREVIEW_CLIP_DRIFT = 0.15
+
+type ClipImage = Extract<PassImage, { kind: 'clip' }>
+
+/** One video per clip and timing, and the texture its current frame is copied into. */
+interface ClipEntry {
+  video: HTMLVideoElement
+  ready: Promise<void>
+  texture: GPUTexture | null
+  /** The clip frame the texture holds (export), or -1. */
+  frame: number
+  /** The clip time the last preview frame asked for, to tell playing from paused. */
+  lastTime: number | null
+}
+
 /** Type textures kept at once: a few sections' worth, at a couple of sizes. */
 const MAX_TYPE_TEXTURES = 8
 
@@ -9,15 +25,23 @@ const MAX_TYPE_TEXTURES = 8
  * and the Subject's image, as GPU textures. Type is rasterized on the spot and cached by its
  * text, anchors and size. A picture loads in the background; until it has, its pass draws from a
  * clear 1x1 texture, so it shows nothing. The export loads every picture before its first frame.
+ *
+ * Clips (V18) play from a video element per clip and timing. The preview lets the video play and
+ * re-seeks it when it drifts; the export (`live` false) seeks each clip to the exact frame the
+ * plan names in `prepare` and copies that frame before the frame is drawn.
  */
 export class LayerImages {
   /** Clear and 1x1: what a pass with no picture (or one still loading) reads. */
   readonly blank: GPUTexture
   private readonly types = new Map<string, GPUTexture>()
   private readonly pictures = new Map<string, { texture: GPUTexture | null; loading: Promise<void> }>()
+  private readonly clips = new Map<string, ClipEntry>()
   private readonly measure = canvasMeasure()
 
-  constructor(private readonly device: GPUDevice) {
+  constructor(
+    private readonly device: GPUDevice,
+    private readonly live: boolean
+  ) {
     this.blank = device.createTexture({
       size: [1, 1],
       format: 'rgba8unorm',
@@ -33,13 +57,14 @@ export class LayerImages {
       if (!entry) void this.load([image.url])
       return entry?.texture ?? this.blank
     }
+    if (image.kind === 'clip') return this.clipTexture(image)
     const key = `${image.key}@${width}x${height}`
     let texture = this.types.get(key)
     if (texture) {
       // Most recently used goes last, so the oldest is the first to go.
       this.types.delete(key)
     } else {
-      texture = this.typeTexture(layoutPosterType(image.text, image.anchors, { width, height }, this.measure))
+      texture = this.typeTexture(layoutPosterType(image.text, image.anchors, { width, height }, this.measure, image.bounds))
       while (this.types.size >= MAX_TYPE_TEXTURES) {
         const [oldest, old] = this.types.entries().next().value!
         old.destroy()
@@ -66,10 +91,100 @@ export class LayerImages {
     ).then(() => undefined)
   }
 
+  /**
+   * Gets every clip a frame shows onto exactly the frame it names: seeks, waits for the seek, and
+   * copies the frame. The export calls this before drawing each frame, one frame at a time.
+   */
+  async prepare(images: readonly (PassImage | undefined)[]): Promise<void> {
+    for (const image of images) {
+      if (image?.kind !== 'clip') continue
+      const entry = this.clip(image)
+      await entry.ready
+      if (entry.frame === image.frame && entry.texture) continue
+      const { video } = entry
+      if (!video.paused) video.pause()
+      if (Math.abs(video.currentTime - image.time) > 1e-4) {
+        const seeked = new Promise<void>((resolve) => video.addEventListener('seeked', () => resolve(), { once: true }))
+        video.currentTime = image.time
+        await seeked
+      }
+      this.copyFrame(entry)
+      entry.frame = image.frame
+    }
+  }
+
   destroy(): void {
     this.blank.destroy()
     this.types.forEach((t) => t.destroy())
     this.pictures.forEach((p) => p.texture?.destroy())
+    this.clips.forEach((c) => {
+      c.texture?.destroy()
+      c.video.pause()
+      c.video.removeAttribute('src')
+      c.video.load()
+    })
+  }
+
+  private clip(image: ClipImage): ClipEntry {
+    let entry = this.clips.get(image.key)
+    if (entry) return entry
+    const video = document.createElement('video')
+    // The media server answers with CORS headers; without them WebGPU refuses to copy the frames.
+    video.crossOrigin = 'anonymous'
+    video.muted = true
+    video.playsInline = true
+    video.preload = 'auto'
+    const ready = new Promise<void>((resolve) => {
+      video.addEventListener('loadeddata', () => resolve(), { once: true })
+      video.addEventListener(
+        'error',
+        () => {
+          console.error(`Could not load the clip ${image.url}:`, video.error?.message)
+          resolve()
+        },
+        { once: true }
+      )
+    })
+    video.src = image.url
+    entry = { video, ready, texture: null, frame: -1, lastTime: null }
+    this.clips.set(image.key, entry)
+    return entry
+  }
+
+  /** The preview's clip: kept playing near where the vision says, its current frame copied each draw. */
+  private clipTexture(image: ClipImage): GPUTexture {
+    const entry = this.clip(image)
+    if (!this.live) return entry.texture ?? this.blank
+    const { video } = entry
+    if (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) return entry.texture ?? this.blank
+    const moving = entry.lastTime !== null && Math.abs(image.time - entry.lastTime) > 1e-6
+    entry.lastTime = image.time
+    video.playbackRate = Math.min(16, Math.max(0.0625, image.speed))
+    if (moving && video.paused) void video.play().catch(() => {})
+    if (!moving && !video.paused) video.pause()
+    if (!video.seeking && Math.abs(video.currentTime - image.time) > (moving ? PREVIEW_CLIP_DRIFT : 1 / 120)) {
+      video.currentTime = image.time
+    }
+    this.copyFrame(entry)
+    return entry.texture ?? this.blank
+  }
+
+  private copyFrame(entry: ClipEntry): void {
+    const { video } = entry
+    if (video.videoWidth === 0 || video.videoHeight === 0) return
+    if (!entry.texture || entry.texture.width !== video.videoWidth || entry.texture.height !== video.videoHeight) {
+      entry.texture?.destroy()
+      entry.texture = this.device.createTexture({
+        size: [video.videoWidth, video.videoHeight],
+        format: 'rgba8unorm',
+        usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT
+      })
+    }
+    try {
+      this.device.queue.copyExternalImageToTexture({ source: video }, { texture: entry.texture }, [video.videoWidth, video.videoHeight])
+    } catch (error) {
+      console.error('Could not copy a clip frame:', error)
+    }
   }
 
   private async loadPicture(url: string): Promise<GPUTexture> {

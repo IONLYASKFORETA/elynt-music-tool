@@ -2,6 +2,7 @@
 // height field (cheap enough to stack) rather than raymarched. A few blobs melt into one another,
 // the vision's palette is the room they reflect, and a thin-film rainbow sits on top.
 // p0 = (size share of frame height, spikes 0..1, film 0..1, flow loops per minute)
+// p1.x = own media (V18): 0 none, 1 treated, 2 untreated. Media is what the metal reflects.
 
 // The blobs' field at p (frame-height units, centered). The surface is where it passes 1.
 fn chrome_field(p: vec2f) -> f32 {
@@ -48,6 +49,11 @@ fn fs(in: VsOut) -> @location(0) vec4f {
   // The room the metal reflects: the palette top to bottom, with a bright horizon line.
   var env = mix(pal(1u), pal(0u), refl.y * 0.5 + 0.5);
   env = mix(env, pal(2u), smoothstep(0.3, 0.9, refl.x) * 0.6);
+  if (frame.p1.x > 0.5) {
+    // The owner's image or clip as the room: looked up by the reflected direction.
+    let tex = textureSampleLevel(layerTex, samp, clamp(vec2f(refl.x, -refl.y) * 0.5 + 0.5, vec2f(0.0), vec2f(1.0)), 0.0).rgb;
+    env = mix(env, media_look(tex, in.uv * res, frame.p1.x), 0.85);
+  }
   env += vec3f(1.0) * exp(-abs(refl.y - 0.15) * 14.0) * 0.6;
 
   let film = spectral(dot(n, v) * 1.4 + time() * 0.05 + fr * 0.6);

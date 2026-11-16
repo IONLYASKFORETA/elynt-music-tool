@@ -63,3 +63,23 @@ fn hash21(p: vec2f) -> f32 {
 fn spectral(h: f32) -> vec3f {
   return 0.5 + 0.5 * cos(2.0 * PI * (h + vec3f(0.0, 0.33, 0.67)));
 }
+
+// The house-style treatment for the owner's own media (V18): a duotone from near-black into the
+// palette, posterized to a few steps, through a halftone screen. `flag` is the pass's media
+// switch: 1 treated, 2 untreated (the media as it is). `px` is the pixel position in the frame.
+fn media_look(c: vec3f, px: vec2f, flag: f32) -> vec3f {
+  if (flag > 1.5) {
+    return c;
+  }
+  let l = clamp(dot(c, vec3f(0.2126, 0.7152, 0.0722)), 0.0, 1.0);
+  let steps = floor(l * 4.0 + 0.5) / 4.0;
+  let duo = mix(vec3f(0.02), pal_ramp(0.15 + 0.6 * steps), steps);
+  // Halftone: dots on a 45 degree grid, bigger where the media is brighter.
+  let res = size();
+  let cell = max(4.0, min(res.x, res.y) / 180.0);
+  let q = vec2f(px.x + px.y, px.y - px.x) * 0.70710678 / cell;
+  let d = length(fract(q) - 0.5);
+  let radius = sqrt(l) * 0.7;
+  let dots = 1.0 - smoothstep(radius - 0.05, radius + 0.05, d);
+  return duo * mix(0.55, 1.0, dots);
+}

@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { dropWindow, nextInDropTour } from '../../../shared/drop-preview'
+import type { FormatId } from '../../../shared/formats'
 import type { Track } from '../../../shared/track'
 import type { VisionSet, WorkingVision } from '../../../shared/visions'
 import { useTrackAnalysis } from './AnalysisStrip'
 import { HeardCheck } from './HeardCheck'
+import { MediaShelfPanel, useOwnMedia } from './MediaShelf'
 import { Preview } from './Preview'
 import { ScenePanel } from './ScenePanel'
 import { VisionFlow } from './VisionFlow'
@@ -40,6 +42,8 @@ export function VisualizerTrack({ track, onRenamed }: { track: Track; onRenamed:
   const [touring, setTouring] = useState<number | null>(null)
   const loaded = useRef(false)
 
+  // The format the preview shows and the scene panel tweaks (V16). Edits to the vision apply to every format.
+  const [format, setFormat] = useState<FormatId>('wide')
   useEffect(() => {
     let cancelled = false
     loaded.current = false
@@ -86,6 +90,8 @@ export function VisualizerTrack({ track, onRenamed }: { track: Track; onRenamed:
       cancelled = true
     }
   }, [])
+  // Own media (V18): the shelf is shared by every track; cover art belongs to this one.
+  const [media, mediaActions] = useOwnMedia(track.id)
   const credits = useMemo(() => ({ title: track.title, artist: artistName }), [track.title, artistName])
   const credited = useMemo(() => ({ ...vision, credits }), [vision, credits])
 
@@ -151,8 +157,11 @@ export function VisualizerTrack({ track, onRenamed }: { track: Track; onRenamed:
         onVisionChange={edit}
         section={section}
         onSection={setSection}
+        format={format}
+        onFormatChange={setFormat}
       />
-      <ScenePanel vision={credited} trackId={track.id} onChange={edit} section={section} onSection={setSection} />
+      <ScenePanel vision={credited} trackId={track.id} format={format} media={media} onChange={edit} section={section} onSection={setSection} />
+      <MediaShelfPanel media={media} actions={mediaActions} />
     </>
   )
 }

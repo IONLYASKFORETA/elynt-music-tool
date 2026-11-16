@@ -76,6 +76,29 @@ describe('layoutPosterType', () => {
     expect(kana.box.y).toBeCloseTo(108)
   })
 
+  it('keeps every block inside the safe zone it is given, moving and shrinking it to fit', () => {
+    const portrait = { width: 1080, height: 1920 }
+    // Anchors that would run off every edge of a 1080x1920 frame.
+    const anchors: TypeAnchors = {
+      title: { x: 0, y: 1, alignX: 0, alignY: 1, size: 0.3, maxLength: 1 },
+      artist: { x: 1, y: 1, alignX: 1, alignY: 0, size: 0.05, maxLength: 1 },
+      katakana: { x: 1, y: 0, alignX: 1, alignY: 0, size: 0.1, maxLength: 1, vertical: true },
+      words: { x: 0, y: 0, alignX: 0, alignY: 1, size: 0.03, maxLength: 1 }
+    }
+    const bounds = { x: 0.06, y: 0.15, width: 0.78, height: 0.62 }
+    const layout = layoutPosterType({ ...text, katakana: 'ネオンドライブ', words: 'out now' }, anchors, portrait, measure, bounds)
+    expect(layout.blocks).toHaveLength(4)
+    for (const b of layout.blocks) {
+      expect(b.box.x).toBeGreaterThanOrEqual(0.06 * 1080 - 0.01)
+      expect(b.box.y).toBeGreaterThanOrEqual(0.15 * 1920 - 0.01)
+      expect(b.box.x + b.box.width).toBeLessThanOrEqual(0.84 * 1080 + 0.01)
+      expect(b.box.y + b.box.height).toBeLessThanOrEqual(0.77 * 1920 + 0.01)
+      for (const line of b.lines) expect(line.y).toBeGreaterThanOrEqual(b.box.y - 0.01)
+    }
+    const title = block(layout, 'title')!
+    expect(title.lines[0]!.x).toBeCloseTo(title.box.x)
+  })
+
   it('leaves out a block with nothing in it', () => {
     const layout = layoutPosterType(text, POSTER_ANCHORS, landscape, measure)
     expect(layout.blocks.map((b) => b.id)).toEqual(['title', 'artist', 'katakana'])

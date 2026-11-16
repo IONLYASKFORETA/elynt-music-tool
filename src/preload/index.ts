@@ -65,6 +65,9 @@ const api: ElyntApi = {
     cancel: (jobId) => ipcRenderer.invoke(channels.cancelExport, jobId),
     reveal: (path) => ipcRenderer.invoke(channels.revealExport, path)
   },
+  visualizer: {
+    safeZones: () => ipcRenderer.invoke(channels.safeZones)
+  },
   bench: {
     config: () => ipcRenderer.invoke(channels.benchConfig),
     checkFile: (path, frame, renders, width, height) => ipcRenderer.invoke(channels.benchCheckFile, path, frame, renders, width, height),
@@ -106,6 +109,15 @@ const api: ElyntApi = {
       return () => ipcRenderer.off(channels.helperStatusChanged, handler)
     },
     probeTrack: (trackId) => ipcRenderer.invoke(channels.probeTrack, trackId)
+  },
+  media: {
+    list: () => ipcRenderer.invoke(channels.listMedia),
+    addPicked: () => ipcRenderer.invoke(channels.addPickedMedia),
+    remove: (id) => ipcRenderer.invoke(channels.removeMedia, id),
+    setLogo: (id) => ipcRenderer.invoke(channels.setLogo, id),
+    coverArt: (trackId) => ipcRenderer.invoke(channels.getCoverArt, trackId),
+    attachPickedCoverArt: (trackId) => ipcRenderer.invoke(channels.attachPickedCoverArt, trackId),
+    removeCoverArt: (trackId) => ipcRenderer.invoke(channels.removeCoverArt, trackId)
   }
 }
 

@@ -5,6 +5,8 @@ import { featuresAt, type MonoAudio } from './audio-features'
 import { decodeForExport, exportVideo } from './export-video'
 import { SceneRenderer } from './renderer'
 import { defaultScene, planFrame } from './scene'
+import { NO_SIGNALS } from './signals'
+import { planVisionFrame, singleSceneVision } from './vision'
 
 /**
  * The export benchmark and frame check (ticket #54), shown instead of the app
@@ -27,13 +29,13 @@ export function BenchRunner({ config }: { config: BenchConfig }) {
 
 async function runBench(config: BenchConfig, say: (line: string) => void): Promise<BenchReport> {
   const report: BenchReport = { config, gpu: await gpuName(), startedAt: new Date().toISOString(), results: [], compares: [] }
-  const scene = defaultScene
   try {
     const track = (await window.elynt.tracks.list()).find((t) => t.id === config.trackId)
     if (!track) throw new Error('The benchmark track is missing.')
     say(`GPU: ${report.gpu}`)
     const audio = await decodeForExport(track.id)
     const seconds = Math.min(config.limitSeconds ?? Infinity, audio.duration)
+    const vision = singleSceneVision(defaultScene, audio.duration)
     say(`Track: ${track.title}, ${audio.duration.toFixed(2)} s, rendering ${seconds.toFixed(2)} s`)
 
     // Export vs preview: the same frame drawn both ways must match pixel for pixel.
@@ -50,7 +52,8 @@ async function runBench(config: BenchConfig, say: (line: string) => void): Promi
       say(`Exporting ${format.label} with ${config.encoder}…`)
       const run = await exportVideo({
         track,
-        scene,
+        vision,
+        signals: NO_SIGNALS,
         format: id,
         encoder: config.encoder,
         outputPath: file,
@@ -70,7 +73,7 @@ async function runBench(config: BenchConfig, say: (line: string) => void): Promi
       const renders: Uint8Array[] = []
       for (const k of [n - 1, n, n + 1]) {
         const t = frameTime(k, format.fps)
-        renders.push(await renderer.renderPixels(planFrame(scene, featuresAt(audio, t), t, renderer.renderSize)))
+        renders.push(await renderer.renderPixels(planVisionFrame(vision, featuresAt(audio, t), t, renderer.renderSize, NO_SIGNALS)))
       }
       renderer.destroy()
       const check = await window.elynt.bench.checkFile(run.outputPath, n, renders, format.width, format.height)

@@ -169,6 +169,12 @@ function start(): void {
   ipcMain.handle(channels.splitJobs, () => stems.jobs())
   ipcMain.handle(channels.splitStems, (_event, trackId: number) => stems.split(trackId))
   ipcMain.handle(channels.removeOwnStem, (_event, stemId: number) => stems.removeOwn(stemId))
+  // Only a path the database holds for that track is ever read.
+  ipcMain.handle(channels.readStem, async (_event, trackId: number, stemId: number) => {
+    const stem = stems.list(trackId).find((s) => s.id === stemId)
+    if (!stem) throw new Error(`Track ${trackId} has no stem with id ${stemId}.`)
+    return readFile(stem.path)
+  })
   ipcMain.handle(channels.attachPickedStems, async (event, trackId: number) => {
     const parent = BrowserWindow.fromWebContents(event.sender)
     const options: Electron.OpenDialogOptions = {

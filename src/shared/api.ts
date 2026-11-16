@@ -29,6 +29,8 @@ export interface ElyntApi {
     /** Opens a multi-file picker; the picked stems replace any split set. Null if cancelled. */
     attachPicked(trackId: number): Promise<Stem[] | null>
     removeOwn(stemId: number): Promise<void>
+    /** The bytes of one of a track's stems, for the Visualizer to decode and react to. */
+    read(trackId: number, stemId: number): Promise<Uint8Array>
     /** Splits the mixdown in the helper if the track has no stems yet. Resolves when done. */
     split(trackId: number): Promise<Stem[]>
     /** Splits running or failed right now. */
@@ -117,6 +119,7 @@ export const channels = {
   listStems: 'stems:list',
   attachPickedStems: 'stems:attach-picked',
   removeOwnStem: 'stems:remove-own',
+  readStem: 'stems:read',
   splitStems: 'stems:split',
   splitJobs: 'stems:jobs',
   splitJobChanged: 'stems:job-changed',

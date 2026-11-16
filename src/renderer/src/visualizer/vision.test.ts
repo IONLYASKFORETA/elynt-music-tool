@@ -1,9 +1,19 @@
 import { describe, expect, it } from 'vitest'
 import type { Section } from '../../../shared/analysis'
 import { BAND_COUNT } from './audio-features'
-import { MAX_ACTIVE_LAYERS, newLayer, type ClassicLayer } from './scene'
+import { DEFAULT_PALETTE, packPalette } from './palette'
+import { MAX_ACTIVE_LAYERS, newLayer, PALETTE_OFFSET, type ClassicLayer } from './scene'
 import { NO_SIGNALS, type TrackSignals } from './signals'
-import { addSectionLayer, defaultVision, planVisionFrame, removeSectionLayer, sectionIndexAt, sceneAt, updateSectionLayer } from './vision'
+import {
+  addSectionLayer,
+  defaultVision,
+  planVisionFrame,
+  removeSectionLayer,
+  sectionIndexAt,
+  sceneAt,
+  setVisionPalette,
+  updateSectionLayer
+} from './vision'
 
 const section = (label: Section['label'], start: number, end: number): Section => ({
   label,
@@ -94,5 +104,31 @@ describe('editing a section', () => {
   it('takes a layer out of a section', () => {
     const vision = removeSectionLayer(defaultVision(sections, 80), 0, 1)
     expect(vision.sections[0]!.scene.layers.map((l) => l.kind)).toEqual(['ground', 'finish'])
+  })
+})
+
+describe("a vision's palette", () => {
+  const rgb = ['#ff0000', '#00ff00', '#0000ff']
+
+  it('starts from the house palette', () => {
+    expect(defaultVision(sections, 80).palette).toEqual(DEFAULT_PALETTE)
+  })
+
+  it('reaches every layer of every frame', () => {
+    const vision = setVisionPalette(defaultVision(sections, 80), rgb)
+    const plan = planVisionFrame(vision, features, 40, size, NO_SIGNALS)
+    for (const pass of plan.passes) expect(Array.from(pass.uniforms.slice(PALETTE_OFFSET))).toEqual(Array.from(packPalette(rgb)))
+  })
+
+  it('refuses a palette of the wrong size', () => {
+    expect(() => setVisionPalette(defaultVision(sections, 80), ['#ff0000'])).toThrow(/3 to 5/)
+  })
+
+  it('survives changes to the scenes', () => {
+    let vision = setVisionPalette(defaultVision(sections, 80), rgb)
+    vision = addSectionLayer(vision, 0, newLayer('glitch'))
+    vision = updateSectionLayer(vision, 0, 1, { reactivity: { reactsTo: 'none', strength: 0 } })
+    vision = removeSectionLayer(vision, 0, 1)
+    expect(vision.palette).toEqual(rgb)
   })
 })

@@ -3,6 +3,8 @@ import { BAND_COUNT } from './audio-features'
 import {
   activeLayerCount,
   addLayer,
+  BUILD_OFFSET,
+  PALETTE_OFFSET,
   canAddLayer,
   defaultScene,
   MAX_ACTIVE_LAYERS,
@@ -12,6 +14,7 @@ import {
   type ClassicLayer,
   type Scene
 } from './scene'
+import { DEFAULT_PALETTE, packPalette } from './palette'
 import { NO_SIGNALS, type TrackSignals } from './signals'
 
 const features = { bands: new Float32Array(BAND_COUNT).fill(0.5), energy: 0.8 }
@@ -36,6 +39,20 @@ describe('planFrame', () => {
     expect(pass.uniforms).toHaveLength(UNIFORM_FLOATS)
     expect(Array.from(pass.uniforms.slice(0, 4))).toEqual([12.5, Math.fround(0.8), 960, 540])
     expect(pass.uniforms[4]).toBeCloseTo(0.5)
+  })
+
+  it("gives every pass the vision's palette, and the house palette when none is given", () => {
+    const palette = ['#ff0000', '#00ff00', '#0000ff']
+    const own = planFrame(defaultScene, features, 0, size, NO_SIGNALS, palette)
+    for (const pass of own.passes) expect(Array.from(pass.uniforms.slice(PALETTE_OFFSET))).toEqual(Array.from(packPalette(palette)))
+    const house = planFrame(defaultScene, features, 0, size).passes[0]!
+    expect(Array.from(house.uniforms.slice(PALETTE_OFFSET))).toEqual(Array.from(packPalette(DEFAULT_PALETTE)))
+  })
+
+  it('tells every pass how far into a build the track is', () => {
+    const building: TrackSignals = { ...NO_SIGNALS, levels: { ...NO_SIGNALS.levels, build: { hz: 1, values: Float32Array.of(0, 0.5, 1) } } }
+    const pass = planFrame(defaultScene, features, 1, size, building).passes[1]!
+    expect(pass.uniforms[BUILD_OFFSET]).toBeCloseTo(0.5)
   })
 
   it('passes the spectrum through for the frame', () => {

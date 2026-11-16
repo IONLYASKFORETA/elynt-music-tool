@@ -1,3 +1,7 @@
+import { CHROME } from './layers/chrome'
+import { COLOR_BLEED } from './layers/color-bleed'
+import { GLITCH } from './layers/glitch'
+import { LIGHT_PILLAR } from './layers/light-pillar'
 import type { LayerKind } from './scene'
 import { SIGNAL_NAMES, SIGNALS, signalAt, type SignalName, type Tier, type TrackSignals } from './signals'
 
@@ -30,7 +34,11 @@ export function signalLabel(name: SignalName | 'none'): string {
 export const DEFAULT_REACTIVITY: Record<LayerKind, Reactivity> = {
   ground: { reactsTo: 'energy', strength: 0.6 },
   classic: { reactsTo: 'kick', strength: 0.7 },
-  finish: { reactsTo: 'downbeat', strength: 0.5 }
+  finish: { reactsTo: 'downbeat', strength: 0.5 },
+  colorBleed: COLOR_BLEED.reactivity,
+  chrome: CHROME.reactivity,
+  glitch: GLITCH.reactivity,
+  lightPillar: LIGHT_PILLAR.reactivity
 }
 
 /** A layer's reaction at t. The tier comes from the signal, so a kick is always a medium pulse. */

@@ -6,6 +6,11 @@ struct Frame {
   head: vec4f,
   p0: vec4f,
   p1: vec4f,
+  // x = how far into a build the track is, 0..1
+  ctx: vec4f,
+  // The vision's 3 to 5 colors, rgb 0..1; rows past the last repeat from the start.
+  // palette[4].w = how many colors there are.
+  palette: array<vec4f, 5>,
 }
 
 @group(0) @binding(0) var<uniform> frame: Frame;
@@ -32,6 +37,19 @@ const PI = 3.14159265;
 fn time() -> f32 { return frame.head.x; }
 fn energy() -> f32 { return frame.head.y; }
 fn size() -> vec2f { return frame.head.zw; }
+fn build() -> f32 { return frame.ctx.x; }
+
+fn pal_count() -> u32 { return u32(clamp(frame.palette[4].w, 1.0, 5.0)); }
+fn pal(i: u32) -> vec3f { return frame.palette[i % pal_count()].rgb; }
+
+// The palette as a loop: x 0..1 runs through every color and back to the first, blended.
+fn pal_ramp(x: f32) -> vec3f {
+  let n = f32(pal_count());
+  let f = fract(x) * n;
+  let i = u32(floor(f));
+  let k = smoothstep(0.0, 1.0, fract(f));
+  return mix(pal(i), pal(i + 1u), k);
+}
 
 fn hash21(p: vec2f) -> f32 {
   var q = fract(p * vec2f(123.34, 456.21));

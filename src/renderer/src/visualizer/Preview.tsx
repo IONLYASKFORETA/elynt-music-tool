@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { TrackAnalysis } from '../../../shared/analysis'
+import type { TimeWindow } from '../../../shared/drop-preview'
 import { DEFAULT_SAFE_ZONES, FORMAT_IDS, FORMATS, formatLayout, type FormatId, type SafeZones } from '../../../shared/formats'
 import type { Track } from '../../../shared/track'
 import { featuresAt, type MonoAudio } from './audio-features'
@@ -38,6 +39,8 @@ export function Preview({
   track,
   analysis,
   vision,
+  loop = null,
+  onLoopEnd,
   format,
   onFormatChange,
   onVisionChange,
@@ -47,6 +50,12 @@ export function Preview({
   track: Track
   analysis: TrackAnalysis | null
   vision: Vision
+  /**
+   * Plays just this stretch, from its start, for a drop preview (V10). Each time playback reaches
+   * its end, `onLoopEnd` is called and it starts over; a new `loop.key` restarts it too.
+   */
+  loop?: (TimeWindow & { key: string }) | null
+  onLoopEnd?: () => void
   format: FormatId
   onFormatChange(format: FormatId): void
   onVisionChange(vision: Vision): void
@@ -76,6 +85,11 @@ export function Preview({
 
   visionRef.current = vision
   scaleRef.current = scale
+  const loopRef = useRef(loop)
+  loopRef.current = loop
+  /** Bumped by the frame loop when playback passes the end of the loop. */
+  const loopPassedRef = useRef(false)
+  const [loopEnds, setLoopEnds] = useState(0)
   layoutRef.current = formatLayout(zones, format)
 
   // The owner's safe-zones.json, if any, replaces the shipped margins.
@@ -134,6 +148,11 @@ export function Preview({
 
         const t = loaded.clock.time()
         if (loaded.clock.playing && loaded.clock.ended) stop(true)
+        const span = loopRef.current
+        if (span && loaded.clock.playing && t >= span.end && !loopPassedRef.current) {
+          loopPassedRef.current = true
+          setLoopEnds((n) => n + 1)
+        }
         renderer.draw(
           planVisionFrame(visionRef.current, featuresAt(loaded.mono, t), t, renderer.renderSize, signalsRef.current, layoutRef.current)
         )
@@ -186,6 +205,23 @@ export function Preview({
       cancelled = true
     }
   }, [track.id, analysis, status])
+
+  // A drop preview starts its stretch from the top whenever it (or the vision shown) changes.
+  useEffect(() => {
+    if (status !== 'ready') return
+    if (!loop) return void stop(false)
+    loopPassedRef.current = false
+    seek(loop.start)
+    if (!loadedRef.current?.clock.playing) void play()
+  }, [status, loop?.key, loop?.start, loop?.end])
+
+  useEffect(() => {
+    if (loopEnds === 0) return
+    loopPassedRef.current = false
+    const span = loopRef.current
+    if (span) seek(span.start)
+    onLoopEnd?.()
+  }, [loopEnds])
 
   const stop = (rewind: boolean) => {
     const loaded = loadedRef.current

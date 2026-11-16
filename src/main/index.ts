@@ -36,6 +36,9 @@ import { createTrackStems, type StemSplitter } from './stems'
 import { createSubjectImages, type SubjectGenerator } from './subject-images'
 import { MEDIA_SCHEME, mediaPath, type SubjectImageRequest } from '../shared/subject-images'
 import { createTrackLibrary } from './tracks'
+import { createVisionFlow } from './visions/flow'
+import { createVisionStore } from './visions/store'
+import type { VisionFlowRequest, WorkingVision } from '../shared/visions'
 import { loadSafeZones } from './safe-zones'
 
 const MIXDOWN_EXTENSIONS = ['wav', 'aif', 'aiff', 'flac', 'mp3']
@@ -340,6 +343,40 @@ function start(): void {
     await keys.remove(keyName(name))
     return keys.status()
   })
+  // The vision flow (V10): Claude writes three visions; each call is costed against the track.
+  // With ELYNT_RECORD_CLAUDE_DIR set, every raw reply is also saved there, to replay in tests.
+  const visionStore = createVisionStore(db)
+  const recordDir = process.env['ELYNT_RECORD_CLAUDE_DIR']
+  const visionFlow = createVisionFlow({
+    claude,
+    usage,
+    store: visionStore,
+    tracks,
+    analysis: (trackId) => analysisStore.get(trackId)?.analysis ?? null,
+    artistName: () => profile.get().artistName ?? '',
+    onReply: recordDir
+      ? (reply) => {
+          mkdirSync(recordDir, { recursive: true })
+          writeFileSync(join(recordDir, `visions-${Date.now()}.json`), JSON.stringify(reply, null, 1))
+        }
+      : undefined
+  })
+  ipcMain.handle(channels.latestVisions, (_event, trackId: number) => visionStore.latestSet(trackId))
+  ipcMain.handle(channels.generateVisions, async (_event, request: VisionFlowRequest) => {
+    const result = await visionFlow.run(request)
+    console.log(
+      `Visions for track ${request.trackId}: $${result.set.costUsd.toFixed(3)} in ${result.set.attempts} call(s); ` +
+        `Visualizer total for the track $${result.trackCostUsd.toFixed(3)}.`
+    )
+    return result
+  })
+  ipcMain.handle(channels.getWorkingVision, (_event, trackId: number) => visionStore.getWorking(trackId))
+  ipcMain.handle(channels.saveWorkingVision, (_event, trackId: number, vision: unknown, from: WorkingVision['from']) => {
+    if (!tracks.get(trackId)) throw new Error(`No track with id ${trackId}.`)
+    return visionStore.saveWorking(trackId, vision, from)
+  })
+  ipcMain.handle(channels.visionTrackCost, (_event, trackId: number) => usage.totalCostUsd({ tool: 'visualizer', trackId }))
+
   ipcMain.handle(channels.testAnthropicKey, async () => {
     try {
       await claude.text({ tool: 'suite', tier: 'fast', prompt: 'Reply with the word ok.', maxTokens: 64 })

@@ -90,6 +90,20 @@ function defaultSectionScene(label: SectionLabel): Scene {
   return { layers }
 }
 
+/**
+ * Whether a saved vision still lines up with the track's sections: same labels, starts and ends,
+ * in order, on the same beat grid. Moving or relabelling a section, or nudging the grid, in the
+ * "What I heard" check makes it stale.
+ */
+export function fitsSections(saved: unknown, sections: Section[], grid: BeatGrid = NO_GRID): saved is Vision {
+  const vision = saved as Partial<Vision> | null
+  const s = vision?.sections
+  if (!Array.isArray(s) || s.length !== sections.length || !Array.isArray(vision!.palette) || !Array.isArray(vision!.moments)) return false
+  const sameTimes = (a: number[] | undefined, b: number[]) => Array.isArray(a) && a.length === b.length && a.every((t, i) => t === b[i])
+  if (!sameTimes(vision!.grid?.beats, grid.beats) || !sameTimes(vision!.grid?.downbeats, grid.downbeats)) return false
+  return s.every((v, i) => v.label === sections[i]!.label && v.start === sections[i]!.start && v.end === sections[i]!.end)
+}
+
 /** The section playing at t. Before the start it is the first; past the end, the last. */
 export function sectionIndexAt(vision: Vision, t: number): number {
   const { sections } = vision

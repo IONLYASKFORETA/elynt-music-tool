@@ -338,3 +338,9 @@ h2 { font-size: 12px; letter-spacing: 0.3em; text-transform: uppercase; color: v
 .board-step.is-skipped { opacity: 0.4; font-style: italic; }
 .board-step.picked { outline: 2px solid #3db8ff; outline-offset: 1px; }
 .board-detail > .step-row { cursor: default; }
+
+/* History panel (V15): undo and redo, snapshots, presets. */
+.history-panel { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); display: grid; gap: 8px; font-size: 13px; }
+.history-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.history-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.history-list li { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }

@@ -13,6 +13,7 @@ import type { Release, ReleaseWithPlan, StartRelease } from './release'
 import type { SplitJob, Stem } from './stems'
 import type { SubjectImage, SubjectImageRequest, SubjectJob } from './subject-images'
 import type { Track } from './track'
+import type { HistoryState, Preset, PresetLevel, Snapshot, VisionKey } from './vision-history'
 
 /** What the preload script exposes to the UI as `window.elynt`. */
 export interface ElyntApi {
@@ -141,6 +142,26 @@ export interface ElyntApi {
     /** Calls back as a generation starts, reports progress, finishes ('done') or fails. */
     onJob(listener: (job: SubjectJob | { trackId: number; state: 'done' }) => void): () => void
   }
+  /**
+   * Visualizer undo and redo over a vision's whole state, without limit, kept across restarts;
+   * named snapshots of it. Restoring a snapshot is an edit, so it can be undone too.
+   */
+  visionHistory: {
+    current(key: VisionKey): Promise<HistoryState>
+    record(key: VisionKey, vision: unknown): Promise<HistoryState>
+    undo(key: VisionKey): Promise<HistoryState>
+    redo(key: VisionKey): Promise<HistoryState>
+    saveSnapshot(key: VisionKey, name: string): Promise<Snapshot>
+    listSnapshots(key: VisionKey): Promise<Snapshot[]>
+    restoreSnapshot(id: number): Promise<HistoryState>
+    deleteSnapshot(id: number): Promise<void>
+  }
+  /** The owner's presets: a layer, a scene or a whole vision, for any track. */
+  presets: {
+    save(level: PresetLevel, name: string, data: unknown): Promise<Preset>
+    list(level?: PresetLevel): Promise<Preset[]>
+    delete(id: number): Promise<void>
+  }
   helper: {
     status(): Promise<HelperStatus>
     /** Calls back on every status change. Returns a function that stops listening. */
@@ -219,6 +240,17 @@ export const channels = {
   getCoverArt: 'media:cover-art',
   attachPickedCoverArt: 'media:attach-picked-cover-art',
   removeCoverArt: 'media:remove-cover-art',
+  currentVisionHistory: 'vision-history:current',
+  recordVisionHistory: 'vision-history:record',
+  undoVision: 'vision-history:undo',
+  redoVision: 'vision-history:redo',
+  saveVisionSnapshot: 'vision-history:save-snapshot',
+  listVisionSnapshots: 'vision-history:list-snapshots',
+  restoreVisionSnapshot: 'vision-history:restore-snapshot',
+  deleteVisionSnapshot: 'vision-history:delete-snapshot',
+  savePreset: 'presets:save',
+  listPresets: 'presets:list',
+  deletePreset: 'presets:delete',
   listSubjectImages: 'subject-images:list',
   generateSubjectImages: 'subject-images:generate',
   regenerateSubjectImage: 'subject-images:regenerate',

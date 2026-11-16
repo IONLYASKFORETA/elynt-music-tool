@@ -1,4 +1,6 @@
 import { useState } from 'react'
+import type { FormatId } from '../../../shared/formats'
+import { FormatTweakControls } from './FormatTweakControls'
 import { PosterLayerControls } from './PosterLayerControls'
 import { MAX_COLORS, MIN_COLORS } from './palette'
 import { PICKABLE_SIGNALS, signalLabel, type Reactivity } from './reactivity'
@@ -20,9 +22,10 @@ const ADDABLE_KINDS = (Object.keys(LAYER_NAMES) as LayerKind[]).filter((k) => !E
 
 /**
  * A basic scene panel: pick a section, then for each of its layers what it reacts to and how
- * strongly. Active layers can be added (up to the limit) and removed.
+ * strongly. Active layers can be added (up to the limit) and removed. Poster layers also take
+ * tweaks for the format the preview shows (V16).
  */
-export function ScenePanel({ vision, onChange }: { vision: Vision; onChange(vision: Vision): void }) {
+export function ScenePanel({ vision, format, onChange }: { vision: Vision; format: FormatId; onChange(vision: Vision): void }) {
   const [picked, setPicked] = useState(0)
   const index = Math.min(picked, vision.sections.length - 1)
   const section = vision.sections[index]!
@@ -112,6 +115,7 @@ export function ScenePanel({ vision, onChange }: { vision: Vision; onChange(visi
               credits={vision.credits}
               onChange={(patch) => onChange(updateSectionLayer(vision, index, i, patch))}
             />
+            <FormatTweakControls vision={vision} sectionIndex={index} layerIndex={i} format={format} onChange={onChange} />
             {countsTowardLimit(layer.kind) && (
               <button className="link" onClick={() => onChange(removeSectionLayer(vision, index, i))}>
                 Remove

@@ -1,4 +1,5 @@
 import type { BenchConfig, BenchReport, FileCheck } from './bench'
+import type { SafeZones } from './formats'
 import type { ExportFormatId, ExportJob, ExportRequest, ExportResult } from './export'
 import type { TrackAnalysis, TrackAnalysisState } from './analysis'
 import type { AudioProbe, HelperStatus } from './helper'
@@ -70,6 +71,10 @@ export interface ElyntApi {
     cancel(jobId: string): Promise<void>
     /** Shows a finished video in Explorer. */
     reveal(path: string): Promise<void>
+  }
+  visualizer: {
+    /** The safe zones per format (V16): the owner's safe-zones.json beside the database, else the shipped margins. Read fresh each call. */
+    safeZones(): Promise<SafeZones>
   }
   /** The export benchmark: only active when the app was started with --bench-export. */
   bench: {
@@ -149,6 +154,7 @@ export const channels = {
   finishExport: 'exports:finish',
   cancelExport: 'exports:cancel',
   revealExport: 'exports:reveal',
+  safeZones: 'visualizer:safe-zones',
   benchConfig: 'bench:config',
   benchCheckFile: 'bench:check-file',
   benchReport: 'bench:report'

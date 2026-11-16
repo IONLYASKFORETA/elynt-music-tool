@@ -52,6 +52,11 @@ _Avoid_: confusing with a musical remix; a remix here only ever changes visuals.
 
 **Transition**: how one section's scene hands over to the next.
 
+**Format**: the shape a vision is laid out in: 16:9, 9:16 or 1:1. The owner edits once and every format re-flows from it, with optional tweaks kept per format.
+_Avoid_: "aspect" (say format); an export's size, rate and bitrate is its export format, which names the format it lays out in.
+
+**Safe zone**: the part of a format's frame that platform buttons, captions and crops leave clear; important content is kept inside it. Its margins are data, conservative until checked against the platforms' templates.
+
 **Media shelf**: the owner's own reusable images, clips and logo, available to any track's visuals.
 
 **Export queue**: the Visualizer's list of videos waiting to be rendered, including clips other tools have asked for.

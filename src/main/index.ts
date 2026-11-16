@@ -26,6 +26,7 @@ import { REFERENCE_EXTENSIONS, type MixSetup } from '../shared/mix-setup'
 import type { ArtistProfile } from '../shared/profile'
 import { createTrackStems, type StemSplitter } from './stems'
 import { createTrackLibrary } from './tracks'
+import { loadSafeZones } from './safe-zones'
 
 const MIXDOWN_EXTENSIONS = ['wav', 'aif', 'aiff', 'flac', 'mp3']
 /**
@@ -232,6 +233,7 @@ function start(): void {
     limitSeconds: bench.limitSeconds,
     outDir: mkdtempSync(join(tmpdir(), 'elynt-bench-videos-'))
   }
+  ipcMain.handle(channels.safeZones, () => loadSafeZones(join(app.getPath('userData'), 'safe-zones.json')))
   ipcMain.handle(channels.benchConfig, () => benchConfig)
   ipcMain.handle(channels.benchCheckFile, async (_event, path: string, frame: number, renders: Uint8Array[], width: number, height: number) => {
     if (!benchConfig || !finishedExports.has(path)) throw new Error('Only the benchmark can check its own videos.')

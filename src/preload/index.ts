@@ -47,6 +47,9 @@ const api: ElyntApi = {
     cancel: (jobId) => ipcRenderer.invoke(channels.cancelExport, jobId),
     reveal: (path) => ipcRenderer.invoke(channels.revealExport, path)
   },
+  visualizer: {
+    safeZones: () => ipcRenderer.invoke(channels.safeZones)
+  },
   bench: {
     config: () => ipcRenderer.invoke(channels.benchConfig),
     checkFile: (path, frame, renders, width, height) => ipcRenderer.invoke(channels.benchCheckFile, path, frame, renders, width, height),

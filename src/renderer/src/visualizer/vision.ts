@@ -1,4 +1,5 @@
 import type { Section, SectionLabel } from '../../../shared/analysis'
+import { WIDE_LAYOUT, type FormatLayout } from '../../../shared/formats'
 import type { AudioFeatures } from './audio-features'
 import { DEFAULT_PALETTE, paletteProblem, type Palette } from './palette'
 import { addLayer, newLayer, NO_CONTEXT, planFrame, type Credits, type FramePlan, type Layer, type Scene } from './scene'
@@ -69,20 +70,25 @@ export function sceneAt(vision: Vision, t: number): Scene {
   return vision.sections[sectionIndexAt(vision, t)]!.scene
 }
 
-/** One frame of the whole track: the preview and the export both draw through this. */
+/**
+ * One frame of the whole track: the preview and the export both draw through this. `layout` is
+ * the format the frame is for and its safe zone (V16); the poster layers re-flow to it.
+ */
 export function planVisionFrame(
   vision: Vision,
   features: AudioFeatures,
   t: number,
   size: { width: number; height: number },
-  signals: TrackSignals
+  signals: TrackSignals,
+  layout: FormatLayout = WIDE_LAYOUT
 ): FramePlan {
   const sectionIndex = sectionIndexAt(vision, t)
   const section = vision.sections[sectionIndex]!
   return planFrame(section.scene, features, t, size, signals, vision.palette, {
     sectionIndex,
     sectionStart: section.start,
-    credits: vision.credits ?? NO_CONTEXT.credits
+    credits: vision.credits ?? NO_CONTEXT.credits,
+    layout
   })
 }
 

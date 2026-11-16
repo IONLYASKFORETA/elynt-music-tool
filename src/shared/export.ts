@@ -4,6 +4,8 @@
  * "Format" is used here, not "preset": a Preset is a saved visualizer look
  * (GLOSSARY.md).
  */
+import type { FormatId } from './formats'
+
 export type ExportFormatId = 'youtube-4k60' | 'youtube-1080p60'
 
 export interface ExportFormat {
@@ -16,6 +18,8 @@ export interface ExportFormat {
   videoBitrate: number
   /** AAC bitrate in bits per second. */
   audioBitrate: number
+  /** The layout format (16:9, 9:16 or 1:1) the vision re-flows to for this export, with its safe zone. */
+  layout: FormatId
 }
 
 /** YouTube upload formats. Both widths are multiples of 64, so GPU readback rows need no padding. */
@@ -27,7 +31,8 @@ export const EXPORT_FORMATS: Record<ExportFormatId, ExportFormat> = {
     height: 2160,
     fps: 60,
     videoBitrate: 60_000_000,
-    audioBitrate: 384_000
+    audioBitrate: 384_000,
+    layout: 'wide'
   },
   'youtube-1080p60': {
     id: 'youtube-1080p60',
@@ -36,7 +41,8 @@ export const EXPORT_FORMATS: Record<ExportFormatId, ExportFormat> = {
     height: 1080,
     fps: 60,
     videoBitrate: 12_000_000,
-    audioBitrate: 384_000
+    audioBitrate: 384_000,
+    layout: 'wide'
   }
 }
 

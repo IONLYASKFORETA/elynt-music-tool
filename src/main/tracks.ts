@@ -8,6 +8,8 @@ export interface TrackLibrary {
   /** Every track in the suite, oldest first. Every tool lists the same records. */
   list(): Track[]
   get(id: number): Track | null
+  /** Gives a track the owner's title, for example in the "What I heard" check. The mixdown stays where it is. */
+  rename(id: number, title: string): Track
 }
 
 interface TrackRow {
@@ -24,6 +26,7 @@ export function createTrackLibrary(db: SuiteDatabase): TrackLibrary {
   const byPath = db.prepare('SELECT * FROM tracks WHERE mixdown_path = ?')
   const all = db.prepare('SELECT * FROM tracks ORDER BY id')
   const byId = db.prepare('SELECT * FROM tracks WHERE id = ?')
+  const setTitle = db.prepare('UPDATE tracks SET title = ? WHERE id = ?')
 
   return {
     addFromMixdown(mixdownPath) {
@@ -36,6 +39,12 @@ export function createTrackLibrary(db: SuiteDatabase): TrackLibrary {
     get(id) {
       const row = byId.get(id) as unknown as TrackRow | undefined
       return row ? toTrack(row) : null
+    },
+    rename(id, title) {
+      const clean = title.trim()
+      if (!clean) throw new Error('A track needs a title.')
+      if (setTitle.run(clean, id).changes === 0) throw new Error(`No track with id ${id}.`)
+      return toTrack(byId.get(id) as unknown as TrackRow)
     }
   }
 }

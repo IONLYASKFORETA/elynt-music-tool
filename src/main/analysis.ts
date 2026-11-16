@@ -1,4 +1,5 @@
-import type { AnalysisStatus, TrackAnalysis, TrackAnalysisState } from '../shared/analysis'
+import type { AnalysisStatus, HeardCheck, TrackAnalysis, TrackAnalysisState } from '../shared/analysis'
+import { correctionProblem } from '../shared/heard-check'
 import type { HelperMethod, HelperMethods, HelperStatus } from '../shared/helper'
 import type { SuiteDatabase } from './db/database'
 import { HelperCallError } from './helper/client'
@@ -10,7 +11,15 @@ export interface TrackAnalysisStore {
   /** Queues a track. Its last result, if any, stays until the new one replaces it. */
   markPending(trackId: number): TrackAnalysisState
   markRunning(trackId: number): TrackAnalysisState
+  /** A fresh result from the helper. The "What I heard" check starts over. */
   saveResult(trackId: number, analysis: TrackAnalysis): TrackAnalysisState
+  /**
+   * The owner's corrections from the "What I heard" check (V3). They replace the heard analysis,
+   * so every tool reads the corrected sections and grid. Throws, saving nothing, if they don't hold together.
+   */
+  saveCorrection(trackId: number, analysis: TrackAnalysis): TrackAnalysisState
+  /** The owner skipped the check: the heard analysis stands as it is. */
+  skipCheck(trackId: number): TrackAnalysisState
   saveFailure(trackId: number, error: string): TrackAnalysisState
   /** Queued tracks, oldest first. */
   pending(): number[]
@@ -27,6 +36,8 @@ interface AnalysisRow {
   error: string | null
   analyzed_at: string | null
   updated_at: string
+  check_state: HeardCheck
+  checked_at: string | null
 }
 
 export function createTrackAnalysisStore(db: SuiteDatabase, now: () => Date = () => new Date()): TrackAnalysisStore {
@@ -36,8 +47,14 @@ export function createTrackAnalysisStore(db: SuiteDatabase, now: () => Date = ()
     ON CONFLICT (track_id) DO UPDATE SET status = excluded.status, error = NULL, updated_at = excluded.updated_at
   `)
   const setResult = db.prepare(`
-    UPDATE track_analysis SET status = 'done', result = ?, error = NULL, analyzed_at = ?, updated_at = ? WHERE track_id = ?
+    UPDATE track_analysis SET status = 'done', result = ?, error = NULL, analyzed_at = ?, updated_at = ?,
+      check_state = 'unchecked', checked_at = NULL
+    WHERE track_id = ?
   `)
+  const setCorrection = db.prepare(`
+    UPDATE track_analysis SET result = ?, check_state = 'confirmed', checked_at = ? WHERE track_id = ?
+  `)
+  const setSkipped = db.prepare(`UPDATE track_analysis SET check_state = 'skipped', checked_at = ? WHERE track_id = ?`)
   const setFailure = db.prepare(`UPDATE track_analysis SET status = 'failed', error = ?, updated_at = ? WHERE track_id = ?`)
   const queued = db.prepare(`SELECT track_id FROM track_analysis WHERE status = 'pending' ORDER BY updated_at, track_id`)
   const never = db.prepare(`
@@ -71,6 +88,18 @@ export function createTrackAnalysisStore(db: SuiteDatabase, now: () => Date = ()
       setResult.run(JSON.stringify(analysis), at, at, trackId)
       return must(trackId)
     },
+    saveCorrection(trackId, analysis) {
+      if (!get(trackId)?.analysis) throw new Error(`Track ${trackId} has no analysis to correct yet.`)
+      const problem = correctionProblem(analysis)
+      if (problem) throw new Error(problem)
+      setCorrection.run(JSON.stringify(analysis), stamp(), trackId)
+      return must(trackId)
+    },
+    skipCheck(trackId) {
+      if (!get(trackId)?.analysis) throw new Error(`Track ${trackId} has no analysis to check yet.`)
+      setSkipped.run(stamp(), trackId)
+      return must(trackId)
+    },
     saveFailure(trackId, error) {
       setFailure.run(error, stamp(), trackId)
       return must(trackId)
@@ -87,7 +116,9 @@ function fromRow(row: AnalysisRow): TrackAnalysisState {
     status: row.status,
     analysis: row.result ? (JSON.parse(row.result) as TrackAnalysis) : null,
     error: row.error,
-    analyzedAt: row.analyzed_at
+    analyzedAt: row.analyzed_at,
+    check: row.check_state,
+    checkedAt: row.checked_at
   }
 }
 

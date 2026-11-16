@@ -1,6 +1,6 @@
 import type { BenchConfig, BenchReport, FileCheck } from './bench'
 import type { ExportFormatId, ExportJob, ExportRequest, ExportResult } from './export'
-import type { TrackAnalysisState } from './analysis'
+import type { TrackAnalysis, TrackAnalysisState } from './analysis'
 import type { AudioProbe, HelperStatus } from './helper'
 import type { KeyName, KeyStatus, KeyTestResult } from './keys'
 import type { BackupStatus } from './backup'
@@ -17,6 +17,8 @@ export interface ElyntApi {
     addFromPickedMixdown(): Promise<Track | null>
     /** The bytes of a track's mixdown file, for the Visualizer to decode and play. */
     readMixdown(trackId: number): Promise<Uint8Array>
+    /** Gives a track the owner's title (the "What I heard" check). Rejects an empty title. */
+    rename(trackId: number, title: string): Promise<Track>
   }
   /**
    * A track's stems: all the owner's own, or all AI-split by the helper. Own stems always win.
@@ -91,6 +93,10 @@ export interface ElyntApi {
     get(trackId: number): Promise<TrackAnalysisState | null>
     /** Queues the track to be analysed again. */
     rerun(trackId: number): Promise<TrackAnalysisState>
+    /** Saves the owner's corrections from the "What I heard" check over the heard analysis. */
+    saveCorrection(trackId: number, analysis: TrackAnalysis): Promise<TrackAnalysisState>
+    /** The owner skipped the "What I heard" check. */
+    skipCheck(trackId: number): Promise<TrackAnalysisState>
     /** Calls back whenever any track's analysis changes. Returns a function that stops listening. */
     onChange(listener: (state: TrackAnalysisState) => void): () => void
   }
@@ -107,6 +113,7 @@ export const channels = {
   listTracks: 'tracks:list',
   addFromPickedMixdown: 'tracks:add-from-picked-mixdown',
   readMixdown: 'tracks:read-mixdown',
+  renameTrack: 'tracks:rename',
   listStems: 'stems:list',
   attachPickedStems: 'stems:attach-picked',
   removeOwnStem: 'stems:remove-own',
@@ -127,6 +134,8 @@ export const channels = {
   pickReferenceTracks: 'mix-setup:pick-reference-tracks',
   getAnalysis: 'analysis:get',
   rerunAnalysis: 'analysis:rerun',
+  saveAnalysisCorrection: 'analysis:save-correction',
+  skipAnalysisCheck: 'analysis:skip-check',
   analysisChanged: 'analysis:changed',
   helperStatus: 'helper:status',
   helperStatusChanged: 'helper:status-changed',

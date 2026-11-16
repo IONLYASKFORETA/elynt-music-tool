@@ -108,6 +108,79 @@ describe('track analysis store', () => {
   })
 })
 
+describe('"What I heard" check on the store', () => {
+  it("saves the owner's corrections over the heard analysis, so every tool reads them, and they survive a reopen", () => {
+    const store = createTrackAnalysisStore(db, () => new Date('2026-11-16T10:00:00Z'))
+    const track = tracks.addFromMixdown('/m/flip.wav')
+    store.markPending(track.id)
+    store.saveResult(track.id, analysisFor(134))
+    expect(store.get(track.id)?.check).toBe('unchecked')
+
+    const fixed = analysisFor(128)
+    fixed.sections[1] = { ...fixed.sections[1]!, label: 'breakdown', source: 'owner', confidence: 1 }
+    const saved = store.saveCorrection(track.id, fixed)
+
+    expect(saved).toMatchObject({ status: 'done', check: 'confirmed', checkedAt: '2026-11-16T10:00:00.000Z' })
+    db.close()
+    db = openSuiteDatabase(join(dir, 'elynt.sqlite'))
+    const reread = createTrackAnalysisStore(db).get(track.id)!
+    expect(reread.analysis?.bpm).toBe(128)
+    expect(reread.analysis?.sections.map((s) => s.label)).toEqual(['intro', 'breakdown', 'drop'])
+    expect(reread.check).toBe('confirmed')
+  })
+
+  it('records a skipped check without touching the analysis', () => {
+    const store = createTrackAnalysisStore(db)
+    const track = tracks.addFromMixdown('/m/flip.wav')
+    store.markPending(track.id)
+    store.saveResult(track.id, analysisFor(134))
+
+    const skipped = store.skipCheck(track.id)
+
+    expect(skipped.check).toBe('skipped')
+    expect(skipped.analysis?.bpm).toBe(134)
+  })
+
+  it('asks for a fresh check when the track is analysed again', () => {
+    const store = createTrackAnalysisStore(db)
+    const track = tracks.addFromMixdown('/m/flip.wav')
+    store.markPending(track.id)
+    store.saveResult(track.id, analysisFor(134))
+    store.saveCorrection(track.id, analysisFor(128))
+
+    store.markPending(track.id)
+    expect(store.get(track.id)?.check).toBe('confirmed')
+    store.saveResult(track.id, analysisFor(130))
+    expect(store.get(track.id)).toMatchObject({ check: 'unchecked', checkedAt: null })
+  })
+
+  it('refuses corrections that break the section timeline, and keeps what was there', () => {
+    const store = createTrackAnalysisStore(db)
+    const track = tracks.addFromMixdown('/m/flip.wav')
+    store.markPending(track.id)
+    store.saveResult(track.id, analysisFor(134))
+
+    const gap = analysisFor(128)
+    gap.sections[1] = { ...gap.sections[1]!, start: 20 }
+    const badLabel = analysisFor(128)
+    badLabel.sections[0] = { ...badLabel.sections[0]!, label: 'chorus' as never }
+    const badBpm = analysisFor(0)
+
+    expect(() => store.saveCorrection(track.id, gap)).toThrow(/sections/i)
+    expect(() => store.saveCorrection(track.id, badLabel)).toThrow(/label/i)
+    expect(() => store.saveCorrection(track.id, badBpm)).toThrow(/BPM/)
+    expect(store.get(track.id)).toMatchObject({ check: 'unchecked', analysis: { bpm: 134 } })
+  })
+
+  it("can't check a track that has no analysis yet", () => {
+    const store = createTrackAnalysisStore(db)
+    const track = tracks.addFromMixdown('/m/flip.wav')
+
+    expect(() => store.saveCorrection(track.id, analysisFor(128))).toThrow(/no analysis/i)
+    expect(() => store.skipCheck(track.id)).toThrow(/no analysis/i)
+  })
+})
+
 describe('analysis queue', () => {
   it('analyses an added track through the helper, with the helper path, and saves it on the track', async () => {
     const store = createTrackAnalysisStore(db)

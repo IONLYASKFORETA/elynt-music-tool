@@ -1,4 +1,6 @@
 import { useState } from 'react'
+import { MediaControls } from './MediaControls'
+import type { OwnMedia } from './MediaShelf'
 import { PosterLayerControls } from './PosterLayerControls'
 import { MAX_COLORS, MIN_COLORS } from './palette'
 import { PICKABLE_SIGNALS, signalLabel, type Reactivity } from './reactivity'
@@ -13,7 +15,15 @@ import {
   type LayerKind
 } from './scene'
 import { SIGNALS } from './signals'
-import { addSectionLayer, removeSectionLayer, setVisionPalette, updateSectionLayer, type Vision } from './vision'
+import {
+  acceptCoverArt,
+  addSectionLayer,
+  removeSectionLayer,
+  setVisionPalette,
+  updateSectionLayer,
+  visionImages,
+  type Vision
+} from './vision'
 
 /** Layer kinds the owner can add between Ground and Finish: every kind in the layer library but those two. */
 const ADDABLE_KINDS = (Object.keys(LAYER_NAMES) as LayerKind[]).filter((k) => !EXEMPT_KINDS.includes(k))
@@ -22,7 +32,18 @@ const ADDABLE_KINDS = (Object.keys(LAYER_NAMES) as LayerKind[]).filter((k) => !E
  * A basic scene panel: pick a section, then for each of its layers what it reacts to and how
  * strongly. Active layers can be added (up to the limit) and removed.
  */
-export function ScenePanel({ vision, onChange }: { vision: Vision; onChange(vision: Vision): void }) {
+const NO_MEDIA: OwnMedia = { shelf: [], coverArt: null }
+
+export function ScenePanel({
+  vision,
+  media = NO_MEDIA,
+  onChange
+}: {
+  vision: Vision
+  /** The media shelf and the track's cover art, which Subject, Ground, Chrome and Poster Frame can use. */
+  media?: OwnMedia
+  onChange(vision: Vision): void
+}) {
   const [picked, setPicked] = useState(0)
   const index = Math.min(picked, vision.sections.length - 1)
   const section = vision.sections[index]!
@@ -34,6 +55,10 @@ export function ScenePanel({ vision, onChange }: { vision: Vision; onChange(visi
 
   const palette = vision.palette
   const setPalette = (colors: string[]) => onChange(setVisionPalette(vision, colors))
+
+  // The vision never asks for media; with cover art on the track, it offers it as a Subject.
+  const cover = media.coverArt
+  const offerCover = cover && !visionImages(vision).includes(cover.url) && canAddLayer(scene, 'subject')
 
   return (
     <section className="scene-panel" aria-label="Scenes">
@@ -75,6 +100,15 @@ export function ScenePanel({ vision, onChange }: { vision: Vision; onChange(visi
         ))}
       </div>
 
+      {offerCover && (
+        <div className="scene-cover-offer">
+          This track has cover art.{' '}
+          <button className="link" onClick={() => onChange(acceptCoverArt(vision, index, cover))}>
+            Use it as the Subject here
+          </button>
+        </div>
+      )}
+
       <ol className="scene-layers">
         {scene.layers.map((layer, i) => (
           <li key={i} className="scene-layer">
@@ -112,6 +146,7 @@ export function ScenePanel({ vision, onChange }: { vision: Vision; onChange(visi
               credits={vision.credits}
               onChange={(patch) => onChange(updateSectionLayer(vision, index, i, patch))}
             />
+            <MediaControls layer={layer} media={media} onChange={(patch) => onChange(updateSectionLayer(vision, index, i, patch))} />
             {countsTowardLimit(layer.kind) && (
               <button className="link" onClick={() => onChange(removeSectionLayer(vision, index, i))}>
                 Remove

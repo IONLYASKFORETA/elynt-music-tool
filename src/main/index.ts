@@ -1,7 +1,8 @@
-import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, net, protocol, shell } from 'electron'
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
+import { pathToFileURL } from 'node:url'
 import { dirname, join, resolve } from 'node:path'
 import type { BenchConfig, BenchReport } from '../shared/bench'
 import { EXPORT_FORMATS, isExportFormatId, type ExportRequest } from '../shared/export'
@@ -15,6 +16,7 @@ import { createBackups } from './backup'
 import { openSuiteDatabase } from './db/database'
 import { resolveHelperCommand } from './helper/command'
 import { createHelperSupervisor } from './helper/supervisor'
+import { createMediaShelf } from './media-shelf'
 import { createMixSetupStore } from './mix-setup'
 import { createProfileStore } from './profile'
 import { isKeyName } from '../shared/keys'
@@ -22,6 +24,7 @@ import { ClaudeError, createClaudeClient, createUsageLog } from './claude'
 import { createGeminiTransport, createMoodListener } from './gemini'
 import { createApiKeys } from './keys/api-keys'
 import { createCredentialVault } from './keys/key-vault'
+import { CLIP_EXTENSIONS, IMAGE_EXTENSIONS, MEDIA_SCHEME } from '../shared/media'
 import { REFERENCE_EXTENSIONS, type MixSetup } from '../shared/mix-setup'
 import type { ArtistProfile } from '../shared/profile'
 import { createTrackStems, type StemSplitter } from './stems'
@@ -58,6 +61,12 @@ function createWindow(): BrowserWindow {
   }
   return win
 }
+
+// Own media (V18) loads from elynt-media://, which serves only files the media shelf or a track's
+// cover art holds. It has to be fetchable, seekable (clips) and CORS-clean for WebGPU to copy it.
+protocol.registerSchemesAsPrivileged([
+  { scheme: MEDIA_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true, corsEnabled: true } }
+])
 
 // The export benchmark runs against a throwaway library, never the owner's own database.
 const bench = parseBenchArgs(process.argv)
@@ -318,6 +327,58 @@ function start(): void {
     backups.exportEverything(result.filePath)
     return result.filePath
   })
+
+  // The media shelf (V18): own images, clips and logo by path, for any track; and each track's cover art.
+  const media = createMediaShelf({
+    db,
+    tracks,
+    probeClip: async (path) => {
+      const facts = await probeExport(ffmpegPath, path)
+      return { durationSeconds: facts.video.seconds, fps: facts.video.fps }
+    }
+  })
+  protocol.handle(MEDIA_SCHEME, async (request) => {
+    const path = media.pathFor(request.url)
+    if (!path) return new Response('Not on the media shelf', { status: 404 })
+    // Range headers pass through, so a clip can seek.
+    const response = await net.fetch(pathToFileURL(path).toString(), { headers: request.headers })
+    const headers = new Headers(response.headers)
+    headers.set('Access-Control-Allow-Origin', '*')
+    return new Response(response.body, { status: response.status, statusText: response.statusText, headers })
+  })
+  ipcMain.handle(channels.listMedia, () => media.list())
+  ipcMain.handle(channels.addPickedMedia, async (event) => {
+    const parent = BrowserWindow.fromWebContents(event.sender)
+    const options: Electron.OpenDialogOptions = {
+      title: 'Add images and clips to the media shelf',
+      properties: ['openFile', 'multiSelections'],
+      filters: [{ name: 'Images and clips', extensions: [...IMAGE_EXTENSIONS, ...CLIP_EXTENSIONS] }]
+    }
+    const result = parent ? await dialog.showOpenDialog(parent, options) : await dialog.showOpenDialog(options)
+    return result.canceled ? [] : media.add(result.filePaths)
+  })
+  ipcMain.handle(channels.removeMedia, (_event, id: number) => {
+    media.remove(id)
+    return media.list()
+  })
+  ipcMain.handle(channels.setLogo, (_event, id: number | null) => {
+    media.setLogo(id)
+    return media.list()
+  })
+  ipcMain.handle(channels.getCoverArt, (_event, trackId: number) => media.coverArt(trackId))
+  ipcMain.handle(channels.attachPickedCoverArt, async (event, trackId: number) => {
+    const parent = BrowserWindow.fromWebContents(event.sender)
+    const options: Electron.OpenDialogOptions = {
+      title: "Pick this track's cover art",
+      properties: ['openFile'],
+      filters: [{ name: 'Images', extensions: IMAGE_EXTENSIONS }]
+    }
+    const result = parent ? await dialog.showOpenDialog(parent, options) : await dialog.showOpenDialog(options)
+    const [path] = result.filePaths
+    if (!result.canceled && path) media.setCoverArt(trackId, path)
+    return media.coverArt(trackId)
+  })
+  ipcMain.handle(channels.removeCoverArt, (_event, trackId: number) => media.setCoverArt(trackId, null))
 
   ipcMain.handle(channels.getProfile, () => profile.get())
   ipcMain.handle(channels.saveProfile, (_event, input: ArtistProfile) => profile.save(input))

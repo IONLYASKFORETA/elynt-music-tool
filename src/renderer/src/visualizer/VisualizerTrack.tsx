@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import type { Track } from '../../../shared/track'
 import { useTrackAnalysis } from './AnalysisStrip'
 import { HeardCheck } from './HeardCheck'
+import { MediaShelfPanel, useOwnMedia } from './MediaShelf'
 import { Preview } from './Preview'
 import { ScenePanel } from './ScenePanel'
 import { defaultVision } from './vision'
@@ -41,6 +42,9 @@ export function VisualizerTrack({ track, onRenamed }: { track: Track; onRenamed:
       cancelled = true
     }
   }, [])
+  // Own media (V18): the shelf is shared by every track; cover art belongs to this one.
+  const [media, mediaActions] = useOwnMedia(track.id)
+
   const credited = useMemo(() => ({ ...vision, credits: { title: track.title, artist: artistName } }), [vision, track.title, artistName])
 
   if (checking) {
@@ -64,7 +68,8 @@ export function VisualizerTrack({ track, onRenamed }: { track: Track; onRenamed:
         </button>
       )}
       <Preview track={track} analysis={analysis} vision={credited} />
-      <ScenePanel vision={credited} onChange={setVision} />
+      <ScenePanel vision={credited} media={media} onChange={setVision} />
+      <MediaShelfPanel media={media} actions={mediaActions} />
     </>
   )
 }

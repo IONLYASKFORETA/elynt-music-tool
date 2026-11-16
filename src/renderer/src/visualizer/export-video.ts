@@ -69,7 +69,8 @@ export async function exportVideo(options: ExportOptions): Promise<ExportRun> {
       frames: job.frames,
       fps: job.fps,
       signal,
-      render: (t) => renderer.renderPixels(planVisionFrame(vision, featuresAt(audio, t), t, size, signals)),
+      // Every clip is seeked to the exact frame each export frame needs (V18).
+      render: (t) => renderer.renderExactPixels(planVisionFrame(vision, featuresAt(audio, t), t, size, signals)),
       write: (frame) => window.elynt.exports.writeFrame(job.jobId, frame),
       onProgress: (framesWritten) => options.onProgress?.({ framesWritten, frames: job.frames, elapsed: elapsed() })
     })

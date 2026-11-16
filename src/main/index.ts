@@ -26,6 +26,7 @@ import { createCredentialVault } from './keys/key-vault'
 import { REFERENCE_EXTENSIONS, type MixSetup } from '../shared/mix-setup'
 import type { ArtistProfile } from '../shared/profile'
 import type { StartRelease } from '../shared/release'
+import { parseStepAction, type StepAction } from '../shared/release-plan-actions'
 import { createTrackStems, type StemSplitter } from './stems'
 import { createTrackLibrary } from './tracks'
 
@@ -329,6 +330,13 @@ function start(): void {
   ipcMain.handle(channels.getRelease, (_event, releaseId: number) => releases.get(releaseId))
   ipcMain.handle(channels.startRelease, (_event, input: StartRelease) =>
     releases.start({ trackId: Number(input.trackId), releaseDay: String(input.releaseDay) })
+  )
+  ipcMain.handle(channels.openReleaseToday, (_event, releaseId: number) => releases.openToday(Number(releaseId)))
+  ipcMain.handle(channels.actOnPlanStep, (_event, releaseId: number, stepId: string, action: StepAction) =>
+    releases.actOnStep(Number(releaseId), String(stepId), parseStepAction(action))
+  )
+  ipcMain.handle(channels.moveReleaseDay, (_event, releaseId: number, newDay: string) =>
+    releases.moveReleaseDay(Number(releaseId), String(newDay))
   )
 
   ipcMain.handle(channels.getMixSetup, (_event, trackId: number) => mixSetup.get(trackId))

@@ -42,7 +42,10 @@ const api: ElyntApi = {
   releases: {
     list: () => ipcRenderer.invoke(channels.listReleases),
     get: (releaseId) => ipcRenderer.invoke(channels.getRelease, releaseId),
-    start: (input) => ipcRenderer.invoke(channels.startRelease, input)
+    start: (input) => ipcRenderer.invoke(channels.startRelease, input),
+    openToday: (releaseId) => ipcRenderer.invoke(channels.openReleaseToday, releaseId),
+    actOnStep: (releaseId, stepId, action) => ipcRenderer.invoke(channels.actOnPlanStep, releaseId, stepId, action),
+    moveReleaseDay: (releaseId, newDay) => ipcRenderer.invoke(channels.moveReleaseDay, releaseId, newDay)
   },
   exports: {
     chooseOutput: (trackTitle, format) => ipcRenderer.invoke(channels.chooseExportOutput, trackTitle, format),

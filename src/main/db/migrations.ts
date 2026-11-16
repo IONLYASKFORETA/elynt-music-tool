@@ -199,5 +199,18 @@ export const migrations: Migration[] = [
       );
       CREATE INDEX subject_images_track ON subject_images (track_id);
     `
+  },
+  {
+    version: 14,
+    name: 'mix projects',
+    // The Mix & Master project folder (M2), picked once per track. The app reads the newest .als
+    // at its top and the bounces in its `Elynt Bounces` subfolder each time, so only the folder is kept.
+    sql: `
+      CREATE TABLE mix_projects (
+        track_id  INTEGER PRIMARY KEY REFERENCES tracks(id) ON DELETE CASCADE,
+        folder    TEXT NOT NULL,
+        picked_at TEXT NOT NULL
+      );
+    `
   }
 ]

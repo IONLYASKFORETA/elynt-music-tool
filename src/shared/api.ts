@@ -6,6 +6,7 @@ import type { AudioProbe, HelperStatus } from './helper'
 import type { KeyName, KeyStatus, KeyTestResult } from './keys'
 import type { BackupStatus } from './backup'
 import type { LiveSet } from './live-set'
+import type { MixProject, MixProjectChangeEvent } from './mix-project'
 import type { MixSetup } from './mix-setup'
 import type { ArtistProfile } from './profile'
 import type { Release, ReleaseWithPlan, StartRelease } from './release'
@@ -111,6 +112,15 @@ export interface ElyntApi {
     /** Opens a file picker for an .als and reads it in the helper. Null if cancelled. */
     pickAndRead(): Promise<LiveSet | null>
   }
+  /** The track's project folder (M2): the newest Live Set in it and the bounces in `Elynt Bounces`. */
+  mixProject: {
+    /** Looks at the track's project folder as it is now, and watches it. Null before a folder is picked. */
+    open(trackId: number): Promise<MixProject | null>
+    /** Opens a folder picker, saves the folder against the track and opens it. Null if cancelled. */
+    pickFolder(trackId: number): Promise<MixProject | null>
+    /** A newer .als or new bounces landed in a watched project folder. Returns an unsubscribe function. */
+    onChange(listener: (event: MixProjectChangeEvent) => void): () => void
+  }
   /** Track analysis (V1): tempo, beats, sections, energy and mood, saved on the track. */
   analysis: {
     /** Null until the track has been queued for analysis. */
@@ -177,6 +187,9 @@ export const channels = {
   saveMixSetup: 'mix-setup:save',
   pickReferenceTracks: 'mix-setup:pick-reference-tracks',
   pickAndReadLiveSet: 'live-set:pick-and-read',
+  openMixProject: 'mix-project:open',
+  pickMixProjectFolder: 'mix-project:pick-folder',
+  mixProjectChanged: 'mix-project:changed',
   getAnalysis: 'analysis:get',
   rerunAnalysis: 'analysis:rerun',
   saveAnalysisCorrection: 'analysis:save-correction',

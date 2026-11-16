@@ -8,6 +8,7 @@ import { AnalysisStrip } from './visualizer/AnalysisStrip'
 import { ApiKeysPanel } from './ApiKeysPanel'
 import { BackupSettings } from './BackupSettings'
 import { LiveSetTree } from './LiveSetTree'
+import { MixProjectPanel } from './MixProjectPanel'
 import { MixSetupScreen } from './MixSetupScreen'
 import { ProfileScreen } from './ProfileScreen'
 import { ReleaseScreen } from './ReleaseScreen'
@@ -135,6 +136,7 @@ function Suite() {
             <VisualizerTrack key={pickedTrack.id} track={pickedTrack} onRenamed={() => void refresh().catch((e: unknown) => setError(String(e)))} />
           )}
           {active === 'mix-master' && pickedTrack && <MixSetupScreen key={pickedTrack.id} track={pickedTrack} />}
+          {active === 'mix-master' && pickedTrack && <MixProjectPanel key={`project-${pickedTrack.id}`} track={pickedTrack} />}
           {active === 'mix-master' && pickedTrack && <LiveSetTree key={`live-set-${pickedTrack.id}`} />}
           {active === 'release' && <ReleaseScreen tracks={tracks} />}
 

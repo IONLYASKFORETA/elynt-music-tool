@@ -16,6 +16,8 @@ import { createBackups } from './backup'
 import { openSuiteDatabase } from './db/database'
 import { resolveHelperCommand } from './helper/command'
 import { createHelperSupervisor } from './helper/supervisor'
+import { createMixProjects } from './mix-project'
+import { watchMixProject, type MixProjectWatcher } from './mix-project-watcher'
 import { createMixSetupStore } from './mix-setup'
 import { createProfileStore } from './profile'
 import { createReleaseStore } from './releases'
@@ -171,6 +173,46 @@ function start(): void {
     const liveSet = await helper.call('liveset.read', { path: helper.toHelperPath(path) })
     // The helper answers with its own view of the path (WSL under WSL2); hand back the app's.
     return { ...liveSet, path }
+  })
+  // The project folder (M2): picked once per track; the newest .als is read with the Live Set reader,
+  // and a watcher reports a newer .als or new bounces so later tickets can re-run.
+  const mixProjects = createMixProjects({
+    db,
+    tracks,
+    // The helper answers with its own view of the path (WSL under WSL2); keep the app's.
+    readLiveSet: async (path) => ({ ...(await helper.call('liveset.read', { path: helper.toHelperPath(path) })), path })
+  })
+  const projectWatchers = new Map<number, { folder: string; watcher: MixProjectWatcher }>()
+  const watchProject = (trackId: number) => {
+    const folder = mixProjects.folderOf(trackId)
+    const current = projectWatchers.get(trackId)
+    if (current && current.folder === folder) return
+    current?.watcher.close()
+    projectWatchers.delete(trackId)
+    if (folder === null) return
+    const watcher = watchMixProject(folder, (changes) => {
+      for (const win of BrowserWindow.getAllWindows()) win.webContents.send(channels.mixProjectChanged, { trackId, changes })
+    })
+    projectWatchers.set(trackId, { folder, watcher })
+  }
+  ipcMain.handle(channels.openMixProject, (_event, trackId: number) => {
+    watchProject(trackId)
+    return mixProjects.open(trackId)
+  })
+  ipcMain.handle(channels.pickMixProjectFolder, async (event, trackId: number) => {
+    const parent = BrowserWindow.fromWebContents(event.sender)
+    const current = mixProjects.folderOf(trackId)
+    const options: Electron.OpenDialogOptions = {
+      title: "Pick this track's Ableton project folder",
+      properties: ['openDirectory'],
+      ...(current ? { defaultPath: current } : {})
+    }
+    const result = parent ? await dialog.showOpenDialog(parent, options) : await dialog.showOpenDialog(options)
+    const [folder] = result.filePaths
+    if (result.canceled || !folder) return null
+    mixProjects.setFolder(trackId, folder)
+    watchProject(trackId)
+    return mixProjects.open(trackId)
   })
   ipcMain.handle(channels.probeTrack, (_event, trackId: number) => {
     const track = tracks.get(trackId)
@@ -410,6 +452,7 @@ function start(): void {
   })
 
   app.on('will-quit', () => {
+    for (const { watcher } of projectWatchers.values()) watcher.close()
     helper.stop()
     clearInterval(backupTimer)
     db.close()

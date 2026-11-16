@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import { channels, type ElyntApi } from '../shared/api'
 import type { TrackAnalysisState } from '../shared/analysis'
 import type { HelperStatus } from '../shared/helper'
+import type { MixProjectChangeEvent } from '../shared/mix-project'
 import type { SplitJob } from '../shared/stems'
 import type { SubjectJob } from '../shared/subject-images'
 
@@ -82,6 +83,15 @@ const api: ElyntApi = {
   },
   liveSet: {
     pickAndRead: () => ipcRenderer.invoke(channels.pickAndReadLiveSet)
+  },
+  mixProject: {
+    open: (trackId) => ipcRenderer.invoke(channels.openMixProject, trackId),
+    pickFolder: (trackId) => ipcRenderer.invoke(channels.pickMixProjectFolder, trackId),
+    onChange: (listener) => {
+      const handler = (_event: Electron.IpcRendererEvent, event: MixProjectChangeEvent) => listener(event)
+      ipcRenderer.on(channels.mixProjectChanged, handler)
+      return () => ipcRenderer.off(channels.mixProjectChanged, handler)
+    }
   },
   analysis: {
     get: (trackId) => ipcRenderer.invoke(channels.getAnalysis, trackId),

@@ -52,6 +52,11 @@ const api: ElyntApi = {
     get: () => ipcRenderer.invoke(channels.getProfile),
     save: (profile) => ipcRenderer.invoke(channels.saveProfile, profile)
   },
+  releases: {
+    list: () => ipcRenderer.invoke(channels.listReleases),
+    get: (releaseId) => ipcRenderer.invoke(channels.getRelease, releaseId),
+    start: (input) => ipcRenderer.invoke(channels.startRelease, input)
+  },
   exports: {
     chooseOutput: (trackTitle, format) => ipcRenderer.invoke(channels.chooseExportOutput, trackTitle, format),
     start: (request) => ipcRenderer.invoke(channels.startExport, request),

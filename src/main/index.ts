@@ -18,6 +18,7 @@ import { resolveHelperCommand } from './helper/command'
 import { createHelperSupervisor } from './helper/supervisor'
 import { createMixSetupStore } from './mix-setup'
 import { createProfileStore } from './profile'
+import { createReleaseStore } from './releases'
 import { isKeyName } from '../shared/keys'
 import { ClaudeError, createClaudeClient, createUsageLog } from './claude'
 import { createGeminiTransport, createMoodListener } from './gemini'
@@ -25,6 +26,7 @@ import { createApiKeys } from './keys/api-keys'
 import { createCredentialVault } from './keys/key-vault'
 import { REFERENCE_EXTENSIONS, type MixSetup } from '../shared/mix-setup'
 import type { ArtistProfile } from '../shared/profile'
+import type { StartRelease } from '../shared/release'
 import { createTrackStems, type StemSplitter } from './stems'
 import { createSubjectImages, type SubjectGenerator } from './subject-images'
 import { MEDIA_SCHEME, mediaPath, type SubjectImageRequest } from '../shared/subject-images'
@@ -90,6 +92,7 @@ function start(): void {
   const tracks = createTrackLibrary(db)
   const profile = createProfileStore(db)
   const mixSetup = createMixSetupStore(db, tracks)
+  const releases = createReleaseStore(db, { tracks, profile })
   // Keys stay in the Windows credential vault (ADR 0001). Every Claude and Gemini call is costed in api_usage.
   const keys = createApiKeys(createCredentialVault())
   const usage = createUsageLog(db)
@@ -369,6 +372,12 @@ function start(): void {
 
   ipcMain.handle(channels.getProfile, () => profile.get())
   ipcMain.handle(channels.saveProfile, (_event, input: ArtistProfile) => profile.save(input))
+
+  ipcMain.handle(channels.listReleases, () => releases.list())
+  ipcMain.handle(channels.getRelease, (_event, releaseId: number) => releases.get(releaseId))
+  ipcMain.handle(channels.startRelease, (_event, input: StartRelease) =>
+    releases.start({ trackId: Number(input.trackId), releaseDay: String(input.releaseDay) })
+  )
 
   ipcMain.handle(channels.getMixSetup, (_event, trackId: number) => mixSetup.get(trackId))
   ipcMain.handle(channels.saveMixSetup, (_event, input: MixSetup) => mixSetup.save(input))

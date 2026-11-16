@@ -56,7 +56,7 @@ def test_unknown_method_and_bad_json():
 
 def test_info_reports_python_and_gpu():
     result = call("helper.info")["result"]
-    assert result["protocol"] == 2
+    assert result["protocol"] == 4
     assert result["python"].startswith("3.12")
     assert "available" in result["gpu"]
 

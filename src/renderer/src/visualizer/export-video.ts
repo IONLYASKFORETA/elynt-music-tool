@@ -1,4 +1,5 @@
-import type { ExportFormatId, ExportResult, VideoEncoder } from '../../../shared/export'
+import { EXPORT_FORMATS, type ExportFormatId, type ExportResult, type VideoEncoder } from '../../../shared/export'
+import { formatLayout } from '../../../shared/formats'
 import type { Track } from '../../../shared/track'
 import { featuresAt, type MonoAudio } from './audio-features'
 import { pumpFrames } from './frame-pump'
@@ -62,6 +63,8 @@ export async function exportVideo(options: ExportOptions): Promise<ExportRun> {
     renderer.setRenderSize(job.width, job.height)
     // Every frame has to show its Subject's image, the first one included.
     await renderer.loadImages(visionImages(vision))
+    // Laid out for the export's format, with its important content inside the safe zone (V16).
+    const layout = formatLayout(await window.elynt.visualizer.safeZones(), EXPORT_FORMATS[options.format].layout)
     const size = renderer.renderSize
     const started = performance.now()
     const elapsed = () => (performance.now() - started) / 1000
@@ -70,7 +73,7 @@ export async function exportVideo(options: ExportOptions): Promise<ExportRun> {
       fps: job.fps,
       signal,
       // Every clip is seeked to the exact frame each export frame needs (V18).
-      render: (t) => renderer.renderExactPixels(planVisionFrame(vision, featuresAt(audio, t), t, size, signals)),
+      render: (t) => renderer.renderExactPixels(planVisionFrame(vision, featuresAt(audio, t), t, size, signals, layout)),
       write: (frame) => window.elynt.exports.writeFrame(job.jobId, frame),
       onProgress: (framesWritten) => options.onProgress?.({ framesWritten, frames: job.frames, elapsed: elapsed() })
     })

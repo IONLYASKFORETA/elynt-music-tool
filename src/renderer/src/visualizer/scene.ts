@@ -10,7 +10,8 @@ import { NO_SIGNALS, signalAt, type Tier, type TrackSignals } from './signals'
 import { POSTER_FRAME, type PosterFrameLayer } from './layers/poster-frame'
 import { POSTER_TYPE, type PosterTypeLayer } from './layers/poster-type'
 import { SUBJECT, type SubjectLayer } from './layers/subject'
-import type { TypeAnchors, TypeText } from './type-layout'
+import type { TypeAnchors, TypeBounds, TypeText } from './type-layout'
+import { WIDE_LAYOUT, type FormatLayout } from '../../../shared/formats'
 
 /**
  * The layer data model (GLOSSARY: Layer, Scene). A scene is plain data: the
@@ -202,7 +203,7 @@ export function passUniforms(
  * its text and anchors (cached by `key` and the frame size); a picture is loaded from its URL.
  */
 export type PassImage =
-  | { kind: 'type'; key: string; text: TypeText; anchors: TypeAnchors }
+  | { kind: 'type'; key: string; text: TypeText; anchors: TypeAnchors; bounds: TypeBounds }
   | { kind: 'picture'; url: string }
   /**
    * One frame of a clip (V18): frame `frame` of the video at `url`, which `time` (seconds into the
@@ -222,9 +223,11 @@ export interface FrameContext {
   sectionIndex: number
   sectionStart: number
   credits: Credits
+  /** The format the frame is laid out for and its safe zone (V16). */
+  layout: FormatLayout
 }
 
-export const NO_CONTEXT: FrameContext = { sectionIndex: 0, sectionStart: 0, credits: { title: '', artist: '' } }
+export const NO_CONTEXT: FrameContext = { sectionIndex: 0, sectionStart: 0, credits: { title: '', artist: '' }, layout: WIDE_LAYOUT }
 
 export interface FramePlan {
   passes: LayerPass[]
@@ -248,7 +251,8 @@ export function planFrame(
   return {
     spectrum: features.bands,
     passes: drawnLayers(scene).map((layer) => {
-      const { params, image } = layerParams(react(layer, reactionAt(layer.reactivity, signals, t)), context, signals, t)
+      const placed = place(layer, context.layout)
+      const { params, image } = layerParams(react(placed, reactionAt(placed.reactivity, signals, t)), context, signals, t)
       const uniforms = passUniforms(t, features, size, params, build, palette)
       return image ? { kind: layer.kind, uniforms, image } : { kind: layer.kind, uniforms }
     })
@@ -287,6 +291,18 @@ const TIER_RESPONSES: { [K in LayerKind]: TierResponse<K> } = {
   posterFrame: POSTER_FRAME.respond,
   posterType: POSTER_TYPE.respond,
   subject: SUBJECT.respond
+}
+
+/** Re-flows a layer for the frame's format; only the poster layers move. */
+function place(layer: Layer, layout: FormatLayout): Layer {
+  switch (layer.kind) {
+    case 'posterFrame':
+      return POSTER_FRAME.place!(layer, layout)
+    case 'subject':
+      return SUBJECT.place!(layer, layout)
+    default:
+      return layer
+  }
 }
 
 function react(layer: Layer, reaction: Reaction): Layer {

@@ -64,7 +64,7 @@ export class LayerImages {
       // Most recently used goes last, so the oldest is the first to go.
       this.types.delete(key)
     } else {
-      texture = this.typeTexture(layoutPosterType(image.text, image.anchors, { width, height }, this.measure))
+      texture = this.typeTexture(layoutPosterType(image.text, image.anchors, { width, height }, this.measure, image.bounds))
       while (this.types.size >= MAX_TYPE_TEXTURES) {
         const [oldest, old] = this.types.entries().next().value!
         old.destroy()

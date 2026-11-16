@@ -1,4 +1,5 @@
 import type { Section, SectionLabel } from '../../../shared/analysis'
+import { WIDE_LAYOUT, type FormatLayout } from '../../../shared/formats'
 import type { AudioFeatures } from './audio-features'
 import { beatSeconds, NO_GRID, snapToGrid, type BeatGrid, type Snap } from './beat-grid'
 import { momentPasses, type Moment, type MomentKind } from './moments'
@@ -124,21 +125,23 @@ export function setTransition(vision: Vision, index: number, transition: Transit
 /**
  * One frame of the whole track: the preview and the export both draw through this. Through a
  * transition both scenes are drawn, the outgoing one set aside by a hold step, and the
- * transition pass composites them. Moments go on top of everything.
+ * transition pass composites them. Moments go on top of everything. `layout` is the format the
+ * frame is for and its safe zone (V16); the poster layers re-flow to it.
  */
 export function planVisionFrame(
   vision: Vision,
   features: AudioFeatures,
   t: number,
   size: { width: number; height: number },
-  signals: TrackSignals
+  signals: TrackSignals,
+  layout: FormatLayout = WIDE_LAYOUT
 ): FramePlan {
   const { palette } = vision
   const build = signalAt(signals, 'build', t)
   const credits = vision.credits ?? NO_CONTEXT.credits
   const scenePlan = (sectionIndex: number) => {
     const section = vision.sections[sectionIndex]!
-    return planFrame(section.scene, features, t, size, signals, palette, { sectionIndex, sectionStart: section.start, credits })
+    return planFrame(section.scene, features, t, size, signals, palette, { sectionIndex, sectionStart: section.start, credits, layout })
   }
   const transition = transitionAt(vision, t)
   let plan: FramePlan

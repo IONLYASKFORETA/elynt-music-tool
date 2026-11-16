@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Section } from '../../../shared/analysis'
+import { WIDE_LAYOUT } from '../../../shared/formats'
 import { BAND_COUNT } from './audio-features'
 import { newClipMedia, newImageMedia, type ClipMedia } from './media'
 import { DEFAULT_PALETTE } from './palette'
@@ -28,7 +29,12 @@ import {
 
 const features = { bands: new Float32Array(BAND_COUNT).fill(0.5), energy: 0.5 }
 const size = { width: 1920, height: 1080 }
-const context = (sectionStart = 0): FrameContext => ({ sectionIndex: 0, sectionStart, credits: { title: '', artist: '' } })
+const context = (sectionStart = 0): FrameContext => ({
+  sectionIndex: 0,
+  sectionStart,
+  credits: { title: '', artist: '' },
+  layout: WIDE_LAYOUT
+})
 const pass = (layer: Layer, t: number, sectionStart = 0) =>
   planFrame({ layers: [layer] } as Scene, features, t, size, NO_SIGNALS, DEFAULT_PALETTE, context(sectionStart)).passes[0]!
 

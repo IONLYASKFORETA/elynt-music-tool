@@ -1,13 +1,20 @@
 import type { AudioFeatures } from './audio-features'
 import { DEFAULT_REACTIVITY, reactionAt, type Reaction, type Reactivity } from './reactivity'
 import { NO_SIGNALS, type Tier, type TrackSignals } from './signals'
+import { POSTER_FRAME_DEFAULTS, POSTER_FRAME_RESPONSES, posterFrameParams, type PosterFrameLayer } from './poster-frame'
+import { POSTER_TYPE_DEFAULTS, POSTER_TYPE_RESPONSES, posterTypePass, type PosterTypeLayer, type TypeAnchors, type TypeText } from './poster-type'
+import { SUBJECT_DEFAULTS, SUBJECT_RESPONSES, subjectPass, type SubjectLayer } from './subject'
+
+export type { PosterFrameLayer } from './poster-frame'
+export type { PosterTypeLayer } from './poster-type'
+export type { SubjectLayer } from './subject'
 
 /**
  * The layer data model (GLOSSARY: Layer, Scene). A scene is plain data: the
  * renderer draws whatever stack it is given, bottom to top, and the export
  * reads the same data. Each section of a track has its own scene (see vision.ts).
  */
-export type Layer = GroundLayer | ClassicLayer | FinishLayer
+export type Layer = GroundLayer | ClassicLayer | FinishLayer | PosterFrameLayer | PosterTypeLayer | SubjectLayer
 export type LayerKind = Layer['kind']
 
 /** Every layer has a "reacts to" picker and a strength (GLOSSARY: Reactivity). */
@@ -57,7 +64,14 @@ export const EXEMPT_KINDS: readonly LayerKind[] = ['ground', 'finish']
 /** At most this many active layers per scene (per section), Ground and Finish not counted. */
 export const MAX_ACTIVE_LAYERS = 5
 
-export const LAYER_NAMES: Record<LayerKind, string> = { ground: 'Ground', classic: 'Classic', finish: 'Finish' }
+export const LAYER_NAMES: Record<LayerKind, string> = {
+  ground: 'Ground',
+  classic: 'Classic',
+  finish: 'Finish',
+  posterFrame: 'Poster Frame',
+  posterType: 'Poster Type',
+  subject: 'Subject'
+}
 
 /** A layer of a kind with its starting look and default reactivity. */
 export function newLayer(kind: LayerKind): Layer {
@@ -69,6 +83,12 @@ export function newLayer(kind: LayerKind): Layer {
       return { kind, height: 0.8, bleed: 6, barFill: 0.72, glitch: 0.6, reactivity }
     case 'finish':
       return { kind, grain: 0.12, scanlines: 0.25, vignette: 0.55, energyResponse: 0.8, reactivity }
+    case 'posterFrame':
+      return { kind, ...POSTER_FRAME_DEFAULTS, reactivity }
+    case 'posterType':
+      return { kind, ...POSTER_TYPE_DEFAULTS, reactivity }
+    case 'subject':
+      return { kind, ...SUBJECT_DEFAULTS, reactivity }
   }
 }
 
@@ -119,7 +139,33 @@ export const UNIFORM_FLOATS = 12
 export interface LayerPass {
   kind: LayerKind
   uniforms: Float32Array
+  /** A picture the pass draws from, for the layers that need one (type, a subject image). */
+  image?: PassImage
 }
+
+/**
+ * What a pass draws from besides the picture below. Type is rasterized by the renderer from
+ * its text and anchors (cached by `key` and the frame size); a picture is loaded from its URL.
+ */
+export type PassImage =
+  | { kind: 'type'; key: string; text: TypeText; anchors: TypeAnchors }
+  | { kind: 'picture'; url: string }
+
+/** The track's credits, as poster layers set them: the title from the track, the name from the artist profile. */
+export interface Credits {
+  title: string
+  artist: string
+}
+
+/** Where in the vision a frame falls, for the layers that care (Poster Type, Poster Frame). */
+export interface FrameContext {
+  /** Which section is playing, counted from 0, and when it started, in seconds. */
+  sectionIndex: number
+  sectionStart: number
+  credits: Credits
+}
+
+export const NO_CONTEXT: FrameContext = { sectionIndex: 0, sectionStart: 0, credits: { title: '', artist: '' } }
 
 export interface FramePlan {
   passes: LayerPass[]
@@ -135,15 +181,17 @@ export function planFrame(
   features: AudioFeatures,
   t: number,
   size: { width: number; height: number },
-  signals: TrackSignals = NO_SIGNALS
+  signals: TrackSignals = NO_SIGNALS,
+  context: FrameContext = NO_CONTEXT
 ): FramePlan {
   return {
     spectrum: features.bands,
     passes: drawnLayers(scene).map((layer) => {
       const uniforms = new Float32Array(UNIFORM_FLOATS)
       uniforms.set([t, features.energy, size.width, size.height])
-      uniforms.set(layerParams(react(layer, reactionAt(layer.reactivity, signals, t))), 4)
-      return { kind: layer.kind, uniforms }
+      const { params, image } = layerParams(react(layer, reactionAt(layer.reactivity, signals, t)), context, signals, t)
+      uniforms.set(params, 4)
+      return image ? { kind: layer.kind, uniforms, image } : { kind: layer.kind, uniforms }
     })
   }
 }
@@ -172,7 +220,10 @@ const TIER_RESPONSES: { [K in LayerKind]: TierResponse<K> } = {
     hard: (l, a) => ({ ...l, grain: clamp01(l.grain + 0.4 * a), vignette: clamp01(l.vignette * (1 - 0.5 * a)) }),
     medium: (l, a) => ({ ...l, grain: clamp01(l.grain + 0.15 * a) }),
     slow: (l, a) => ({ ...l, energyResponse: clamp01(l.energyResponse * (1 + 0.5 * a)) })
-  }
+  },
+  posterFrame: POSTER_FRAME_RESPONSES,
+  posterType: POSTER_TYPE_RESPONSES,
+  subject: SUBJECT_RESPONSES
 }
 
 function react(layer: Layer, reaction: Reaction): Layer {
@@ -181,13 +232,24 @@ function react(layer: Layer, reaction: Reaction): Layer {
   return respond(layer, reaction.amount)
 }
 
-function layerParams(layer: Layer): number[] {
+function layerParams(
+  layer: Layer,
+  context: FrameContext,
+  signals: TrackSignals,
+  t: number
+): { params: number[]; image?: PassImage } {
   switch (layer.kind) {
     case 'ground':
-      return [layer.hueSpeed, layer.lift]
+      return { params: [layer.hueSpeed, layer.lift] }
     case 'classic':
-      return [layer.height, layer.bleed, layer.barFill, layer.glitch]
+      return { params: [layer.height, layer.bleed, layer.barFill, layer.glitch] }
     case 'finish':
-      return [layer.grain, layer.scanlines, layer.vignette, layer.energyResponse]
+      return { params: [layer.grain, layer.scanlines, layer.vignette, layer.energyResponse] }
+    case 'posterFrame':
+      return { params: posterFrameParams(layer, context) }
+    case 'posterType':
+      return posterTypePass(layer, context, signals.events.downbeat, t)
+    case 'subject':
+      return subjectPass(layer)
   }
 }

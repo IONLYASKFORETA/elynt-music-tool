@@ -30,7 +30,12 @@ export function signalLabel(name: SignalName | 'none'): string {
 export const DEFAULT_REACTIVITY: Record<LayerKind, Reactivity> = {
   ground: { reactsTo: 'energy', strength: 0.6 },
   classic: { reactsTo: 'kick', strength: 0.7 },
-  finish: { reactsTo: 'downbeat', strength: 0.5 }
+  finish: { reactsTo: 'downbeat', strength: 0.5 },
+  // Poster layers: the frame mostly sits still and flashes on drops, the type hits on downbeats
+  // (as it is revealed on them), the subject pulses on the kick.
+  posterFrame: { reactsTo: 'drop', strength: 0.5 },
+  posterType: { reactsTo: 'downbeat', strength: 0.5 },
+  subject: { reactsTo: 'kick', strength: 0.6 }
 }
 
 /** A layer's reaction at t. The tier comes from the signal, so a kick is always a medium pulse. */

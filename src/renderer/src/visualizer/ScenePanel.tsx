@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { PosterLayerControls } from './PosterLayerControls'
 import { PICKABLE_SIGNALS, signalLabel, type Reactivity } from './reactivity'
 import {
   activeLayerCount,
@@ -78,6 +79,11 @@ export function ScenePanel({ vision, onChange }: { vision: Vision; onChange(visi
                 onChange={(e) => setReactivity(i, { ...layer.reactivity, strength: Number(e.target.value) })}
               />
             </label>
+            <PosterLayerControls
+              layer={layer}
+              credits={vision.credits}
+              onChange={(patch) => onChange(updateSectionLayer(vision, index, i, patch))}
+            />
             {countsTowardLimit(layer.kind) && (
               <button className="link" onClick={() => onChange(removeSectionLayer(vision, index, i))}>
                 Remove

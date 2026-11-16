@@ -5,9 +5,13 @@ import common from './shaders/common.wgsl?raw'
 import ground from './shaders/ground.wgsl?raw'
 import classic from './shaders/classic.wgsl?raw'
 import finish from './shaders/finish.wgsl?raw'
+import posterFrame from './shaders/poster-frame.wgsl?raw'
+import posterType from './shaders/poster-type.wgsl?raw'
+import subject from './shaders/subject.wgsl?raw'
 import blit from './shaders/blit.wgsl?raw'
+import { LayerImages } from './layer-images'
 
-const LAYER_SHADERS: Record<LayerKind, string> = { ground, classic, finish }
+const LAYER_SHADERS: Record<LayerKind, string> = { ground, classic, finish, posterFrame, posterType, subject }
 const WORK_FORMAT: GPUTextureFormat = 'rgba16float'
 /** What an offscreen (export) frame is read back as: 8-bit RGBA, top row first, the layout FFmpeg takes. */
 const PIXEL_FORMAT: GPUTextureFormat = 'rgba8unorm'
@@ -26,6 +30,7 @@ export class SceneRenderer {
   private readonly sampler: GPUSampler
   private readonly spectrum: GPUBuffer
   private readonly uniforms: GPUBuffer[] = []
+  private readonly images: LayerImages
   private targets: [GPUTexture, GPUTexture] | null = null
   private blank: GPUTexture | null = null
   private pixels: GPUTexture | null = null
@@ -46,7 +51,8 @@ export class SceneRenderer {
         { binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'uniform' } },
         { binding: 1, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float' } },
         { binding: 2, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'filtering' } },
-        { binding: 3, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'read-only-storage' } }
+        { binding: 3, visibility: GPUShaderStage.FRAGMENT, buffer: { type: 'read-only-storage' } },
+        { binding: 4, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'float' } }
       ]
     })
     const make = (source: string, format: GPUTextureFormat): GPURenderPipeline => {
@@ -58,11 +64,10 @@ export class SceneRenderer {
         primitive: { topology: 'triangle-list' }
       })
     }
-    this.pipelines = {
-      ground: make(ground, WORK_FORMAT),
-      classic: make(classic, WORK_FORMAT),
-      finish: make(finish, WORK_FORMAT)
-    }
+    this.pipelines = Object.fromEntries(
+      Object.entries(LAYER_SHADERS).map(([kind, source]) => [kind, make(source, WORK_FORMAT)])
+    ) as Record<LayerKind, GPURenderPipeline>
+    this.images = new LayerImages(device)
     this.blitPipeline = make(blit, canvasFormat)
     this.pixelBlitPipeline = canvasFormat === PIXEL_FORMAT ? this.blitPipeline : make(blit, PIXEL_FORMAT)
     this.sampler = device.createSampler({ magFilter: 'linear', minFilter: 'linear' })
@@ -118,6 +123,14 @@ export class SceneRenderer {
       })
       .end()
     this.device.queue.submit([clear.finish()])
+  }
+
+  /**
+   * Loads pictures layers will draw (a Subject's image). The preview loads them as they are first
+   * drawn and shows nothing until then; the export waits for them before its first frame.
+   */
+  loadImages(urls: readonly string[]): Promise<void> {
+    return this.images.load(urls)
   }
 
   /** Draws one frame: every pass in order, then the result onto the canvas. */
@@ -182,7 +195,8 @@ export class SceneRenderer {
     let below = this.blank
     plan.passes.forEach((pass, i) => {
       const out = this.targets![i % 2]!
-      this.runPass(encoder, this.pipelines[pass.kind], this.uniformBuffer(i), pass.uniforms, below, out.createView())
+      const image = this.images.textureFor(pass.image, this.width, this.height)
+      this.runPass(encoder, this.pipelines[pass.kind], this.uniformBuffer(i), pass.uniforms, below, out.createView(), image)
       below = out
     })
     this.finished = below
@@ -192,7 +206,7 @@ export class SceneRenderer {
   private blitTo(encoder: GPUCommandEncoder, pipeline: GPURenderPipeline, plan: FramePlan, view: GPUTextureView): void {
     const blitUniforms = new Float32Array(UNIFORM_FLOATS)
     blitUniforms.set([0, 0, this.width, this.height])
-    this.runPass(encoder, pipeline, this.uniformBuffer(plan.passes.length), blitUniforms, this.finished!, view)
+    this.runPass(encoder, pipeline, this.uniformBuffer(plan.passes.length), blitUniforms, this.finished!, view, this.images.blank)
   }
 
   /** Copies a texture into a mappable buffer, submits, and resolves with tightly packed RGBA rows. */
@@ -223,6 +237,7 @@ export class SceneRenderer {
     this.blank?.destroy()
     this.pixels?.destroy()
     this.readbacks.forEach((b) => b.destroy())
+    this.images.destroy()
     this.device.destroy()
   }
 
@@ -232,7 +247,8 @@ export class SceneRenderer {
     uniformBuffer: GPUBuffer,
     uniforms: Float32Array,
     below: GPUTexture,
-    out: GPUTextureView
+    out: GPUTextureView,
+    image: GPUTexture
   ): void {
     this.device.queue.writeBuffer(uniformBuffer, 0, uniforms)
     const bindGroup = this.device.createBindGroup({
@@ -241,7 +257,8 @@ export class SceneRenderer {
         { binding: 0, resource: { buffer: uniformBuffer } },
         { binding: 1, resource: below.createView() },
         { binding: 2, resource: this.sampler },
-        { binding: 3, resource: { buffer: this.spectrum } }
+        { binding: 3, resource: { buffer: this.spectrum } },
+        { binding: 4, resource: image.createView() }
       ]
     })
     const pass = encoder.beginRenderPass({

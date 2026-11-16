@@ -24,6 +24,9 @@ const api: ElyntApi = {
       return () => ipcRenderer.off(channels.splitJobChanged, handler)
     }
   },
+  visualizer: {
+    askNote: (request) => ipcRenderer.invoke(channels.askVisionNote, request)
+  },
   keys: {
     status: () => ipcRenderer.invoke(channels.keyStatus),
     save: (name, value) => ipcRenderer.invoke(channels.saveKey, name, value),

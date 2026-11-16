@@ -248,6 +248,12 @@ h2 { font-size: 12px; letter-spacing: 0.3em; text-transform: uppercase; color: v
 .scene-count { font-size: 12px; color: var(--muted); }
 .scene-palette { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 10px; font-size: 13px; }
 .scene-swatch { display: inline-flex; align-items: center; gap: 2px; }
+.scope-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 10px; font-size: 13px; }
+.scope-slider input[type='range'] { accent-color: #3db8ff; vertical-align: middle; width: 110px; }
+.note-box { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; flex: 1 1 320px; }
+.note-box textarea { flex: 1 1 220px; min-width: 180px; resize: vertical; background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px; font: inherit; }
+.note-summary { color: var(--muted); font-size: 12px; display: inline-flex; gap: 8px; align-items: center; }
+.note-error { color: #ff6b6b; font-size: 12px; }
 .scene-swatch input[type='color'] { width: 28px; height: 22px; padding: 0; border: 1px solid var(--line); border-radius: 4px; background: none; cursor: pointer; }
 
 /* Release Assistant */

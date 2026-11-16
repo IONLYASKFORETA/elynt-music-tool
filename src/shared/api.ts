@@ -9,6 +9,7 @@ import type { ArtistProfile } from './profile'
 import type { Release, ReleaseWithPlan, StartRelease } from './release'
 import type { SplitJob, Stem } from './stems'
 import type { Track } from './track'
+import type { VisionNoteRequest, VisionNoteResult } from './vision-note'
 
 /** What the preload script exposes to the UI as `window.elynt`. */
 export interface ElyntApi {
@@ -112,6 +113,11 @@ export interface ElyntApi {
     /** Calls back whenever any track's analysis changes. Returns a function that stops listening. */
     onChange(listener: (state: TrackAnalysisState) => void): () => void
   }
+  /** The Visualizer's calls to Claude. */
+  visualizer: {
+    /** Sends a note from the editor's note box; resolves to Claude's unchecked change set or a message. */
+    askNote(request: VisionNoteRequest): Promise<VisionNoteResult>
+  }
   helper: {
     status(): Promise<HelperStatus>
     /** Calls back on every status change. Returns a function that stops listening. */
@@ -164,5 +170,6 @@ export const channels = {
   revealExport: 'exports:reveal',
   benchConfig: 'bench:config',
   benchCheckFile: 'bench:check-file',
-  benchReport: 'bench:report'
+  benchReport: 'bench:report',
+  askVisionNote: 'visualizer:ask-note'
 } as const

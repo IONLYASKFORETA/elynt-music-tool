@@ -74,7 +74,7 @@ export function VisualizerTrack({ track, onRenamed }: { track: Track; onRenamed:
         section={section}
         onSection={setSection}
       />
-      <ScenePanel vision={credited} onChange={setVision} section={section} onSection={setSection} />
+      <ScenePanel vision={credited} onChange={setVision} trackId={track.id} section={section} onSection={setSection} />
     </>
   )
 }

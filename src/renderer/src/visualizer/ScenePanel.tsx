@@ -1,4 +1,6 @@
+import { useState } from 'react'
 import { PosterLayerControls } from './PosterLayerControls'
+import { NoteBox, ScopeSliders } from './ScopeControls'
 import { MAX_COLORS, MIN_COLORS } from './palette'
 import { PICKABLE_SIGNALS, signalLabel, type Reactivity } from './reactivity'
 import {
@@ -18,17 +20,21 @@ import { addSectionLayer, removeSectionLayer, setVisionPalette, updateSectionLay
 const ADDABLE_KINDS = (Object.keys(LAYER_NAMES) as LayerKind[]).filter((k) => !EXEMPT_KINDS.includes(k))
 
 /**
- * A basic scene panel: pick a section, then for each of its layers what it reacts to and how
- * strongly. Active layers can be added (up to the limit) and removed.
+ * The scene panel, with controls at every scope (V14): the whole video, the picked section and
+ * each of its layers have their own sliders and a note box for Claude. For each layer, what it
+ * reacts to and how strongly; active layers can be added (up to the limit) and removed.
  */
 export function ScenePanel({
   vision,
   onChange,
+  trackId,
   section: picked,
   onSection: setPicked
 }: {
   vision: Vision
   onChange(vision: Vision): void
+  /** The track whose vision this is, for the cost log of each note. */
+  trackId: number
   /** The picked section; the timeline picks it too. */
   section: number
   onSection(index: number): void
@@ -41,11 +47,20 @@ export function ScenePanel({
   const setReactivity = (layerIndex: number, reactivity: Reactivity) =>
     onChange(updateSectionLayer(vision, index, layerIndex, { reactivity }))
 
+  const [noteLayer, setNoteLayer] = useState<number | null>(null)
+  const sectionName = section.label[0]!.toUpperCase() + section.label.slice(1)
+
   const palette = vision.palette
   const setPalette = (colors: string[]) => onChange(setVisionPalette(vision, colors))
 
   return (
     <section className="scene-panel" aria-label="Scenes">
+      <div className="scope-controls" aria-label="Whole video">
+        <span className="scene-layer-name">Whole video</span>
+        <ScopeSliders vision={vision} target={{ section: null, layer: null }} onChange={onChange} />
+        <NoteBox vision={vision} scope={{ kind: 'video' }} trackId={trackId} onChange={onChange} placeholder="A note for the whole video, like “colder and calmer”" />
+      </div>
+
       <div className="scene-palette" aria-label="Palette">
         <span className="scene-layer-name">Palette</span>
         {palette.map((color, i) => (
@@ -84,6 +99,19 @@ export function ScenePanel({
         ))}
       </div>
 
+      <div className="scope-controls" aria-label={`${sectionName} section`}>
+        <span className="scene-layer-name">{sectionName}</span>
+        <ScopeSliders vision={vision} target={{ section: index, layer: null }} onChange={onChange} />
+        <NoteBox
+          key={index}
+          vision={vision}
+          scope={{ kind: 'section', section: index }}
+          trackId={trackId}
+          onChange={onChange}
+          placeholder={`A note for this ${section.label}, like “make it angrier”`}
+        />
+      </div>
+
       <ol className="scene-layers">
         {scene.layers.map((layer, i) => (
           <li key={i} className="scene-layer">
@@ -116,15 +144,29 @@ export function ScenePanel({
                 onChange={(e) => setReactivity(i, { ...layer.reactivity, strength: Number(e.target.value) })}
               />
             </label>
+            <ScopeSliders vision={vision} target={{ section: index, layer: i }} onChange={onChange} skip={['strength']} />
             <PosterLayerControls
               layer={layer}
               credits={vision.credits}
               onChange={(patch) => onChange(updateSectionLayer(vision, index, i, patch))}
             />
+            <button className="link" onClick={() => setNoteLayer(noteLayer === i ? null : i)}>
+              Note
+            </button>
             {countsTowardLimit(layer.kind) && (
               <button className="link" onClick={() => onChange(removeSectionLayer(vision, index, i))}>
                 Remove
               </button>
+            )}
+            {noteLayer === i && (
+              <NoteBox
+                key={`${index}:${i}`}
+                vision={vision}
+                scope={{ kind: 'layer', section: index, layer: i }}
+                trackId={trackId}
+                onChange={onChange}
+                placeholder={`A note for this ${LAYER_NAMES[layer.kind]}, like “hit harder on the snare”`}
+              />
             )}
           </li>
         ))}

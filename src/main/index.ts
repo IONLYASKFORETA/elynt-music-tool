@@ -28,6 +28,8 @@ import type { ArtistProfile } from '../shared/profile'
 import type { StartRelease } from '../shared/release'
 import { createTrackStems, type StemSplitter } from './stems'
 import { createTrackLibrary } from './tracks'
+import { askVisionNote } from './visualizer/vision-note'
+import type { VisionNoteRequest } from '../shared/vision-note'
 
 const MIXDOWN_EXTENSIONS = ['wav', 'aif', 'aiff', 'flac', 'mp3']
 /**
@@ -275,6 +277,7 @@ function start(): void {
     await keys.remove(keyName(name))
     return keys.status()
   })
+  ipcMain.handle(channels.askVisionNote, (_event, request: VisionNoteRequest) => askVisionNote(claude, request))
   ipcMain.handle(channels.testAnthropicKey, async () => {
     try {
       await claude.text({ tool: 'suite', tier: 'fast', prompt: 'Reply with the word ok.', maxTokens: 64 })

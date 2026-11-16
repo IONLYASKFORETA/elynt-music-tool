@@ -52,6 +52,12 @@ _Avoid_: confusing with a musical remix; a remix here only ever changes visuals.
 
 **Transition**: how one section's scene hands over to the next.
 
+**Scope**: what an editor control applies to: the whole video, one section, or one layer. Each scope has its own sliders and note box.
+
+**Note**: a few words the owner types in the editor at a scope ("make the drop angrier"), which Claude turns into a change set for that scope.
+
+**Change set**: the list of concrete edits to a vision that answers a note, checked against the layer library and applied as one undo step.
+
 **Media shelf**: the owner's own reusable images, clips and logo, available to any track's visuals.
 
 **Export queue**: the Visualizer's list of videos waiting to be rendered, including clips other tools have asked for.

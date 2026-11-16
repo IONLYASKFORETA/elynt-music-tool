@@ -3,7 +3,8 @@ import { COLOR_BLEED } from './layers/color-bleed'
 import { GLITCH } from './layers/glitch'
 import { LIGHT_PILLAR } from './layers/light-pillar'
 import type { Palette } from './palette'
-import { layerParams, passUniforms, type Layer, type LayerPass } from './scene'
+import { layerParams, NO_CONTEXT, passUniforms, type Layer, type LayerPass } from './scene'
+import { NO_SIGNALS } from './signals'
 
 /**
  * Moments (GLOSSARY: Moment): visual events pinned to an exact bar or beat, drawn on top of
@@ -62,7 +63,7 @@ export function momentPasses(
             : null
     passes.push(
       layer
-        ? { kind: layer.kind, uniforms: passUniforms(t, features, size, layerParams(layer), build, palette) }
+        ? { kind: layer.kind, uniforms: passUniforms(t, features, size, layerParams(layer, NO_CONTEXT, NO_SIGNALS, t).params, build, palette) }
         : { kind: 'flash', uniforms: passUniforms(t, features, size, [a], build, palette) }
     )
   }

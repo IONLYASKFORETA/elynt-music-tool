@@ -3,7 +3,7 @@ import type { AudioFeatures } from './audio-features'
 import { beatSeconds, NO_GRID, snapToGrid, type BeatGrid, type Snap } from './beat-grid'
 import { momentPasses, type Moment, type MomentKind } from './moments'
 import { DEFAULT_PALETTE, paletteProblem, type Palette } from './palette'
-import { addLayer, newLayer, passUniforms, planFrame, type FramePlan, type Layer, type Scene } from './scene'
+import { addLayer, newLayer, NO_CONTEXT, passUniforms, planFrame, type Credits, type FramePlan, type Layer, type Scene } from './scene'
 import { signalAt, type TrackSignals } from './signals'
 import {
   TRANSITION_STYLES,
@@ -26,6 +26,8 @@ export interface Vision {
   moments: Moment[]
   /** The track's beats and bars, from the analysis: what moments snap to and transitions are timed in. */
   grid: BeatGrid
+  /** What the poster layers set: the track's title and the artist's name. Blank until given. */
+  credits?: Credits
 }
 
 export interface VisionSection {
@@ -132,12 +134,16 @@ export function planVisionFrame(
 ): FramePlan {
   const { palette } = vision
   const build = signalAt(signals, 'build', t)
-  const scenePlan = (scene: Scene) => planFrame(scene, features, t, size, signals, palette)
+  const credits = vision.credits ?? NO_CONTEXT.credits
+  const scenePlan = (sectionIndex: number) => {
+    const section = vision.sections[sectionIndex]!
+    return planFrame(section.scene, features, t, size, signals, palette, { sectionIndex, sectionStart: section.start, credits })
+  }
   const transition = transitionAt(vision, t)
   let plan: FramePlan
   if (transition) {
-    const outgoing = scenePlan(vision.sections[transition.index]!.scene)
-    const incoming = scenePlan(vision.sections[transition.index + 1]!.scene)
+    const outgoing = scenePlan(transition.index)
+    const incoming = scenePlan(transition.index + 1)
     const params = [TRANSITION_STYLES.indexOf(transition.style), transition.mix, transition.intensity, transition.progress]
     plan = {
       spectrum: incoming.spectrum,
@@ -148,9 +154,15 @@ export function planVisionFrame(
         { kind: 'transition', uniforms: passUniforms(t, features, size, params, build, palette) }
       ]
     }
-  } else plan = scenePlan(sceneAt(vision, t))
+  } else plan = scenePlan(sceneIndexAt(vision, t))
   const moments = momentPasses(vision.moments, t, beatSeconds(vision.grid), { features, size, build, palette })
   return { ...plan, passes: [...plan.passes, ...moments] }
+}
+
+/** Every image the vision's Subjects show, once each: an export loads them all before its first frame. */
+export function visionImages(vision: Vision): string[] {
+  const urls = vision.sections.flatMap((s) => s.scene.layers.flatMap((l) => (l.kind === 'subject' && l.image ? [l.image] : [])))
+  return [...new Set(urls)]
 }
 
 /** Swaps the vision's palette. Throws for one that isn't 3 to 5 #rrggbb colors. */

@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { Playbook } from '../shared/playbook'
+import type { ReleaseWithPlan } from '../shared/release'
 import { currentPlaybook } from '../shared/playbooks'
 import { emptyProfile } from '../shared/profile'
 import { buildPlan } from '../shared/release-plan'
@@ -105,5 +106,67 @@ describe('an app update with a newer playbook', () => {
       dueDate: '2026-12-11',
       step: { what: 'Upload five weeks out.' }
     })
+  })
+})
+
+describe('step actions and today', () => {
+  let today = '2026-12-01'
+  const todayStore = () =>
+    createReleaseStore(db, { tracks, profile: createProfileStore(db), now: fixedNow, today: () => today })
+  const stepOf = (r: ReleaseWithPlan, id: string) => r.plan.steps.find((s) => s.stepId === id)
+
+  function started() {
+    today = '2026-12-01'
+    const track = tracks.addFromMixdown('D:\\Music\\Neon Rain.wav')
+    return todayStore().start({ trackId: track.id, releaseDay: '2027-01-15' }).release.id
+  }
+
+  it('saves done, skip and move, and reads them back', () => {
+    const id = started()
+    const s = todayStore()
+
+    s.actOnStep(id, 'finish-master', { kind: 'done' })
+    s.actOnStep(id, 'make-canvas', { kind: 'skip' })
+    const after = s.actOnStep(id, 'finish-artwork', { kind: 'move', to: '2026-12-20' })
+
+    expect(after.today).toBe('2026-12-01')
+    const read = todayStore().get(id)!
+    expect(read).toEqual({ release: after.release, plan: after.plan })
+    expect(stepOf(read, 'finish-master')?.status).toBe('done')
+    expect(stepOf(read, 'make-canvas')?.status).toBe('skipped')
+    expect(stepOf(read, 'finish-artwork')).toMatchObject({ dueDate: '2026-12-20', movedFrom: '2026-12-08', status: 'open' })
+  })
+
+  it('opening on a later day marks missed steps, drops what a missed hard deadline made pointless, and says so once', () => {
+    const id = started()
+    todayStore().actOnStep(id, 'upload-distrokid', { kind: 'done' })
+
+    today = '2026-12-26'
+    const opened = todayStore().openToday(id)!
+    const again = todayStore().openToday(id)!
+
+    expect(stepOf(opened, 'distrokid-deadline')?.status).toBe('missed')
+    expect(stepOf(opened, 'upload-distrokid')?.status).toBe('done')
+    expect(stepOf(opened, 'spotify-pitch-deadline')).toBeUndefined()
+    expect(opened.lost.map((l) => [l.stepId, l.dropped])).toEqual([['distrokid-deadline', ['spotify-pitch-deadline']]])
+    expect(again.lost).toEqual([])
+    expect(todayStore().get(id)).toEqual({ release: opened.release, plan: opened.plan })
+  })
+
+  it('moving release day shifts every step and keeps done steps done', () => {
+    const id = started()
+    todayStore().actOnStep(id, 'finish-master', { kind: 'done' })
+
+    const moved = todayStore().moveReleaseDay(id, '2027-01-29')
+
+    expect(moved.release.releaseDay).toBe('2027-01-29')
+    expect(moved.plan.releaseDay).toBe('2027-01-29')
+    expect(stepOf(moved, 'finish-master')).toMatchObject({ status: 'done', dueDate: '2026-12-20' })
+    expect(stepOf(moved, 'distrokid-deadline')).toMatchObject({ status: 'open', dueDate: '2027-01-08' })
+    expect(todayStore().get(id)).toEqual({ release: moved.release, plan: moved.plan })
+  })
+
+  it('returns null for a release that does not exist', () => {
+    expect(todayStore().openToday(42)).toBeNull()
   })
 })

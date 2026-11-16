@@ -71,6 +71,19 @@ export function defaultVision(sections: Section[], durationSeconds: number, grid
   }
 }
 
+/**
+ * Whether a saved vision still belongs to the track as analysed now: the same sections, in the
+ * same places, on the same beat grid. When it doesn't, the editor starts the scenes over.
+ */
+export function visionFitsTrack(vision: Vision, sections: Section[], grid: BeatGrid, durationSeconds: number): boolean {
+  const spans = sections.length > 0 ? sections : [{ label: 'intro', start: 0, end: durationSeconds }]
+  const shape = (list: { label: string; start: number; end: number }[]) => JSON.stringify(list.map((s) => [s.label, s.start, s.end]))
+  return (
+    shape(vision.sections) === shape(spans) &&
+    JSON.stringify([vision.grid.beats, vision.grid.downbeats]) === JSON.stringify([grid.beats, grid.downbeats])
+  )
+}
+
 function defaultSectionScene(label: SectionLabel): Scene {
   const strength = SECTION_STRENGTH[label]
   const layers = (['ground', 'classic', 'finish'] as const).map((kind) => {

@@ -41,24 +41,25 @@ type NoteState =
   | { kind: 'idle' }
   | { kind: 'sending' }
   | { kind: 'failed'; message: string }
-  | { kind: 'applied'; summary: string; skipped: string[]; before: Vision; after: Vision }
+  | { kind: 'applied'; summary: string; skipped: number }
 
 /**
  * The note box at one scope: the owner types what they want ("make the drop angrier"), Claude
- * answers with a change set for that scope, and it is checked and applied as one edit. Until
- * anything else changes, the note can be taken back in one step.
+ * answers with a change set for that scope, and it is checked and applied as one edit, which
+ * the editor's history (V15) undoes in one step.
  */
 export function NoteBox({
   vision,
   scope,
   trackId,
-  onChange,
+  onApply,
   placeholder
 }: {
   vision: Vision
   scope: Scope
   trackId?: number
-  onChange(vision: Vision): void
+  /** Takes the vision with the whole change set applied. */
+  onApply(vision: Vision): void
   placeholder: string
 }) {
   const [note, setNote] = useState('')
@@ -72,14 +73,14 @@ export function NoteBox({
       (e: unknown) => ({ ok: false as const, message: e instanceof Error ? e.message : String(e) })
     )
     if (!result.ok) return setState({ kind: 'failed', message: result.message })
-    // Applied to the vision as it was when the note was sent; one onChange, so one undo step.
+    // Applied to the vision as it was when the note was sent, in one go.
     const applied = applyChangeSet(vision, scope, result.reply.changes)
     if (applied.applied.length === 0) {
       return setState({ kind: 'failed', message: `Claude's changes didn't fit here: ${applied.rejected.map((r) => r.reason).join(' ')}` })
     }
-    onChange(applied.vision)
+    onApply(applied.vision)
     setNote('')
-    setState({ kind: 'applied', summary: result.reply.summary, skipped: applied.rejected.map((r) => r.reason), before: vision, after: applied.vision })
+    setState({ kind: 'applied', summary: result.reply.summary, skipped: applied.rejected.length })
   }
 
   return (
@@ -104,30 +105,9 @@ export function NoteBox({
       {state.kind === 'applied' && (
         <span className="note-summary">
           {state.summary}
-          {state.skipped.length > 0 && ` (${state.skipped.length} change${state.skipped.length === 1 ? '' : 's'} left out)`}
-          {unchangedSince(vision, state.after) && (
-            <button
-              className="link"
-              onClick={() => {
-                onChange(state.before)
-                setState({ kind: 'idle' })
-              }}
-            >
-              Undo note
-            </button>
-          )}
+          {state.skipped > 0 && ` (${state.skipped} change${state.skipped === 1 ? '' : 's'} left out)`}
         </span>
       )}
     </div>
-  )
-}
-
-/** Whether nothing has been edited since `after`. The credits are set on every render, so they don't count. */
-function unchangedSince(vision: Vision, after: Vision): boolean {
-  return (
-    vision.sections === after.sections &&
-    vision.palette === after.palette &&
-    vision.moments === after.moments &&
-    vision.intensity === after.intensity
   )
 }

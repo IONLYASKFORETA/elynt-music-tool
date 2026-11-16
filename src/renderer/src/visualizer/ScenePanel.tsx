@@ -45,6 +45,7 @@ export function ScenePanel({
   format,
   media = NO_MEDIA,
   onChange,
+  onApplyNote = onChange,
   section: picked,
   onSection: setPicked
 }: {
@@ -56,6 +57,8 @@ export function ScenePanel({
   /** The media shelf and the track's cover art, which Subject, Ground, Chrome and Poster Frame can use. */
   media?: OwnMedia
   onChange(vision: Vision): void
+  /** Applies a note's change set as one undo step of its own. */
+  onApplyNote?(vision: Vision): void
   /** The picked section; the timeline picks it too. */
   section: number
   onSection(index: number): void
@@ -83,7 +86,7 @@ export function ScenePanel({
       <div className="scope-controls" aria-label="Whole video">
         <span className="scene-layer-name">Whole video</span>
         <ScopeSliders vision={vision} target={{ section: null, layer: null }} onChange={onChange} />
-        <NoteBox vision={vision} scope={{ kind: 'video' }} trackId={trackId} onChange={onChange} placeholder="A note for the whole video, like “colder and calmer”" />
+        <NoteBox vision={vision} scope={{ kind: 'video' }} trackId={trackId} onApply={onApplyNote} placeholder="A note for the whole video, like “colder and calmer”" />
       </div>
 
       <div className="scene-palette" aria-label="Palette">
@@ -132,7 +135,7 @@ export function ScenePanel({
           vision={vision}
           scope={{ kind: 'section', section: index }}
           trackId={trackId}
-          onChange={onChange}
+          onApply={onApplyNote}
           placeholder={`A note for this ${section.label}, like “make it angrier”`}
         />
       </div>
@@ -201,7 +204,7 @@ export function ScenePanel({
                 vision={vision}
                 scope={{ kind: 'layer', section: index, layer: i }}
                 trackId={trackId}
-                onChange={onChange}
+                onApply={onApplyNote}
                 placeholder={`A note for this ${LAYER_NAMES[layer.kind]}, like “hit harder on the snare”`}
               />
             )}

@@ -55,7 +55,10 @@ const api: ElyntApi = {
   releases: {
     list: () => ipcRenderer.invoke(channels.listReleases),
     get: (releaseId) => ipcRenderer.invoke(channels.getRelease, releaseId),
-    start: (input) => ipcRenderer.invoke(channels.startRelease, input)
+    start: (input) => ipcRenderer.invoke(channels.startRelease, input),
+    openToday: (releaseId) => ipcRenderer.invoke(channels.openReleaseToday, releaseId),
+    actOnStep: (releaseId, stepId, action) => ipcRenderer.invoke(channels.actOnPlanStep, releaseId, stepId, action),
+    moveReleaseDay: (releaseId, newDay) => ipcRenderer.invoke(channels.moveReleaseDay, releaseId, newDay)
   },
   exports: {
     chooseOutput: (trackTitle, format) => ipcRenderer.invoke(channels.chooseExportOutput, trackTitle, format),
@@ -94,6 +97,21 @@ const api: ElyntApi = {
       ipcRenderer.on(channels.analysisChanged, handler)
       return () => ipcRenderer.off(channels.analysisChanged, handler)
     }
+  },
+  visionHistory: {
+    current: (key) => ipcRenderer.invoke(channels.currentVisionHistory, key),
+    record: (key, vision) => ipcRenderer.invoke(channels.recordVisionHistory, key, vision),
+    undo: (key) => ipcRenderer.invoke(channels.undoVision, key),
+    redo: (key) => ipcRenderer.invoke(channels.redoVision, key),
+    saveSnapshot: (key, name) => ipcRenderer.invoke(channels.saveVisionSnapshot, key, name),
+    listSnapshots: (key) => ipcRenderer.invoke(channels.listVisionSnapshots, key),
+    restoreSnapshot: (id) => ipcRenderer.invoke(channels.restoreVisionSnapshot, id),
+    deleteSnapshot: (id) => ipcRenderer.invoke(channels.deleteVisionSnapshot, id)
+  },
+  presets: {
+    save: (level, name, data) => ipcRenderer.invoke(channels.savePreset, level, name, data),
+    list: (level) => ipcRenderer.invoke(channels.listPresets, level),
+    delete: (id) => ipcRenderer.invoke(channels.deletePreset, id)
   },
   helper: {
     status: () => ipcRenderer.invoke(channels.helperStatus),

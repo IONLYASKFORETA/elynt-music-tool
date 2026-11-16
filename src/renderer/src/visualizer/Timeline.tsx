@@ -57,8 +57,8 @@ export function Timeline({ vision, time, duration, disabled, onSeek, onChange, s
   }
 
   return (
-    <section className="timeline" aria-label="Timeline">
-      <div className="timeline-tools">
+    <section className="editor-timeline" aria-label="Timeline">
+      <div className="editor-timeline-tools">
         <label>
           Moment{' '}
           <select value={kind} onChange={(e) => setKind(e.target.value as MomentKind)}>
@@ -85,7 +85,7 @@ export function Timeline({ vision, time, duration, disabled, onSeek, onChange, s
           </button>
         )}
         {hasNext && (
-          <label className="timeline-transition">
+          <label className="editor-timeline-transition">
             {label(vision.sections[index]!.label)} hands over with{' '}
             <select
               value={vision.sections[index]!.transition ?? 'cut'}
@@ -101,12 +101,12 @@ export function Timeline({ vision, time, duration, disabled, onSeek, onChange, s
         )}
       </div>
 
-      <div className="timeline-area" ref={areaRef}>
-        <div className="timeline-sections">
+      <div className="editor-timeline-area" ref={areaRef}>
+        <div className="editor-timeline-sections">
           {vision.sections.map((s, i) => (
             <button
               key={i}
-              className={i === index ? 'timeline-section picked' : 'timeline-section'}
+              className={i === index ? 'editor-timeline-section picked' : 'editor-timeline-section'}
               style={{ left: pct(s.start), width: `calc(${pct(s.end)} - ${pct(s.start)})` }}
               onClick={() => onSection(i)}
               title={`${label(s.label)}, ${clock(s.start)}`}
@@ -119,7 +119,7 @@ export function Timeline({ vision, time, duration, disabled, onSeek, onChange, s
             return (
               <span
                 key={i}
-                className="timeline-handover"
+                className="editor-timeline-handover"
                 style={{ left: pct(w.start), width: `max(2px, calc(${pct(w.end)} - ${pct(w.start)}))` }}
                 title={TRANSITION_NAMES[s.transition ?? 'cut']}
               />
@@ -128,23 +128,23 @@ export function Timeline({ vision, time, duration, disabled, onSeek, onChange, s
         </div>
 
         <div
-          className="timeline-grid"
+          className="editor-timeline-grid"
           onPointerDown={scrub}
           onPointerMove={(e) => e.buttons === 1 && !disabled && onSeek(timeAt(e.clientX))}
           aria-label="Scrub"
         >
           <svg viewBox={`0 0 ${length} 1`} preserveAspectRatio="none" aria-hidden>
             {vision.grid.beats.map((b, i) => (
-              <line key={`b${i}`} x1={b} x2={b} y1={0.55} y2={1} className="timeline-beat" vectorEffect="non-scaling-stroke" />
+              <line key={`b${i}`} x1={b} x2={b} y1={0.55} y2={1} className="editor-timeline-beat" vectorEffect="non-scaling-stroke" />
             ))}
             {vision.grid.downbeats.map((b, i) => (
-              <line key={`d${i}`} x1={b} x2={b} y1={0} y2={1} className="timeline-bar" vectorEffect="non-scaling-stroke" />
+              <line key={`d${i}`} x1={b} x2={b} y1={0} y2={1} className="editor-timeline-bar" vectorEffect="non-scaling-stroke" />
             ))}
           </svg>
         </div>
 
         <div
-          className="timeline-moments"
+          className="editor-timeline-moments"
           onDoubleClick={(e) => e.target === e.currentTarget && add(timeAt(e.clientX))}
           title="Double-click to add a moment"
         >
@@ -153,7 +153,7 @@ export function Timeline({ vision, time, duration, disabled, onSeek, onChange, s
             return (
               <button
                 key={m.id}
-                className={`timeline-moment ${m.kind}${m.id === picked ? ' picked' : ''}`}
+                className={`editor-timeline-moment ${m.kind}${m.id === picked ? ' picked' : ''}`}
                 style={{ left: pct(at) }}
                 aria-label={`${MOMENT_NAMES[m.kind]} at ${clock(m.at)}`}
                 title={`${MOMENT_NAMES[m.kind]}, ${clock(m.at)}. Drag to move, Delete to remove.`}
@@ -173,7 +173,7 @@ export function Timeline({ vision, time, duration, disabled, onSeek, onChange, s
           })}
         </div>
 
-        <span className="timeline-playhead" style={{ left: pct(time) }} />
+        <span className="editor-timeline-playhead" style={{ left: pct(time) }} />
       </div>
     </section>
   )

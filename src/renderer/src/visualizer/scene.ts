@@ -1,6 +1,11 @@
 import type { AudioFeatures } from './audio-features'
 import { DEFAULT_REACTIVITY, reactionAt, type Reaction, type Reactivity } from './reactivity'
-import { NO_SIGNALS, type Tier, type TrackSignals } from './signals'
+import { COLOR_BLEED, type ColorBleedLayer } from './layers/color-bleed'
+import { CHROME, type ChromeLayer } from './layers/chrome'
+import { GLITCH, type GlitchLayer } from './layers/glitch'
+import { LIGHT_PILLAR, type LightPillarLayer } from './layers/light-pillar'
+import { DEFAULT_PALETTE, packPalette, PALETTE_FLOATS, type Palette } from './palette'
+import { NO_SIGNALS, signalAt, type Tier, type TrackSignals } from './signals'
 import { POSTER_FRAME_DEFAULTS, POSTER_FRAME_RESPONSES, posterFrameParams, type PosterFrameLayer } from './poster-frame'
 import { POSTER_TYPE_DEFAULTS, POSTER_TYPE_RESPONSES, posterTypePass, type PosterTypeLayer, type TypeAnchors, type TypeText } from './poster-type'
 import { SUBJECT_DEFAULTS, SUBJECT_RESPONSES, subjectPass, type SubjectLayer } from './subject'
@@ -14,7 +19,12 @@ export type { SubjectLayer } from './subject'
  * renderer draws whatever stack it is given, bottom to top, and the export
  * reads the same data. Each section of a track has its own scene (see vision.ts).
  */
-export type Layer = GroundLayer | ClassicLayer | FinishLayer | PosterFrameLayer | PosterTypeLayer | SubjectLayer
+export type Layer = GroundLayer | ClassicLayer | FinishLayer | HitLayer | PosterLayer
+/** The house-style hit layers (V7), one file each under layers/. */
+export type HitLayer = ColorBleedLayer | ChromeLayer | GlitchLayer | LightPillarLayer
+export type { ColorBleedLayer, ChromeLayer, GlitchLayer, LightPillarLayer }
+/** The poster layers (V8). */
+export type PosterLayer = PosterFrameLayer | PosterTypeLayer | SubjectLayer
 export type LayerKind = Layer['kind']
 
 /** Every layer has a "reacts to" picker and a strength (GLOSSARY: Reactivity). */
@@ -64,10 +74,16 @@ export const EXEMPT_KINDS: readonly LayerKind[] = ['ground', 'finish']
 /** At most this many active layers per scene (per section), Ground and Finish not counted. */
 export const MAX_ACTIVE_LAYERS = 5
 
+const HIT_LAYERS = { colorBleed: COLOR_BLEED, chrome: CHROME, glitch: GLITCH, lightPillar: LIGHT_PILLAR }
+
 export const LAYER_NAMES: Record<LayerKind, string> = {
   ground: 'Ground',
   classic: 'Classic',
   finish: 'Finish',
+  colorBleed: COLOR_BLEED.name,
+  chrome: CHROME.name,
+  glitch: GLITCH.name,
+  lightPillar: LIGHT_PILLAR.name,
   posterFrame: 'Poster Frame',
   posterType: 'Poster Type',
   subject: 'Subject'
@@ -83,6 +99,11 @@ export function newLayer(kind: LayerKind): Layer {
       return { kind, height: 0.8, bleed: 6, barFill: 0.72, glitch: 0.6, reactivity }
     case 'finish':
       return { kind, grain: 0.12, scanlines: 0.25, vignette: 0.55, energyResponse: 0.8, reactivity }
+    case 'colorBleed':
+    case 'chrome':
+    case 'glitch':
+    case 'lightPillar':
+      return HIT_LAYERS[kind].create(reactivity)
     case 'posterFrame':
       return { kind, ...POSTER_FRAME_DEFAULTS, reactivity }
     case 'posterType':
@@ -132,9 +153,12 @@ function drawnLayers(scene: Scene): Layer[] {
 
 /**
  * Uniforms for one pass, in 4-float rows matching `Frame` in common.wgsl:
- * row 0 = (t, energy, width, height); rows 1 and 2 = the layer's own parameters.
+ * row 0 = (t, energy, width, height); rows 1 and 2 = the layer's own parameters;
+ * row 3 = (build, 0, 0, 0), how far into a build the track is; then the vision's palette.
  */
-export const UNIFORM_FLOATS = 12
+export const BUILD_OFFSET = 12
+export const PALETTE_OFFSET = 16
+export const UNIFORM_FLOATS = PALETTE_OFFSET + PALETTE_FLOATS
 
 export interface LayerPass {
   kind: LayerKind
@@ -182,8 +206,11 @@ export function planFrame(
   t: number,
   size: { width: number; height: number },
   signals: TrackSignals = NO_SIGNALS,
+  palette: Palette = DEFAULT_PALETTE,
   context: FrameContext = NO_CONTEXT
 ): FramePlan {
+  const colors = packPalette(palette)
+  const build = signalAt(signals, 'build', t)
   return {
     spectrum: features.bands,
     passes: drawnLayers(scene).map((layer) => {
@@ -191,6 +218,8 @@ export function planFrame(
       uniforms.set([t, features.energy, size.width, size.height])
       const { params, image } = layerParams(react(layer, reactionAt(layer.reactivity, signals, t)), context, signals, t)
       uniforms.set(params, 4)
+      uniforms[BUILD_OFFSET] = build
+      uniforms.set(colors, PALETTE_OFFSET)
       return image ? { kind: layer.kind, uniforms, image } : { kind: layer.kind, uniforms }
     })
   }
@@ -221,6 +250,10 @@ const TIER_RESPONSES: { [K in LayerKind]: TierResponse<K> } = {
     medium: (l, a) => ({ ...l, grain: clamp01(l.grain + 0.15 * a) }),
     slow: (l, a) => ({ ...l, energyResponse: clamp01(l.energyResponse * (1 + 0.5 * a)) })
   },
+  colorBleed: COLOR_BLEED.respond,
+  chrome: CHROME.respond,
+  glitch: GLITCH.respond,
+  lightPillar: LIGHT_PILLAR.respond,
   posterFrame: POSTER_FRAME_RESPONSES,
   posterType: POSTER_TYPE_RESPONSES,
   subject: SUBJECT_RESPONSES
@@ -245,6 +278,14 @@ function layerParams(
       return { params: [layer.height, layer.bleed, layer.barFill, layer.glitch] }
     case 'finish':
       return { params: [layer.grain, layer.scanlines, layer.vignette, layer.energyResponse] }
+    case 'colorBleed':
+      return { params: COLOR_BLEED.params(layer) }
+    case 'chrome':
+      return { params: CHROME.params(layer) }
+    case 'glitch':
+      return { params: GLITCH.params(layer) }
+    case 'lightPillar':
+      return { params: LIGHT_PILLAR.params(layer) }
     case 'posterFrame':
       return { params: posterFrameParams(layer, context) }
     case 'posterType':

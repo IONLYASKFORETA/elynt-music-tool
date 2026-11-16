@@ -1,3 +1,7 @@
+import { CHROME } from './layers/chrome'
+import { COLOR_BLEED } from './layers/color-bleed'
+import { GLITCH } from './layers/glitch'
+import { LIGHT_PILLAR } from './layers/light-pillar'
 import type { LayerKind } from './scene'
 import { SIGNAL_NAMES, SIGNALS, signalAt, type SignalName, type Tier, type TrackSignals } from './signals'
 
@@ -31,6 +35,10 @@ export const DEFAULT_REACTIVITY: Record<LayerKind, Reactivity> = {
   ground: { reactsTo: 'energy', strength: 0.6 },
   classic: { reactsTo: 'kick', strength: 0.7 },
   finish: { reactsTo: 'downbeat', strength: 0.5 },
+  colorBleed: COLOR_BLEED.reactivity,
+  chrome: CHROME.reactivity,
+  glitch: GLITCH.reactivity,
+  lightPillar: LIGHT_PILLAR.reactivity,
   // Poster layers: the frame mostly sits still and flashes on drops, the type hits on downbeats
   // (as it is revealed on them), the subject pulses on the kick.
   posterFrame: { reactsTo: 'drop', strength: 0.5 },

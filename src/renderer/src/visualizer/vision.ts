@@ -1,5 +1,6 @@
 import type { Section, SectionLabel } from '../../../shared/analysis'
 import type { AudioFeatures } from './audio-features'
+import { DEFAULT_PALETTE, paletteProblem, type Palette } from './palette'
 import { addLayer, newLayer, NO_CONTEXT, planFrame, type Credits, type FramePlan, type Layer, type Scene } from './scene'
 import type { TrackSignals } from './signals'
 
@@ -9,6 +10,8 @@ import type { TrackSignals } from './signals'
  */
 export interface Vision {
   sections: VisionSection[]
+  /** The track's 3 to 5 colors, which every house-style layer takes. */
+  palette: Palette
   /** What the poster layers set: the track's title and the artist's name. Blank until given. */
   credits?: Credits
 }
@@ -39,7 +42,8 @@ export function defaultVision(sections: Section[], durationSeconds: number): Vis
   const spans: { label: SectionLabel; start: number; end: number }[] =
     sections.length > 0 ? sections : [{ label: 'intro', start: 0, end: durationSeconds }]
   return {
-    sections: spans.map(({ label, start, end }) => ({ label, start, end, scene: defaultSectionScene(label) }))
+    sections: spans.map(({ label, start, end }) => ({ label, start, end, scene: defaultSectionScene(label) })),
+    palette: DEFAULT_PALETTE
   }
 }
 
@@ -75,7 +79,7 @@ export function planVisionFrame(
 ): FramePlan {
   const sectionIndex = sectionIndexAt(vision, t)
   const section = vision.sections[sectionIndex]!
-  return planFrame(section.scene, features, t, size, signals, {
+  return planFrame(section.scene, features, t, size, signals, vision.palette, {
     sectionIndex,
     sectionStart: section.start,
     credits: vision.credits ?? NO_CONTEXT.credits
@@ -86,6 +90,13 @@ export function planVisionFrame(
 export function visionImages(vision: Vision): string[] {
   const urls = vision.sections.flatMap((s) => s.scene.layers.flatMap((l) => (l.kind === 'subject' && l.image ? [l.image] : [])))
   return [...new Set(urls)]
+}
+
+/** Swaps the vision's palette. Throws for one that isn't 3 to 5 #rrggbb colors. */
+export function setVisionPalette(vision: Vision, palette: Palette): Vision {
+  const problem = paletteProblem(palette)
+  if (problem) throw new Error(problem)
+  return { ...vision, palette: [...palette] }
 }
 
 function withScene(vision: Vision, index: number, change: (scene: Scene) => Scene): Vision {
@@ -110,5 +121,5 @@ export function updateSectionLayer(vision: Vision, sectionIndex: number, layerIn
 
 /** One scene for the whole track: for benchmarks, which don't care about sections. */
 export function singleSceneVision(scene: Scene, durationSeconds: number): Vision {
-  return { sections: [{ label: 'intro', start: 0, end: durationSeconds, scene }] }
+  return { sections: [{ label: 'intro', start: 0, end: durationSeconds, scene }], palette: DEFAULT_PALETTE }
 }

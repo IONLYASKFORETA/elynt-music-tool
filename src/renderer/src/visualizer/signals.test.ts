@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import type { TrackAnalysis } from '../../../shared/analysis'
-import { deriveSignals, signalAt, stemRole } from './signals'
+import type { SectionLabel, TrackAnalysis } from '../../../shared/analysis'
+import { deriveSignals, NO_SIGNALS, SIGNALS, signalAt, stemRole, type TrackSignals } from './signals'
 
 const RATE = 48_000
 const BPM = 120
@@ -145,5 +145,68 @@ describe('stemRole', () => {
     expect(stemRole('HiHats')).toBe('hihat')
     expect(stemRole('Sub 808')).toBe('bass')
     expect(stemRole('vocals')).toBe('other')
+  })
+})
+
+describe('signals made of other signals', () => {
+  const hits: TrackSignals = {
+    ...NO_SIGNALS,
+    events: { ...NO_SIGNALS.events, kick: [1], snare: [2], downbeat: [3], drop: [4] }
+  }
+
+  it('pulses "kick and snare" on either one, as a medium hit', () => {
+    expect(SIGNALS.kickSnare.tier).toBe('medium')
+    expect(signalAt(hits, 'kickSnare', 1.01)).toBeGreaterThan(0.9)
+    expect(signalAt(hits, 'kickSnare', 2.01)).toBeGreaterThan(0.9)
+    expect(signalAt(hits, 'kickSnare', 1.9)).toBeLessThan(0.05)
+  })
+
+  it("pulses \"drops and downbeats\" on either one, as a hard hit, keeping the drop's long tail", () => {
+    expect(SIGNALS.dropDownbeat.tier).toBe('hard')
+    expect(signalAt(hits, 'dropDownbeat', 3.01)).toBeGreaterThan(0.9)
+    expect(signalAt(hits, 'dropDownbeat', 4.01)).toBeGreaterThan(0.9)
+    // A downbeat's pulse is gone within a second; a drop's is still there.
+    expect(signalAt(hits, 'dropDownbeat', 3.9)).toBeLessThan(0.05)
+    expect(signalAt(hits, 'dropDownbeat', 4.9)).toBeGreaterThan(0.4)
+  })
+})
+
+describe('the build signal', () => {
+  const signalsFor = (spans: [SectionLabel, number, number][]) =>
+    deriveSignals({
+      analysis: analysisOf({
+        durationSeconds: spans.at(-1)![2],
+        sections: spans.map(([label, start, end], i) => ({ label, start, end, startBar: i, confidence: 1, source: 'heuristic' }))
+      }),
+      mixdown: { samples: silence(1), sampleRate: RATE },
+      stems: []
+    })
+
+  it('grows slowly from nothing to full across a build', () => {
+    const signals = signalsFor([
+      ['intro', 0, 4],
+      ['build', 4, 12],
+      ['breakdown', 12, 20]
+    ])
+    expect(SIGNALS.build.tier).toBe('slow')
+    expect(signalAt(signals, 'build', 2)).toBe(0)
+    expect(signalAt(signals, 'build', 8)).toBeCloseTo(0.5, 1)
+    expect(signalAt(signals, 'build', 11.9)).toBeGreaterThan(0.95)
+    expect(signalAt(signals, 'build', 16)).toBe(0)
+  })
+
+  it('stays full through the drop a build leads into, then lets go', () => {
+    const signals = signalsFor([
+      ['build', 0, 8],
+      ['drop', 8, 16],
+      ['outro', 16, 24]
+    ])
+    expect(signalAt(signals, 'build', 12)).toBeCloseTo(1)
+    expect(signalAt(signals, 'build', 20)).toBe(0)
+  })
+
+  it('reads nothing for a track with no analysis', () => {
+    const signals = deriveSignals({ analysis: null, mixdown: { samples: silence(1), sampleRate: RATE }, stems: [] })
+    expect(signalAt(signals, 'build', 0.5)).toBe(0)
   })
 })

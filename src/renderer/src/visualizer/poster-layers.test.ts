@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Section } from '../../../shared/analysis'
 import { BAND_COUNT } from './audio-features'
+import { DEFAULT_PALETTE } from './palette'
 import { DEFAULT_REACTIVITY } from './reactivity'
 import {
   addLayer,
@@ -25,7 +26,7 @@ const signals: TrackSignals = {
   events: { ...NO_SIGNALS.events, kick: [3], downbeat: [0, 2, 4, 6, 8, 10] }
 }
 const only = (layer: Scene['layers'][number]): Scene => ({ layers: [layer] })
-const pass = (scene: Scene, t: number, ctx = context()) => planFrame(scene, features, t, size, signals, ctx).passes[0]!
+const pass = (scene: Scene, t: number, ctx = context()) => planFrame(scene, features, t, size, signals, DEFAULT_PALETTE, ctx).passes[0]!
 
 describe('the poster layers in the layer library', () => {
   it('can place a Poster Frame, Poster Type and Subject, each counting as an active layer', () => {

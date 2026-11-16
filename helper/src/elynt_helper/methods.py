@@ -139,9 +139,17 @@ def stems_split(params: dict[str, Any], progress: Progress) -> dict[str, Any]:
     return split_stems(params, progress)
 
 
+def image_generate(params: dict[str, Any], progress: Progress) -> dict[str, Any]:
+    """Generates one subject image on the GPU (FLUX.2 klein 4B) and writes it as a PNG at outPath."""
+    from .images import generate_image  # here, so the helper starts even if the image stack is missing
+
+    return generate_image(params, progress)
+
+
 METHODS: dict[str, Handler] = {
     "helper.info": helper_info,
     "audio.probe": audio_probe,
+    "image.generate": image_generate,
     "stems.split": stems_split,
     "track.analyze": track_analyze,
 }

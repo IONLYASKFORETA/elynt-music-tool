@@ -23,11 +23,14 @@ const ADDABLE_KINDS = (Object.keys(LAYER_NAMES) as LayerKind[]).filter((k) => !E
  */
 export function ScenePanel({
   vision,
+  trackId,
   onChange,
   section: picked,
   onSection: setPicked
 }: {
   vision: Vision
+  /** The track the vision is for: its Subject layers offer its generated images. */
+  trackId?: number
   onChange(vision: Vision): void
   /** The picked section; the timeline picks it too. */
   section: number
@@ -119,6 +122,8 @@ export function ScenePanel({
             <PosterLayerControls
               layer={layer}
               credits={vision.credits}
+              trackId={trackId}
+              palette={vision.palette}
               onChange={(patch) => onChange(updateSectionLayer(vision, index, i, patch))}
             />
             {countsTowardLimit(layer.kind) && (

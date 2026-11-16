@@ -6,7 +6,7 @@ import type { TrackAnalysis } from './analysis'
  */
 
 /** Bump together with PROTOCOL_VERSION in helper/src/elynt_helper/__init__.py. */
-export const HELPER_PROTOCOL_VERSION = 2
+export const HELPER_PROTOCOL_VERSION = 3
 
 export interface GpuInfo {
   available: boolean
@@ -60,6 +60,19 @@ export interface StemSplit {
   seconds: number
 }
 
+export interface GeneratedImageResult {
+  /** Where the helper wrote the PNG, as the helper sees it. */
+  path: string
+  seed: number
+  /** Rounded to what the model takes (a multiple of 16). */
+  width: number
+  height: number
+  /** The model's id, e.g. black-forest-labs/FLUX.2-klein-4B. */
+  model: string
+  /** Generation alone, not the wait for the GPU. */
+  seconds: number
+}
+
 export interface HelperMethods {
   /** Track analysis (V1). Errors: file_not_found, unreadable_audio, silent_audio, no_beat. Takes seconds to a minute. */
   'track.analyze': { params: { path: string }; result: TrackAnalysis }
@@ -68,6 +81,14 @@ export interface HelperMethods {
   'audio.probe': { params: { path: string }; result: AudioProbe }
   /** Splits a mixdown into stems on the GPU (BS-RoFormer), writing one WAV per stem into `outDir`. Sends progress. */
   'stems.split': { params: { path: string; outDir: string; model?: string }; result: StemSplit }
+  /**
+   * Generates one subject image on the GPU (FLUX.2 klein 4B, 4 steps) and writes it as a PNG at `outPath`.
+   * Sends progress. Errors: bad_request, image_model_not_installed, no_gpu, generation_failed.
+   */
+  'image.generate': {
+    params: { prompt: string; outPath: string; seed?: number; width?: number; height?: number; model?: string }
+    result: GeneratedImageResult
+  }
 }
 
 export type HelperMethod = keyof HelperMethods

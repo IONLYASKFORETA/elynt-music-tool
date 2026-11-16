@@ -249,6 +249,15 @@ h2 { font-size: 12px; letter-spacing: 0.3em; text-transform: uppercase; color: v
 .scene-palette { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 10px; font-size: 13px; }
 .scene-swatch { display: inline-flex; align-items: center; gap: 2px; }
 .scene-swatch input[type='color'] { width: 28px; height: 22px; padding: 0; border: 1px solid var(--line); border-radius: 4px; background: none; cursor: pointer; }
+.subject-options { display: flex; flex-direction: column; gap: 6px; flex-basis: 100%; }
+.subject-generate { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.subject-motif { width: 260px; }
+.subject-list { list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.subject-list li { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.subject-thumb { padding: 0; border: 2px solid var(--line); border-radius: 4px; background: #000; cursor: pointer; line-height: 0; }
+.subject-list li.picked .subject-thumb { border-color: #3db8ff; }
+.subject-thumb img { width: 72px; height: 72px; object-fit: contain; }
+.subject-meta { color: var(--muted); font-size: 11px; }
 
 /* Release Assistant */
 .release { display: flex; flex-direction: column; gap: 20px; margin-bottom: 32px; }

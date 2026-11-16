@@ -3,6 +3,7 @@ import type { TrackAnalysis } from '../../../shared/analysis'
 import type { Track } from '../../../shared/track'
 import { featuresAt, type MonoAudio } from './audio-features'
 import { ExportPanel } from './ExportPanel'
+import { Timeline } from './Timeline'
 import { PlaybackClock } from './playback-clock'
 import { SceneRenderer } from './renderer'
 import { NO_SIGNALS, type TrackSignals } from './signals'
@@ -27,7 +28,22 @@ interface Loaded {
  * cutting to each section's scene as playback crosses into it, every layer reacting to the
  * track's signals.
  */
-export function Preview({ track, analysis, vision }: { track: Track; analysis: TrackAnalysis | null; vision: Vision }) {
+export function Preview({
+  track,
+  analysis,
+  vision,
+  onVisionChange,
+  section,
+  onSection
+}: {
+  track: Track
+  analysis: TrackAnalysis | null
+  vision: Vision
+  onVisionChange(vision: Vision): void
+  /** The section picked on the timeline, whose scene the scene panel shows. */
+  section: number
+  onSection(index: number): void
+}) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const loadedRef = useRef<Loaded | null>(null)
   const sourceRef = useRef<AudioBufferSourceNode | null>(null)
@@ -214,6 +230,16 @@ export function Preview({ track, analysis, vision }: { track: Track; analysis: T
           ))}
         </select>
       </div>
+      <Timeline
+        vision={vision}
+        time={time}
+        duration={duration}
+        disabled={status !== 'ready'}
+        onSeek={seek}
+        onChange={onVisionChange}
+        section={section}
+        onSection={onSection}
+      />
       <ExportPanel
         track={track}
         vision={vision}

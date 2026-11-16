@@ -2,6 +2,9 @@ import { CHROME } from './layers/chrome'
 import { COLOR_BLEED } from './layers/color-bleed'
 import { GLITCH } from './layers/glitch'
 import { LIGHT_PILLAR } from './layers/light-pillar'
+import { POSTER_FRAME } from './layers/poster-frame'
+import { POSTER_TYPE } from './layers/poster-type'
+import { SUBJECT } from './layers/subject'
 import type { LayerKind } from './scene'
 import { SIGNAL_NAMES, SIGNALS, signalAt, type SignalName, type Tier, type TrackSignals } from './signals'
 
@@ -38,7 +41,10 @@ export const DEFAULT_REACTIVITY: Record<LayerKind, Reactivity> = {
   colorBleed: COLOR_BLEED.reactivity,
   chrome: CHROME.reactivity,
   glitch: GLITCH.reactivity,
-  lightPillar: LIGHT_PILLAR.reactivity
+  lightPillar: LIGHT_PILLAR.reactivity,
+  posterFrame: POSTER_FRAME.reactivity,
+  posterType: POSTER_TYPE.reactivity,
+  subject: SUBJECT.reactivity
 }
 
 /** A layer's reaction at t. The tier comes from the signal, so a kick is always a medium pulse. */

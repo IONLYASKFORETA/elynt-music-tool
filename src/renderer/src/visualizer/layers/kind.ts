@@ -1,5 +1,6 @@
 import type { Reactivity } from '../reactivity'
-import type { Tier } from '../signals'
+import type { FrameContext, PassImage } from '../scene'
+import type { Tier, TrackSignals } from '../signals'
 
 /**
  * Everything one layer kind brings to the layer library, kept in one file per kind: its name,
@@ -13,6 +14,22 @@ export interface LayerKindDef<L extends { kind: string; reactivity: Reactivity }
   respond: Record<Tier, (layer: L, amount: number) => L>
   /** Up to 8 floats: p0 then p1 in common.wgsl. */
   params(layer: L): number[]
+}
+
+/** What a frame gives a layer besides its own settings: where it falls in the vision, the signals, the time. */
+export interface FrameInput {
+  context: FrameContext
+  signals: TrackSignals
+  t: number
+}
+
+/**
+ * A layer kind whose pass needs more than its own settings (the poster layers, V8): its place
+ * in the vision, the signals, and a picture to draw from.
+ */
+export interface FramedLayerKindDef<L extends { kind: string; reactivity: Reactivity }> extends Omit<LayerKindDef<L>, 'params'> {
+  /** Up to 8 floats (p0 then p1), and the picture the shader reads as layerTex, if any. */
+  pass(layer: L, frame: FrameInput): { params: number[]; image?: PassImage }
 }
 
 export const clamp01 = (x: number): number => Math.min(1, Math.max(0, x))

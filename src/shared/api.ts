@@ -7,6 +7,7 @@ import type { BackupStatus } from './backup'
 import type { LiveSet } from './live-set'
 import type { MixSetup } from './mix-setup'
 import type { ArtistProfile } from './profile'
+import type { Release, ReleaseWithPlan, StartRelease } from './release'
 import type { SplitJob, Stem } from './stems'
 import type { Track } from './track'
 
@@ -59,6 +60,15 @@ export interface ElyntApi {
     get(): Promise<ArtistProfile>
     /** Saves the whole profile, half-filled or not. Rejects values the suite doesn't know. */
     save(profile: ArtistProfile): Promise<ArtistProfile>
+  }
+  /** Release Assistant: releases and their dated plans, built from the playbook. */
+  releases: {
+    /** Every release, newest first. */
+    list(): Promise<Release[]>
+    /** A release and its plan. Null if there is no such release. */
+    get(releaseId: number): Promise<ReleaseWithPlan | null>
+    /** Builds the plan from the newest playbook and saves it. Rejects an unknown track or a bad date. */
+    start(input: StartRelease): Promise<ReleaseWithPlan>
   }
   /** Video export. The window renders frames; the main process owns FFmpeg and the file. */
   exports: {
@@ -138,6 +148,9 @@ export const channels = {
   exportEverything: 'backup:export-everything',
   getProfile: 'profile:get',
   saveProfile: 'profile:save',
+  listReleases: 'releases:list',
+  getRelease: 'releases:get',
+  startRelease: 'releases:start',
   getMixSetup: 'mix-setup:get',
   saveMixSetup: 'mix-setup:save',
   pickReferenceTracks: 'mix-setup:pick-reference-tracks',

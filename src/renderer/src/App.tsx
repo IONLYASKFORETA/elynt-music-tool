@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import type { AudioProbe, HelperStatus } from '../../shared/helper'
 import type { Track } from '../../shared/track'
 import { Preview } from './visualizer/Preview'
+import { AnalysisStrip } from './visualizer/AnalysisStrip'
 import { ApiKeysPanel } from './ApiKeysPanel'
 import { BackupSettings } from './BackupSettings'
 import { MixSetupScreen } from './MixSetupScreen'
@@ -143,6 +144,7 @@ export function App() {
                   )}
                   <MixdownFacts trackId={t.id} />
                   <TrackStems trackId={t.id} />
+                  {active === 'visualizer' && <AnalysisStrip trackId={t.id} />}
                 </li>
               ))}
             </ul>

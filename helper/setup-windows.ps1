@@ -15,6 +15,9 @@ uv pip install --python .venv\Scripts\python.exe torch==2.13.0 --index-url https
 # The stem splitter (BS-RoFormer via audio-separator). Installed after torch so it keeps the CUDA build above.
 # The [cpu] extra is only its ONNX runtime, for models we do not use: RoFormer runs on torch, on the GPU.
 uv pip install --python .venv\Scripts\python.exe "audio-separator[cpu]==0.48.0" audioread
+# Beat This! for track analysis, without letting it replace torch (see setup-wsl.sh).
+uv pip install --python .venv\Scripts\python.exe "einops>=0.8" "soxr>=0.5"
+uv pip install --python .venv\Scripts\python.exe --no-deps "beat-this==1.1.0" "rotary-embedding-torch==0.9.2"
 
 Write-Host "`nHelper venv ready in helper\.venv. Checking it:"
 '{"id":1,"method":"helper.info"}' | .venv\Scripts\python.exe -m elynt_helper

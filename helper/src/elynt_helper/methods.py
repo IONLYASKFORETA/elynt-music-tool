@@ -52,6 +52,28 @@ def audio_probe(params: dict[str, Any], _progress: Progress) -> dict[str, Any]:
     }
 
 
+def track_analyze(params: dict[str, Any], progress: Progress) -> dict[str, Any]:
+    """Track analysis (V1): tempo, beats, downbeats, sections, energy curve and a coarse mood."""
+    path = params.get("path")
+    if not isinstance(path, str) or not path:
+        raise HelperError("bad_request", "path is required")
+    if not os.path.isfile(path):
+        raise HelperError("file_not_found", f"no file at {path}")
+
+    from .analysis import NoBeat, SilentAudio, analyze_file  # numpy and scipy load only when asked
+    from .analysis.audio import AudioReadError
+
+    progress("Analysing", None)
+    try:
+        return analyze_file(path)
+    except AudioReadError as e:
+        raise HelperError("unreadable_audio", str(e)) from e
+    except SilentAudio as e:
+        raise HelperError("silent_audio", str(e)) from e
+    except NoBeat as e:
+        raise HelperError("no_beat", str(e)) from e
+
+
 def gpu_info() -> dict[str, Any]:
     """What CUDA device the helper can use. Prefers PyTorch's view, falls back to nvidia-smi."""
     try:
@@ -121,4 +143,5 @@ METHODS: dict[str, Handler] = {
     "helper.info": helper_info,
     "audio.probe": audio_probe,
     "stems.split": stems_split,
+    "track.analyze": track_analyze,
 }

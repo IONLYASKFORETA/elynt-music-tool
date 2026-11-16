@@ -114,5 +114,21 @@ export const migrations: Migration[] = [
       );
       CREATE INDEX stems_track ON stems (track_id);
     `
+  },
+  {
+    version: 7,
+    name: 'track analysis',
+    // Track analysis (V1), one row per track. On the track, not in the Visualizer, because
+    // Mix & Master and Release read the same sections. result is TrackAnalysis as JSON.
+    sql: `
+      CREATE TABLE track_analysis (
+        track_id    INTEGER PRIMARY KEY REFERENCES tracks(id) ON DELETE CASCADE,
+        status      TEXT NOT NULL CHECK (status IN ('pending', 'running', 'done', 'failed')),
+        result      TEXT,          -- the latest result, kept while a re-run is queued
+        error       TEXT,
+        analyzed_at TEXT,          -- when result was made
+        updated_at  TEXT NOT NULL  -- when status last changed; the queue runs oldest first
+      );
+    `
   }
 ]

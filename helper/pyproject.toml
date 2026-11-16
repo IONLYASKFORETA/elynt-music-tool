@@ -6,6 +6,9 @@ description = "Local Python/CUDA helper for Elynt Music Tool: the app spawns it 
 requires-python = ">=3.12,<3.13"
 dependencies = [
   "soundfile>=0.13",
+  # Track analysis (V1): the signal-processing core that runs everywhere, with or without the GPU.
+  "numpy>=1.26,<3",
+  "scipy>=1.13",
 ]
 
 [dependency-groups]
@@ -14,6 +17,9 @@ dev = ["pytest>=8"]
 # PyTorch is not listed here: it comes from PyTorch's own CUDA 13.0 index (torch 2.13, to match NATTEN's wheels), which the
 # setup scripts install with `uv pip install` after `uv sync --inexact` (see helper/README.md).
 # Keeping it out of the lockfile keeps CI and the lock small.
+# Beat This! (the beat and downbeat model, MIT) is installed the same way, by the setup scripts, with --no-deps:
+# it asks for torchaudio, which has no build for torch 2.13. analysis/beat_this_engine.py stands in for the one
+# torchaudio piece it uses.
 
 [build-system]
 requires = ["hatchling"]

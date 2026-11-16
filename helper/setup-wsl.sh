@@ -23,6 +23,10 @@ uv pip install --python "$VENV/bin/python" "natten==0.21.7+torch2130cu130" --fin
 # audioread: audio-separator imports it, but librosa 1.0 stopped pulling it in (found 2026-11-14).
 # Its model (about 700 MB) downloads on the first split, into ~/.elynt/models.
 uv pip install --python "$VENV/bin/python" "audio-separator[cpu]==0.48.0" audioread
+# Beat This! (track analysis beats and downbeats). --no-deps so nothing replaces our torch: it asks for
+# torchaudio, which has no torch 2.13 build; the helper stands in for the one piece it uses.
+uv pip install --python "$VENV/bin/python" "einops>=0.8" "soxr>=0.5"
+uv pip install --python "$VENV/bin/python" --no-deps "beat-this==1.1.0" "rotary-embedding-torch==0.9.2"
 
 echo
 echo "Helper venv ready at $VENV. Checking it:"

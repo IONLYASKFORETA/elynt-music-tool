@@ -7,6 +7,8 @@ const SETTLE_MS = 400
 
 export interface VisionHistory {
   vision: Vision
+  /** True once the stored vision (or the fresh one standing in for it) is showing for the current key and track shape. */
+  loaded: boolean
   /** Shows an edit straight away and records it for undo once edits settle. */
   setVision(vision: Vision): void
   /** Records an edit as a step of its own straight away, apart from edits before and after it (an applied note, V14). */
@@ -44,6 +46,7 @@ export function useVisionHistory({
 }): VisionHistory {
   const [vision, setLocal] = useState<Vision>(fresh)
   const [flags, setFlags] = useState({ canUndo: false, canRedo: false })
+  const [loaded, setLoaded] = useState(false)
   const pending = useRef<{ timer: ReturnType<typeof setTimeout>; vision: Vision } | null>(null)
   const api = window.elynt.visionHistory
 
@@ -67,6 +70,7 @@ export function useVisionHistory({
   const fitsRef = useRef(fits)
   fitsRef.current = fits
   useEffect(() => {
+    setLoaded(false)
     if (!ready) return
     let cancelled = false
     ;(async () => {
@@ -76,8 +80,10 @@ export function useVisionHistory({
       if (stored.vision && fitsRef.current(stored.vision as Vision)) apply(stored)
       else {
         const state = await api.record(key, withoutCredits(freshRef.current()))
-        if (!cancelled) apply(state)
+        if (cancelled) return
+        apply(state)
       }
+      setLoaded(true)
     })().catch((e: unknown) => console.error('Could not load the vision history:', e))
     return () => {
       cancelled = true
@@ -123,6 +129,7 @@ export function useVisionHistory({
 
   return {
     vision,
+    loaded,
     setVision,
     commit,
     canUndo: flags.canUndo,

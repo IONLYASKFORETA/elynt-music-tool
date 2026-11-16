@@ -16,6 +16,7 @@ import type { SubjectImage, SubjectImageRequest, SubjectJob } from './subject-im
 import type { Track } from './track'
 import type { VisionNoteRequest, VisionNoteResult } from './vision-note'
 import type { HistoryState, Preset, PresetLevel, Snapshot, VisionKey } from './vision-history'
+import type { VisionFlowRequest, VisionFlowResult, VisionSet, WorkingVision } from './visions'
 
 /** What the preload script exposes to the UI as `window.elynt`. */
 export interface ElyntApi {
@@ -137,6 +138,20 @@ export interface ElyntApi {
     onChange(listener: (state: TrackAnalysisState) => void): () => void
   }
   /**
+   * The vision flow (V10): Claude writes three visions from the analysis, the brief and the tap
+   * answers. The working vision is what the scene editor shows and saves.
+   */
+  visions: {
+    /** The newest three visions for a track, or null if the flow never ran. */
+    latest(trackId: number): Promise<VisionSet | null>
+    /** Asks Claude for three visions and saves them. Rejects with a message the UI can show. */
+    generate(request: VisionFlowRequest): Promise<VisionFlowResult>
+    getWorking(trackId: number): Promise<WorkingVision | null>
+    saveWorking(trackId: number, vision: unknown, from: WorkingVision['from']): Promise<WorkingVision>
+    /** Everything the Visualizer has spent on Claude and Gemini calls for this track, in US dollars. */
+    trackCost(trackId: number): Promise<number>
+  }
+  /**
    * Subject images (V9): options for a track's Subject layers, made ahead of time by the helper's
    * local image model. Show one with mediaUrl(image.path) from shared/subject-images.
    */
@@ -233,6 +248,11 @@ export const channels = {
   saveAnalysisCorrection: 'analysis:save-correction',
   skipAnalysisCheck: 'analysis:skip-check',
   analysisChanged: 'analysis:changed',
+  latestVisions: 'visions:latest',
+  generateVisions: 'visions:generate',
+  getWorkingVision: 'visions:get-working',
+  saveWorkingVision: 'visions:save-working',
+  visionTrackCost: 'visions:track-cost',
   helperStatus: 'helper:status',
   helperStatusChanged: 'helper:status-changed',
   probeTrack: 'helper:probe-track',

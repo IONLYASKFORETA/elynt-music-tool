@@ -1,4 +1,5 @@
 import type { FormatTweaks } from '../../../../shared/formats'
+import { mediaFlag, mediaImage, type LayerMedia } from '../media'
 import type { Reactivity } from '../reactivity'
 import { clamp01, type FramedLayerKindDef } from './kind'
 
@@ -12,6 +13,8 @@ export interface SubjectLayer {
   reactivity: Reactivity
   /** A URL the renderer can load (a file, blob or data URL); null shows nothing yet. */
   image: string | null
+  /** The owner's own image or clip (V18), shown in place of `image` while set. */
+  media: LayerMedia | null
   /**
    * The image's height as a share of the safe zone's height (the frame's, in 16:9), fitted so it
    * never overflows the width.
@@ -31,7 +34,7 @@ export type SubjectPlacement = Partial<Pick<SubjectLayer, 'x' | 'y' | 'scale'>>
 export const SUBJECT: FramedLayerKindDef<SubjectLayer> = {
   name: 'Subject',
   reactivity: { reactsTo: 'kick', strength: 0.6 },
-  create: (reactivity) => ({ kind: 'subject', image: null, scale: 0.62, x: 0.5, y: 0.5, glow: 0.35, reactivity }),
+  create: (reactivity) => ({ kind: 'subject', image: null, media: null, scale: 0.62, x: 0.5, y: 0.5, glow: 0.35, reactivity }),
   // The kick swells it; hard hits punch it bigger and flare the glow; energy breathes it a little.
   respond: {
     hard: (l, a) => ({ ...l, scale: l.scale * (1 + 0.2 * a), glow: clamp01(l.glow + 0.6 * a) }),
@@ -51,9 +54,10 @@ export const SUBJECT: FramedLayerKindDef<SubjectLayer> = {
       scale: p.scale * safe.height
     }
   },
-  /** p0 = (scale, x, y, glow) as shares of the frame; the image is the layer's picture. */
-  pass: (l) => ({
-    params: [l.scale, l.x, l.y, l.glow],
-    ...(l.image ? { image: { kind: 'picture' as const, url: l.image } } : {})
-  })
+  /** p0 = (scale, x, y, glow) as shares of the frame, p1.x = own media (0 none, 1 treated, 2 untreated); own media or the image is its picture. */
+  pass: (l, { context, t }) => {
+    const params = [l.scale, l.x, l.y, l.glow, mediaFlag(l.media)]
+    if (l.media) return { params, image: mediaImage(l.media, t, context.sectionStart) }
+    return l.image ? { params, image: { kind: 'picture' as const, url: l.image } } : { params }
+  }
 }

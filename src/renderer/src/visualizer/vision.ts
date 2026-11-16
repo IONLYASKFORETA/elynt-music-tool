@@ -3,8 +3,9 @@ import { WIDE_LAYOUT, type FormatLayout } from '../../../shared/formats'
 import type { AudioFeatures } from './audio-features'
 import { beatSeconds, NO_GRID, snapToGrid, type BeatGrid, type Snap } from './beat-grid'
 import { momentPasses, type Moment, type MomentKind } from './moments'
+import { clipKey, newImageMedia, type ClipMedia, type LayerMedia } from './media'
 import { DEFAULT_PALETTE, paletteProblem, type Palette } from './palette'
-import { addLayer, newLayer, NO_CONTEXT, passUniforms, planFrame, type Credits, type FramePlan, type Layer, type Scene } from './scene'
+import { addLayer, newLayer, NO_CONTEXT, passUniforms, planFrame, type Credits, type FramePlan, type Layer, type Scene, type SubjectLayer } from './scene'
 import { signalAt, type TrackSignals } from './signals'
 import {
   TRANSITION_STYLES,
@@ -162,10 +163,50 @@ export function planVisionFrame(
   return { ...plan, passes: [...plan.passes, ...moments] }
 }
 
-/** Every image the vision's Subjects show, once each: an export loads them all before its first frame. */
+/** The media a layer shows: a Subject's image or own media, a Ground's or Chrome's media, a Poster Frame's logo. */
+function layerMedia(layer: Layer): (LayerMedia | string)[] {
+  switch (layer.kind) {
+    case 'subject':
+      return layer.media ? [layer.media] : layer.image ? [layer.image] : []
+    case 'ground':
+    case 'chrome':
+      return layer.media ? [layer.media] : []
+    case 'posterFrame':
+      return layer.logoMedia ? [layer.logoMedia] : []
+    default:
+      return []
+  }
+}
+
+function allMedia(vision: Vision): (LayerMedia | string)[] {
+  return vision.sections.flatMap((s) => s.scene.layers.flatMap(layerMedia))
+}
+
+/** Every image the vision shows, once each: an export loads them all before its first frame. */
 export function visionImages(vision: Vision): string[] {
-  const urls = vision.sections.flatMap((s) => s.scene.layers.flatMap((l) => (l.kind === 'subject' && l.image ? [l.image] : [])))
+  const urls = allMedia(vision).flatMap((m) => (typeof m === 'string' ? [m] : m.type === 'image' ? [m.url] : []))
   return [...new Set(urls)]
+}
+
+/** Every clip the vision plays, once per clip and timing: an export opens them all before its first frame. */
+export function visionClips(vision: Vision): ClipMedia[] {
+  const clips = new Map<string, ClipMedia>()
+  for (const m of allMedia(vision)) if (typeof m !== 'string' && m.type === 'clip' && !clips.has(clipKey(m))) clips.set(clipKey(m), m)
+  return [...clips.values()]
+}
+
+/**
+ * The track's cover art as a Subject the vision can offer (V18). A vision never asks for media:
+ * with no cover art there is no offer, and nothing is placed until the owner takes it.
+ */
+export function coverArtOffer(cover: { url: string; name: string } | null): SubjectLayer | null {
+  if (!cover) return null
+  return { ...(newLayer('subject') as SubjectLayer), media: newImageMedia(cover) }
+}
+
+/** Takes the cover-art offer in one section: a Subject showing the cover art. Throws past the layer limit. */
+export function acceptCoverArt(vision: Vision, sectionIndex: number, cover: { url: string; name: string }): Vision {
+  return addSectionLayer(vision, sectionIndex, coverArtOffer(cover)!)
 }
 
 /** Swaps the vision's palette. Throws for one that isn't 3 to 5 #rrggbb colors. */

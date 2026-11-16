@@ -6,6 +6,7 @@ import type { AudioProbe, HelperStatus } from './helper'
 import type { KeyName, KeyStatus, KeyTestResult } from './keys'
 import type { BackupStatus } from './backup'
 import type { LiveSet } from './live-set'
+import type { CoverArt, MediaItem } from './media'
 import type { MixSetup } from './mix-setup'
 import type { ArtistProfile } from './profile'
 import type { Release, ReleaseWithPlan, StartRelease } from './release'
@@ -147,6 +148,22 @@ export interface ElyntApi {
     /** Asks the helper to read a track's mixdown header: duration, sample rate, channels. */
     probeTrack(trackId: number): Promise<AudioProbe>
   }
+  /**
+   * The media shelf (V18): the owner's images, clips and logo, by path, for any track, and each
+   * track's cover art. Layers load them from the addresses in src/shared/media.ts.
+   */
+  media: {
+    list(): Promise<MediaItem[]>
+    /** Opens a picker for images and clips and puts them on the shelf. Resolves to the picked items, empty if cancelled. */
+    addPicked(): Promise<MediaItem[]>
+    remove(id: number): Promise<MediaItem[]>
+    /** Makes a shelf image the logo (null for none). Resolves to the whole shelf. */
+    setLogo(id: number | null): Promise<MediaItem[]>
+    coverArt(trackId: number): Promise<CoverArt | null>
+    /** Opens a picker for the track's cover art. Resolves to it, or to the old one if cancelled. */
+    attachPickedCoverArt(trackId: number): Promise<CoverArt | null>
+    removeCoverArt(trackId: number): Promise<void>
+  }
 }
 
 export const channels = {
@@ -195,6 +212,13 @@ export const channels = {
   benchConfig: 'bench:config',
   benchCheckFile: 'bench:check-file',
   benchReport: 'bench:report',
+  listMedia: 'media:list',
+  addPickedMedia: 'media:add-picked',
+  removeMedia: 'media:remove',
+  setLogo: 'media:set-logo',
+  getCoverArt: 'media:cover-art',
+  attachPickedCoverArt: 'media:attach-picked-cover-art',
+  removeCoverArt: 'media:remove-cover-art',
   listSubjectImages: 'subject-images:list',
   generateSubjectImages: 'subject-images:generate',
   regenerateSubjectImage: 'subject-images:regenerate',

@@ -5,7 +5,8 @@ import { SubjectOptions } from './SubjectOptions'
 /**
  * The settings only poster layers have, shown in a layer's row of the scene panel: Poster Type's
  * katakana (generated from the title, editable) and the owner's own words, and the Subject's image:
- * picked from the options the local image model generated (V9), or from a file.
+ * picked from the options the local image model generated (V9). The owner's own images and
+ * clips come from the media shelf (V18, MediaControls), which keeps them for good.
  * Other layers show nothing here.
  */
 export function PosterLayerControls({
@@ -52,26 +53,13 @@ export function PosterLayerControls({
       </>
     )
   }
-  if (layer.kind === 'subject') {
+  // The owner's own images now come from the media shelf (V18, MediaControls), which keeps them for good.
+  if (layer.kind === 'subject' && layer.image) {
     return (
       <>
         {trackId !== undefined && (
           <SubjectOptions trackId={trackId} image={layer.image} palette={palette} onPick={(image) => onChange({ image })} />
         )}
-        <label className="poster-image">
-          {layer.image ? 'Use a file instead' : 'Pick a file'}
-          <input
-            type="file"
-            accept="image/*"
-            hidden
-            onChange={(e) => {
-              const file = e.target.files?.[0]
-              // The URL lives as long as this window: saving visions (V10) and the media shelf (V18) keep images for good.
-              if (file) onChange({ image: URL.createObjectURL(file) })
-              e.target.value = ''
-            }}
-          />
-        </label>
         {layer.image && (
           <button className="link" onClick={() => onChange({ image: null })}>
             Clear image

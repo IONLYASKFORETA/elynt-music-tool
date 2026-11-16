@@ -199,5 +199,27 @@ export const migrations: Migration[] = [
       );
       CREATE INDEX subject_images_track ON subject_images (track_id);
     `
+  },
+  {
+    version: 11,
+    name: 'media shelf and cover art',
+    // The media shelf (V18): the owner's own images, clips and logo, by path, for any track.
+    // At most one row is the logo. A track's cover art is offered to its vision, never required.
+    sql: `
+      CREATE TABLE media_shelf (
+        id               INTEGER PRIMARY KEY AUTOINCREMENT,
+        type             TEXT NOT NULL CHECK (type IN ('image', 'clip')),
+        path             TEXT NOT NULL UNIQUE COLLATE NOCASE, -- Windows paths ignore case
+        is_logo          INTEGER NOT NULL DEFAULT 0 CHECK (is_logo IN (0, 1)),
+        duration_seconds REAL,          -- clips only
+        fps              REAL,          -- clips only
+        added_at         TEXT NOT NULL
+      );
+      CREATE UNIQUE INDEX media_shelf_one_logo ON media_shelf (is_logo) WHERE is_logo = 1;
+      CREATE TABLE track_cover_art (
+        track_id INTEGER PRIMARY KEY REFERENCES tracks(id) ON DELETE CASCADE,
+        path     TEXT NOT NULL
+      );
+    `
   }
 ]

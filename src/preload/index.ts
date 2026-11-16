@@ -102,6 +102,15 @@ const api: ElyntApi = {
       return () => ipcRenderer.off(channels.helperStatusChanged, handler)
     },
     probeTrack: (trackId) => ipcRenderer.invoke(channels.probeTrack, trackId)
+  },
+  media: {
+    list: () => ipcRenderer.invoke(channels.listMedia),
+    addPicked: () => ipcRenderer.invoke(channels.addPickedMedia),
+    remove: (id) => ipcRenderer.invoke(channels.removeMedia, id),
+    setLogo: (id) => ipcRenderer.invoke(channels.setLogo, id),
+    coverArt: (trackId) => ipcRenderer.invoke(channels.getCoverArt, trackId),
+    attachPickedCoverArt: (trackId) => ipcRenderer.invoke(channels.attachPickedCoverArt, trackId),
+    removeCoverArt: (trackId) => ipcRenderer.invoke(channels.removeCoverArt, trackId)
   }
 }
 

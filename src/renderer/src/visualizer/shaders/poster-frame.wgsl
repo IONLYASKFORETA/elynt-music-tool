@@ -1,5 +1,6 @@
 // Poster Frame: border, grid, crop marks and a logo mark over the picture below.
-// p0 = (columns, rows, weight, marks), p1 = (logo, opacity, logo corner 0..3 clockwise from top left).
+// p0 = (columns, rows, weight, marks), p1 = (logo, opacity, logo corner 0..3 clockwise from top left,
+// own logo from the media shelf (V18): 0 the drawn ring-and-plus mark, 1 treated, 2 untreated).
 
 // 1 on a line `w` pixels either side of distance 0, with a pixel of soft edge.
 fn stroke(d: f32, w: f32) -> f32 {
@@ -60,10 +61,23 @@ fn fs(in: VsOut) -> @location(0) vec4f {
     stroke(abs(d.x), w) * step(abs(d.y), r * 1.45),
     stroke(abs(d.y), w) * step(abs(d.x), r * 1.45),
   );
-  let logo = max(ring, plus) * frame.p1.x;
+  var logo = max(ring, plus) * frame.p1.x;
 
   let ink = vec3f(0.94);
-  let logoInk = mix(ink, pal_ramp(time() * 0.04 + d.y / (4.0 * r)), 0.6);
+  var logoInk = mix(ink, pal_ramp(time() * 0.04 + d.y / (4.0 * r)), 0.6);
+  if (frame.p1.w > 0.5) {
+    // The owner's logo, fitted into a box the size of the drawn mark.
+    let dims = vec2f(textureDimensions(layerTex));
+    let box = 2.9 * r * vec2f(min(1.0, dims.x / dims.y), min(1.0, dims.y / dims.x));
+    let local = d / box + 0.5;
+    let inBox = all(local >= vec2f(0.0)) && all(local <= vec2f(1.0));
+    let tex = textureSampleLevel(layerTex, samp, clamp(local, vec2f(0.0), vec2f(1.0)), 0.0);
+    logo = select(0.0, tex.a, inBox) * frame.p1.x;
+    // Treated, the logo is a shape in the frame's ink; untreated, its own colors.
+    if (frame.p1.w > 1.5) {
+      logoInk = tex.rgb;
+    }
+  }
   var col = mix(base, ink, clamp(m * frame.p1.y, 0.0, 1.0));
   col = mix(col, logoInk, clamp(logo * (0.4 + frame.p1.y), 0.0, 1.0));
   return vec4f(col, 1.0);

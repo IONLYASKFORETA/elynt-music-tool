@@ -16,6 +16,7 @@ import { createBackups } from './backup'
 import { openSuiteDatabase } from './db/database'
 import { resolveHelperCommand } from './helper/command'
 import { createHelperSupervisor } from './helper/supervisor'
+import { createMediaShelf } from './media-shelf'
 import { createMixSetupStore } from './mix-setup'
 import { createProfileStore } from './profile'
 import { createReleaseStore } from './releases'
@@ -24,6 +25,7 @@ import { ClaudeError, createClaudeClient, createUsageLog } from './claude'
 import { createGeminiTransport, createMoodListener } from './gemini'
 import { createApiKeys } from './keys/api-keys'
 import { createCredentialVault } from './keys/key-vault'
+import { CLIP_EXTENSIONS, IMAGE_EXTENSIONS } from '../shared/media'
 import { REFERENCE_EXTENSIONS, type MixSetup } from '../shared/mix-setup'
 import type { ArtistProfile } from '../shared/profile'
 import type { StartRelease } from '../shared/release'
@@ -72,10 +74,11 @@ function createWindow(): BrowserWindow {
   return win
 }
 
-// Media on disk (subject images) reaches the renderer through the app's own scheme, so the
-// preview and export can fetch it like any URL. Registered before the app is ready, as Electron asks.
+// Media on disk reaches the renderer through the app's own scheme, so the preview and export can
+// fetch it like any URL: subject images (V9), and the media shelf and cover art (V18). Clips must be
+// seekable and CORS-clean for WebGPU to copy their frames. Registered before the app is ready.
 protocol.registerSchemesAsPrivileged([
-  { scheme: MEDIA_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } }
+  { scheme: MEDIA_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true, corsEnabled: true } }
 ])
 
 // The export benchmark runs against a throwaway library, never the owner's own database.
@@ -246,12 +249,6 @@ function start(): void {
   ipcMain.handle(channels.regenerateSubjectImage, (_event, imageId: number) => subjectImages.regenerate(imageId))
   ipcMain.handle(channels.removeSubjectImage, (_event, imageId: number) => subjectImages.remove(imageId))
   ipcMain.handle(channels.subjectJobs, () => subjectImages.jobs())
-  // Only files the app made (or, later, put on the media shelf) are served, never an arbitrary path.
-  protocol.handle(MEDIA_SCHEME, (request) => {
-    const path = mediaPath(request.url)
-    if (!path || !subjectImages.isKnownPath(path)) return new Response('Not found', { status: 404 })
-    return net.fetch(pathToFileURL(path).toString())
-  })
 
   // Only files the track library knows about can be read, never an arbitrary path from the UI.
   ipcMain.handle(channels.readMixdown, async (_event, trackId: number) => {
@@ -386,6 +383,61 @@ function start(): void {
     backups.exportEverything(result.filePath)
     return result.filePath
   })
+
+  // The media shelf (V18): own images, clips and logo by path, for any track; and each track's cover art.
+  const media = createMediaShelf({
+    db,
+    tracks,
+    probeClip: async (path) => {
+      const facts = await probeExport(ffmpegPath, path)
+      return { durationSeconds: facts.video.seconds, fps: facts.video.fps }
+    }
+  })
+  // Only files the app made (subject images) or the owner put on the media shelf or as cover art
+  // are served, never an arbitrary path.
+  protocol.handle(MEDIA_SCHEME, async (request) => {
+    const generated = mediaPath(request.url)
+    const path = media.pathFor(request.url) ?? (generated && subjectImages.isKnownPath(generated) ? generated : null)
+    if (!path) return new Response('Not found', { status: 404 })
+    // Range headers pass through, so a clip can seek.
+    const response = await net.fetch(pathToFileURL(path).toString(), { headers: request.headers })
+    const headers = new Headers(response.headers)
+    headers.set('Access-Control-Allow-Origin', '*')
+    return new Response(response.body, { status: response.status, statusText: response.statusText, headers })
+  })
+  ipcMain.handle(channels.listMedia, () => media.list())
+  ipcMain.handle(channels.addPickedMedia, async (event) => {
+    const parent = BrowserWindow.fromWebContents(event.sender)
+    const options: Electron.OpenDialogOptions = {
+      title: 'Add images and clips to the media shelf',
+      properties: ['openFile', 'multiSelections'],
+      filters: [{ name: 'Images and clips', extensions: [...IMAGE_EXTENSIONS, ...CLIP_EXTENSIONS] }]
+    }
+    const result = parent ? await dialog.showOpenDialog(parent, options) : await dialog.showOpenDialog(options)
+    return result.canceled ? [] : media.add(result.filePaths)
+  })
+  ipcMain.handle(channels.removeMedia, (_event, id: number) => {
+    media.remove(id)
+    return media.list()
+  })
+  ipcMain.handle(channels.setLogo, (_event, id: number | null) => {
+    media.setLogo(id)
+    return media.list()
+  })
+  ipcMain.handle(channels.getCoverArt, (_event, trackId: number) => media.coverArt(trackId))
+  ipcMain.handle(channels.attachPickedCoverArt, async (event, trackId: number) => {
+    const parent = BrowserWindow.fromWebContents(event.sender)
+    const options: Electron.OpenDialogOptions = {
+      title: "Pick this track's cover art",
+      properties: ['openFile'],
+      filters: [{ name: 'Images', extensions: IMAGE_EXTENSIONS }]
+    }
+    const result = parent ? await dialog.showOpenDialog(parent, options) : await dialog.showOpenDialog(options)
+    const [path] = result.filePaths
+    if (!result.canceled && path) media.setCoverArt(trackId, path)
+    return media.coverArt(trackId)
+  })
+  ipcMain.handle(channels.removeCoverArt, (_event, trackId: number) => media.setCoverArt(trackId, null))
 
   ipcMain.handle(channels.getProfile, () => profile.get())
   ipcMain.handle(channels.saveProfile, (_event, input: ArtistProfile) => profile.save(input))

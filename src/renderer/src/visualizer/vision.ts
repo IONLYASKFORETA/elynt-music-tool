@@ -1,5 +1,6 @@
 import type { Section, SectionLabel } from '../../../shared/analysis'
 import type { AudioFeatures } from './audio-features'
+import { DEFAULT_PALETTE, paletteProblem, type Palette } from './palette'
 import { addLayer, newLayer, planFrame, type FramePlan, type Layer, type Scene } from './scene'
 import type { TrackSignals } from './signals'
 
@@ -9,6 +10,8 @@ import type { TrackSignals } from './signals'
  */
 export interface Vision {
   sections: VisionSection[]
+  /** The track's 3 to 5 colors, which every house-style layer takes. */
+  palette: Palette
 }
 
 export interface VisionSection {
@@ -37,7 +40,8 @@ export function defaultVision(sections: Section[], durationSeconds: number): Vis
   const spans: { label: SectionLabel; start: number; end: number }[] =
     sections.length > 0 ? sections : [{ label: 'intro', start: 0, end: durationSeconds }]
   return {
-    sections: spans.map(({ label, start, end }) => ({ label, start, end, scene: defaultSectionScene(label) }))
+    sections: spans.map(({ label, start, end }) => ({ label, start, end, scene: defaultSectionScene(label) })),
+    palette: DEFAULT_PALETTE
   }
 }
 
@@ -71,11 +75,18 @@ export function planVisionFrame(
   size: { width: number; height: number },
   signals: TrackSignals
 ): FramePlan {
-  return planFrame(sceneAt(vision, t), features, t, size, signals)
+  return planFrame(sceneAt(vision, t), features, t, size, signals, vision.palette)
+}
+
+/** Swaps the vision's palette. Throws for one that isn't 3 to 5 #rrggbb colors. */
+export function setVisionPalette(vision: Vision, palette: Palette): Vision {
+  const problem = paletteProblem(palette)
+  if (problem) throw new Error(problem)
+  return { ...vision, palette: [...palette] }
 }
 
 function withScene(vision: Vision, index: number, change: (scene: Scene) => Scene): Vision {
-  return { sections: vision.sections.map((s, i) => (i === index ? { ...s, scene: change(s.scene) } : s)) }
+  return { ...vision, sections: vision.sections.map((s, i) => (i === index ? { ...s, scene: change(s.scene) } : s)) }
 }
 
 /** Adds a layer to one section's scene. Throws past the active-layer limit. */
@@ -96,5 +107,5 @@ export function updateSectionLayer(vision: Vision, sectionIndex: number, layerIn
 
 /** One scene for the whole track: for benchmarks, which don't care about sections. */
 export function singleSceneVision(scene: Scene, durationSeconds: number): Vision {
-  return { sections: [{ label: 'intro', start: 0, end: durationSeconds, scene }] }
+  return { sections: [{ label: 'intro', start: 0, end: durationSeconds, scene }], palette: DEFAULT_PALETTE }
 }

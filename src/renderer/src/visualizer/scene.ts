@@ -1,13 +1,21 @@
 import type { AudioFeatures } from './audio-features'
 import { DEFAULT_REACTIVITY, reactionAt, type Reaction, type Reactivity } from './reactivity'
-import { NO_SIGNALS, type Tier, type TrackSignals } from './signals'
+import { COLOR_BLEED, type ColorBleedLayer } from './layers/color-bleed'
+import { CHROME, type ChromeLayer } from './layers/chrome'
+import { GLITCH, type GlitchLayer } from './layers/glitch'
+import { LIGHT_PILLAR, type LightPillarLayer } from './layers/light-pillar'
+import { DEFAULT_PALETTE, packPalette, PALETTE_FLOATS, type Palette } from './palette'
+import { NO_SIGNALS, signalAt, type Tier, type TrackSignals } from './signals'
 
 /**
  * The layer data model (GLOSSARY: Layer, Scene). A scene is plain data: the
  * renderer draws whatever stack it is given, bottom to top, and the export
  * reads the same data. Each section of a track has its own scene (see vision.ts).
  */
-export type Layer = GroundLayer | ClassicLayer | FinishLayer
+export type Layer = GroundLayer | ClassicLayer | FinishLayer | HitLayer
+/** The house-style hit layers (V7), one file each under layers/. */
+export type HitLayer = ColorBleedLayer | ChromeLayer | GlitchLayer | LightPillarLayer
+export type { ColorBleedLayer, ChromeLayer, GlitchLayer, LightPillarLayer }
 export type LayerKind = Layer['kind']
 
 /** Every layer has a "reacts to" picker and a strength (GLOSSARY: Reactivity). */
@@ -57,7 +65,17 @@ export const EXEMPT_KINDS: readonly LayerKind[] = ['ground', 'finish']
 /** At most this many active layers per scene (per section), Ground and Finish not counted. */
 export const MAX_ACTIVE_LAYERS = 5
 
-export const LAYER_NAMES: Record<LayerKind, string> = { ground: 'Ground', classic: 'Classic', finish: 'Finish' }
+const HIT_LAYERS = { colorBleed: COLOR_BLEED, chrome: CHROME, glitch: GLITCH, lightPillar: LIGHT_PILLAR }
+
+export const LAYER_NAMES: Record<LayerKind, string> = {
+  ground: 'Ground',
+  classic: 'Classic',
+  finish: 'Finish',
+  colorBleed: COLOR_BLEED.name,
+  chrome: CHROME.name,
+  glitch: GLITCH.name,
+  lightPillar: LIGHT_PILLAR.name
+}
 
 /** A layer of a kind with its starting look and default reactivity. */
 export function newLayer(kind: LayerKind): Layer {
@@ -69,6 +87,11 @@ export function newLayer(kind: LayerKind): Layer {
       return { kind, height: 0.8, bleed: 6, barFill: 0.72, glitch: 0.6, reactivity }
     case 'finish':
       return { kind, grain: 0.12, scanlines: 0.25, vignette: 0.55, energyResponse: 0.8, reactivity }
+    case 'colorBleed':
+    case 'chrome':
+    case 'glitch':
+    case 'lightPillar':
+      return HIT_LAYERS[kind].create(reactivity)
   }
 }
 
@@ -112,9 +135,12 @@ function drawnLayers(scene: Scene): Layer[] {
 
 /**
  * Uniforms for one pass, in 4-float rows matching `Frame` in common.wgsl:
- * row 0 = (t, energy, width, height); rows 1 and 2 = the layer's own parameters.
+ * row 0 = (t, energy, width, height); rows 1 and 2 = the layer's own parameters;
+ * row 3 = (build, 0, 0, 0), how far into a build the track is; then the vision's palette.
  */
-export const UNIFORM_FLOATS = 12
+export const BUILD_OFFSET = 12
+export const PALETTE_OFFSET = 16
+export const UNIFORM_FLOATS = PALETTE_OFFSET + PALETTE_FLOATS
 
 export interface LayerPass {
   kind: LayerKind
@@ -135,14 +161,19 @@ export function planFrame(
   features: AudioFeatures,
   t: number,
   size: { width: number; height: number },
-  signals: TrackSignals = NO_SIGNALS
+  signals: TrackSignals = NO_SIGNALS,
+  palette: Palette = DEFAULT_PALETTE
 ): FramePlan {
+  const colors = packPalette(palette)
+  const build = signalAt(signals, 'build', t)
   return {
     spectrum: features.bands,
     passes: drawnLayers(scene).map((layer) => {
       const uniforms = new Float32Array(UNIFORM_FLOATS)
       uniforms.set([t, features.energy, size.width, size.height])
       uniforms.set(layerParams(react(layer, reactionAt(layer.reactivity, signals, t))), 4)
+      uniforms[BUILD_OFFSET] = build
+      uniforms.set(colors, PALETTE_OFFSET)
       return { kind: layer.kind, uniforms }
     })
   }
@@ -172,7 +203,11 @@ const TIER_RESPONSES: { [K in LayerKind]: TierResponse<K> } = {
     hard: (l, a) => ({ ...l, grain: clamp01(l.grain + 0.4 * a), vignette: clamp01(l.vignette * (1 - 0.5 * a)) }),
     medium: (l, a) => ({ ...l, grain: clamp01(l.grain + 0.15 * a) }),
     slow: (l, a) => ({ ...l, energyResponse: clamp01(l.energyResponse * (1 + 0.5 * a)) })
-  }
+  },
+  colorBleed: COLOR_BLEED.respond,
+  chrome: CHROME.respond,
+  glitch: GLITCH.respond,
+  lightPillar: LIGHT_PILLAR.respond
 }
 
 function react(layer: Layer, reaction: Reaction): Layer {
@@ -189,5 +224,13 @@ function layerParams(layer: Layer): number[] {
       return [layer.height, layer.bleed, layer.barFill, layer.glitch]
     case 'finish':
       return [layer.grain, layer.scanlines, layer.vignette, layer.energyResponse]
+    case 'colorBleed':
+      return COLOR_BLEED.params(layer)
+    case 'chrome':
+      return CHROME.params(layer)
+    case 'glitch':
+      return GLITCH.params(layer)
+    case 'lightPillar':
+      return LIGHT_PILLAR.params(layer)
   }
 }

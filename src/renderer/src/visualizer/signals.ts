@@ -11,8 +11,10 @@ import type { MonoAudio } from './audio-features'
  * curves, already smoothed to their tier's pace.
  */
 export type EventSignal = 'kick' | 'snare' | 'hihat' | 'downbeat' | 'drop'
-export type LevelSignal = 'bass' | 'energy'
-export type SignalName = EventSignal | LevelSignal
+export type LevelSignal = 'bass' | 'energy' | 'build'
+/** Signals read as the strongest of other signals at t, each keeping its own decay. */
+export type CombinedSignal = 'kickSnare' | 'dropDownbeat'
+export type SignalName = EventSignal | LevelSignal | CombinedSignal
 
 /**
  * The three reactivity tiers. Hard is kept for drops and downbeats, medium for the drums and
@@ -35,7 +37,16 @@ export const SIGNALS: Record<SignalName, SignalInfo> = {
   hihat: { label: 'Hi-hats', tier: 'medium', seconds: 0.08 },
   downbeat: { label: 'Downbeat', tier: 'hard', seconds: 0.25 },
   drop: { label: 'Drop', tier: 'hard', seconds: 1.2 },
-  energy: { label: 'Energy', tier: 'slow', seconds: 0.4 }
+  energy: { label: 'Energy', tier: 'slow', seconds: 0.4 },
+  kickSnare: { label: 'Kick + snare', tier: 'medium', seconds: 0 },
+  dropDownbeat: { label: 'Drops + downbeats', tier: 'hard', seconds: 0 },
+  build: { label: 'Builds', tier: 'slow', seconds: 1 }
+}
+
+/** What each combined signal is made of. */
+const COMBINED: Record<CombinedSignal, readonly (EventSignal | LevelSignal)[]> = {
+  kickSnare: ['kick', 'snare'],
+  dropDownbeat: ['drop', 'downbeat']
 }
 
 export const SIGNAL_NAMES = Object.keys(SIGNALS) as SignalName[]
@@ -63,7 +74,11 @@ export interface StemAudio {
 /** Signals with nothing in them: every signal reads 0. For benchmarks and before a track has loaded. */
 export const NO_SIGNALS: TrackSignals = {
   events: { kick: [], snare: [], hihat: [], downbeat: [], drop: [] },
-  levels: { bass: { hz: 1, values: new Float32Array(0) }, energy: { hz: 1, values: new Float32Array(0) } }
+  levels: {
+    bass: { hz: 1, values: new Float32Array(0) },
+    energy: { hz: 1, values: new Float32Array(0) },
+    build: { hz: 1, values: new Float32Array(0) }
+  }
 }
 
 /** Reads what a stem is from its name: "drums" and "bass" from a split, or the owner's own file names. */
@@ -121,13 +136,40 @@ export function deriveSignals(input: {
       downbeat: analysis ? [...analysis.downbeats] : [],
       drop: analysis ? analysis.sections.filter((s) => s.label === 'drop').map((s) => s.start) : []
     },
-    levels: { bass, energy }
+    levels: { bass, energy, build: buildCurve(analysis) }
   }
 }
 
+/**
+ * How far into a build the track is: rises from 0 to 1 across each build section, stays at 1
+ * through a drop the build leads straight into, then falls back to 0 over a second.
+ */
+function buildCurve(analysis: TrackAnalysis | null): Curve {
+  const sections = analysis?.sections ?? []
+  const end = Math.max(analysis?.durationSeconds ?? 0, ...sections.map((s) => s.end))
+  const values = new Float32Array(sections.some((s) => s.label === 'build') ? Math.ceil(end * CURVE_HZ) + 1 : 0)
+  sections.forEach((s, i) => {
+    if (s.label !== 'build') return
+    const next = sections[i + 1]
+    const holdUntil = next?.label === 'drop' && Math.abs(next.start - s.end) < 0.5 ? next.end : s.end
+    const length = Math.max(s.end - s.start, 1 / CURVE_HZ)
+    for (let n = Math.floor(s.start * CURVE_HZ); n < values.length; n++) {
+      const t = n / CURVE_HZ
+      const v = t < s.end ? (t - s.start) / length : t <= holdUntil ? 1 : 1 - (t - holdUntil) / BUILD_RELEASE
+      if (v <= 0 && t > holdUntil) break
+      values[n] = Math.max(values[n]!, Math.min(1, Math.max(0, v)))
+    }
+  })
+  return { hz: CURVE_HZ, values }
+}
+
+/** Seconds the build signal takes to fall back to 0 once a build (and its drop) is over. */
+const BUILD_RELEASE = 1
+
 /** One signal at time t, 0 to 1. */
 export function signalAt(signals: TrackSignals, name: SignalName, t: number): number {
-  if (name === 'bass' || name === 'energy') return curveAt(signals.levels[name], t)
+  if (name === 'kickSnare' || name === 'dropDownbeat') return Math.max(...COMBINED[name].map((part) => signalAt(signals, part, t)))
+  if (name === 'bass' || name === 'energy' || name === 'build') return curveAt(signals.levels[name], t)
   const events = signals.events[name]
   const last = lastAtOrBefore(events, t)
   if (last === undefined) return 0

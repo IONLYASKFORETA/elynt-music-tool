@@ -1,13 +1,7 @@
 import { BAND_COUNT } from './audio-features'
 import type { FramePlan, LayerKind } from './scene'
 import { UNIFORM_FLOATS } from './scene'
-import common from './shaders/common.wgsl?raw'
-import ground from './shaders/ground.wgsl?raw'
-import classic from './shaders/classic.wgsl?raw'
-import finish from './shaders/finish.wgsl?raw'
-import blit from './shaders/blit.wgsl?raw'
-
-const LAYER_SHADERS: Record<LayerKind, string> = { ground, classic, finish }
+import { BLIT_WGSL, COMMON_WGSL, LAYER_SHADERS } from './layer-shaders'
 const WORK_FORMAT: GPUTextureFormat = 'rgba16float'
 /** What an offscreen (export) frame is read back as: 8-bit RGBA, top row first, the layout FFmpeg takes. */
 const PIXEL_FORMAT: GPUTextureFormat = 'rgba8unorm'
@@ -50,7 +44,11 @@ export class SceneRenderer {
       ]
     })
     const make = (source: string, format: GPUTextureFormat): GPURenderPipeline => {
-      const module = device.createShaderModule({ code: `${common}\n${source}` })
+      const module = device.createShaderModule({ code: `${COMMON_WGSL}\n${source}` })
+      // A shader that fails to build shows up here, named, rather than as a blank pass.
+      module.getCompilationInfo().then((info) => {
+        for (const m of info.messages) if (m.type === 'error') console.error(`WGSL error at ${m.lineNum}:${m.linePos}: ${m.message}`)
+      })
       return device.createRenderPipeline({
         layout: device.createPipelineLayout({ bindGroupLayouts: [this.layout] }),
         vertex: { module, entryPoint: 'vs' },
@@ -58,13 +56,11 @@ export class SceneRenderer {
         primitive: { topology: 'triangle-list' }
       })
     }
-    this.pipelines = {
-      ground: make(ground, WORK_FORMAT),
-      classic: make(classic, WORK_FORMAT),
-      finish: make(finish, WORK_FORMAT)
-    }
-    this.blitPipeline = make(blit, canvasFormat)
-    this.pixelBlitPipeline = canvasFormat === PIXEL_FORMAT ? this.blitPipeline : make(blit, PIXEL_FORMAT)
+    this.pipelines = Object.fromEntries(
+      (Object.keys(LAYER_SHADERS) as LayerKind[]).map((kind) => [kind, make(LAYER_SHADERS[kind], WORK_FORMAT)])
+    ) as Record<LayerKind, GPURenderPipeline>
+    this.blitPipeline = make(BLIT_WGSL, canvasFormat)
+    this.pixelBlitPipeline = canvasFormat === PIXEL_FORMAT ? this.blitPipeline : make(BLIT_WGSL, PIXEL_FORMAT)
     this.sampler = device.createSampler({ magFilter: 'linear', minFilter: 'linear' })
     this.spectrum = device.createBuffer({
       size: BAND_COUNT * 4,

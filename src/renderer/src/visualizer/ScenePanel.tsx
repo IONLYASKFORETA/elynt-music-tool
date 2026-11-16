@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { MAX_COLORS, MIN_COLORS } from './palette'
 import { PICKABLE_SIGNALS, signalLabel, type Reactivity } from './reactivity'
 import {
   activeLayerCount,
@@ -11,9 +12,9 @@ import {
   type LayerKind
 } from './scene'
 import { SIGNALS } from './signals'
-import { addSectionLayer, removeSectionLayer, updateSectionLayer, type Vision } from './vision'
+import { addSectionLayer, removeSectionLayer, setVisionPalette, updateSectionLayer, type Vision } from './vision'
 
-/** Layer kinds the owner can add between Ground and Finish. The layer library grows here (V7, V8). */
+/** Layer kinds the owner can add between Ground and Finish: every kind in the layer library but those two. */
 const ADDABLE_KINDS = (Object.keys(LAYER_NAMES) as LayerKind[]).filter((k) => !EXEMPT_KINDS.includes(k))
 
 /**
@@ -30,8 +31,35 @@ export function ScenePanel({ vision, onChange }: { vision: Vision; onChange(visi
   const setReactivity = (layerIndex: number, reactivity: Reactivity) =>
     onChange(updateSectionLayer(vision, index, layerIndex, { reactivity }))
 
+  const palette = vision.palette
+  const setPalette = (colors: string[]) => onChange(setVisionPalette(vision, colors))
+
   return (
     <section className="scene-panel" aria-label="Scenes">
+      <div className="scene-palette" aria-label="Palette">
+        <span className="scene-layer-name">Palette</span>
+        {palette.map((color, i) => (
+          <span key={i} className="scene-swatch">
+            <input
+              type="color"
+              aria-label={`Color ${i + 1}`}
+              value={color}
+              onChange={(e) => setPalette(palette.map((c, j) => (j === i ? e.target.value : c)))}
+            />
+            {palette.length > MIN_COLORS && (
+              <button className="link" aria-label={`Remove color ${i + 1}`} onClick={() => setPalette(palette.filter((_, j) => j !== i))}>
+                ×
+              </button>
+            )}
+          </span>
+        ))}
+        {palette.length < MAX_COLORS && (
+          <button className="link" onClick={() => setPalette([...palette, palette[0]!])}>
+            Add color
+          </button>
+        )}
+      </div>
+
       <div className="scene-sections" role="tablist">
         {vision.sections.map((s, i) => (
           <button

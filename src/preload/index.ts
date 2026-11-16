@@ -8,7 +8,8 @@ const api: ElyntApi = {
   tracks: {
     list: () => ipcRenderer.invoke(channels.listTracks),
     addFromPickedMixdown: () => ipcRenderer.invoke(channels.addFromPickedMixdown),
-    readMixdown: (trackId) => ipcRenderer.invoke(channels.readMixdown, trackId)
+    readMixdown: (trackId) => ipcRenderer.invoke(channels.readMixdown, trackId),
+    rename: (trackId, title) => ipcRenderer.invoke(channels.renameTrack, trackId, title)
   },
   stems: {
     list: (trackId) => ipcRenderer.invoke(channels.listStems, trackId),
@@ -60,6 +61,8 @@ const api: ElyntApi = {
   analysis: {
     get: (trackId) => ipcRenderer.invoke(channels.getAnalysis, trackId),
     rerun: (trackId) => ipcRenderer.invoke(channels.rerunAnalysis, trackId),
+    saveCorrection: (trackId, analysis) => ipcRenderer.invoke(channels.saveAnalysisCorrection, trackId, analysis),
+    skipCheck: (trackId) => ipcRenderer.invoke(channels.skipAnalysisCheck, trackId),
     onChange: (listener) => {
       const handler = (_event: Electron.IpcRendererEvent, state: TrackAnalysisState) => listener(state)
       ipcRenderer.on(channels.analysisChanged, handler)

@@ -18,8 +18,11 @@ export interface Section {
   startBar: number
   /** 0 to 1: how clear the change and the label were. */
   confidence: number
-  /** "heuristic": from energy and low end on the bar grid (no model labels builds or drops). */
-  source: 'heuristic'
+  /**
+   * "heuristic": from energy and low end on the bar grid (no model labels builds or drops).
+   * "owner": moved or relabelled by the owner in the "What I heard" check (V3).
+   */
+  source: 'heuristic' | 'owner'
 }
 
 export type MoodLabel = 'euphoric' | 'dark' | 'dreamy' | 'melancholic' | 'uplifting' | 'moody'
@@ -88,6 +91,12 @@ export type AnalysisStatus =
   | 'done'
   | 'failed'
 
+/**
+ * Where the "What I heard" check (V3) stands for the latest analysis: not seen yet, confirmed
+ * (with or without corrections), or skipped by the owner. A new analysis run starts it over.
+ */
+export type HeardCheck = 'unchecked' | 'confirmed' | 'skipped'
+
 export interface TrackAnalysisState {
   trackId: number
   status: AnalysisStatus
@@ -97,4 +106,7 @@ export interface TrackAnalysisState {
   error: string | null
   /** ISO 8601 time `analysis` was made. */
   analyzedAt: string | null
+  check: HeardCheck
+  /** ISO 8601 time the owner confirmed or skipped the check. */
+  checkedAt: string | null
 }

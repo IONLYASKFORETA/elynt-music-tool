@@ -130,5 +130,16 @@ export const migrations: Migration[] = [
         updated_at  TEXT NOT NULL  -- when status last changed; the queue runs oldest first
       );
     `
+  },
+  {
+    version: 8,
+    name: 'what I heard check',
+    // The "What I heard" check (V3). The owner's corrections overwrite result in place, so every
+    // tool reads them; check says whether the owner confirmed it, skipped it, or hasn't seen it yet.
+    sql: `
+      ALTER TABLE track_analysis ADD COLUMN check_state TEXT NOT NULL DEFAULT 'unchecked'
+        CHECK (check_state IN ('unchecked', 'confirmed', 'skipped'));
+      ALTER TABLE track_analysis ADD COLUMN checked_at TEXT;
+    `
   }
 ]

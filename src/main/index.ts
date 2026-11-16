@@ -9,6 +9,7 @@ import { benchPassed, formatBenchReport, lumaPsnr, parseBenchArgs } from './expo
 import { createVideoExports } from './export/exports'
 import { decodeFrame, probeExport, resolveFfmpegPath } from './export/ffmpeg'
 import { channels } from '../shared/api'
+import type { TrackAnalysis, TrackAnalysisState } from '../shared/analysis'
 import { createAnalysisQueue, createTrackAnalysisStore } from './analysis'
 import { createBackups } from './backup'
 import { openSuiteDatabase } from './db/database'
@@ -78,6 +79,7 @@ function start(): void {
   const usage = createUsageLog(db)
 
   ipcMain.handle(channels.listTracks, () => tracks.list())
+  ipcMain.handle(channels.renameTrack, (_event, trackId: number, title: unknown) => tracks.rename(trackId, String(title)))
   ipcMain.handle(channels.addFromPickedMixdown, async (event) => {
     const parent = BrowserWindow.fromWebContents(event.sender)
     const options: Electron.OpenDialogOptions = {
@@ -117,6 +119,15 @@ function start(): void {
     }
   })
   ipcMain.handle(channels.getAnalysis, (_event, trackId: number) => analysisStore.get(trackId))
+  // The "What I heard" check (V3): the owner's corrections replace the heard analysis on the track.
+  const broadcastAnalysis = (state: TrackAnalysisState) => {
+    for (const win of BrowserWindow.getAllWindows()) win.webContents.send(channels.analysisChanged, state)
+    return state
+  }
+  ipcMain.handle(channels.saveAnalysisCorrection, (_event, trackId: number, corrected: TrackAnalysis) =>
+    broadcastAnalysis(analysisStore.saveCorrection(trackId, corrected))
+  )
+  ipcMain.handle(channels.skipAnalysisCheck, (_event, trackId: number) => broadcastAnalysis(analysisStore.skipCheck(trackId)))
   ipcMain.handle(channels.rerunAnalysis, (_event, trackId: number) => {
     if (!tracks.get(trackId)) throw new Error(`No track with id ${trackId}`)
     return analysis.enqueue(trackId)

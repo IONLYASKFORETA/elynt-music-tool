@@ -1,11 +1,14 @@
+import type { FormatId, Rect } from '../../../shared/formats'
+
 /**
  * Poster Type's words and where they sit (the layer itself is layers/poster-type.ts). Pure: the
  * renderer rasterizes the layout this gives, and nothing here touches a canvas, so it is the same
  * for the preview and the export.
  *
  * Every block hangs off an anchor given as a share of the frame, with its size a share of the
- * frame's shorter side. Another aspect ratio (V16 formats) re-flows the type by passing other
- * anchors, or the same ones, to `layoutPosterType`.
+ * frame's shorter side. Each format (V16) has its own anchors, set as shares of its safe zone
+ * (`anchorsInFormat` turns them into shares of the frame), and the layout keeps every block
+ * inside that zone.
  */
 
 /** The blocks of Poster Type, in the order downbeats reveal them. */
@@ -42,6 +45,53 @@ export const POSTER_ANCHORS: TypeAnchors = {
   katakana: { x: 0.94, y: 0.08, alignX: 1, alignY: 0, size: 0.075, maxLength: 0.84, vertical: true },
   words: { x: 0.6, y: 0.84, alignX: 0, alignY: 0, size: 0.026, maxLength: 0.24 }
 }
+
+/** 9:16: a tall stack low in the safe zone, title over artist over words, katakana down the right. */
+export const VERTICAL_ANCHORS: TypeAnchors = {
+  title: { x: 0.02, y: 0.78, alignX: 0, alignY: 1, size: 0.15, maxLength: 0.96 },
+  artist: { x: 0.025, y: 0.8, alignX: 0, alignY: 0, size: 0.05, maxLength: 0.7 },
+  katakana: { x: 0.98, y: 0, alignX: 1, alignY: 0, size: 0.08, maxLength: 0.6, vertical: true },
+  words: { x: 0.025, y: 0.9, alignX: 0, alignY: 0, size: 0.03, maxLength: 0.6 }
+}
+
+/** 1:1: the 16:9 poster pulled in, with a narrower column for the owner's words. */
+export const SQUARE_ANCHORS: TypeAnchors = {
+  title: { x: 0.03, y: 0.8, alignX: 0, alignY: 1, size: 0.13, maxLength: 0.9 },
+  artist: { x: 0.035, y: 0.83, alignX: 0, alignY: 0, size: 0.045, maxLength: 0.55 },
+  katakana: { x: 0.97, y: 0.02, alignX: 1, alignY: 0, size: 0.07, maxLength: 0.7, vertical: true },
+  words: { x: 0.62, y: 0.83, alignX: 0, alignY: 0, size: 0.026, maxLength: 0.35 }
+}
+
+/** Each format's anchors, as shares of its safe zone (16:9's zone is the whole frame). */
+export const FORMAT_ANCHORS: Record<FormatId, TypeAnchors> = {
+  wide: POSTER_ANCHORS,
+  vertical: VERTICAL_ANCHORS,
+  square: SQUARE_ANCHORS
+}
+
+/** The owner's moves of single blocks in one format, in the same shares of its safe zone. */
+export type AnchorTweaks = Partial<Record<TypeBlockId, Partial<Pick<TypeAnchor, 'x' | 'y' | 'size'>>>>
+
+/**
+ * A format's anchors with the owner's tweaks, turned from shares of the safe zone into shares of
+ * the frame. Anchor points are held inside the zone.
+ */
+export function anchorsInFormat(format: FormatId, safe: Rect, tweaks: AnchorTweaks = {}): TypeAnchors {
+  const base = FORMAT_ANCHORS[format]
+  const out = {} as TypeAnchors
+  for (const id of TYPE_BLOCKS) {
+    const a = { ...base[id], ...tweaks[id] }
+    out[id] = {
+      ...a,
+      x: safe.x + clamp01(a.x) * safe.width,
+      y: safe.y + clamp01(a.y) * safe.height,
+      maxLength: a.maxLength * (a.vertical ? safe.height : safe.width)
+    }
+  }
+  return out
+}
+
+const clamp01 = (v: number) => Math.min(1, Math.max(0, v))
 
 interface TypeStyle {
   family: string
@@ -87,16 +137,28 @@ export interface TypeLayout {
   blocks: TypeBlock[]
 }
 
+/** A part of the frame, as shares of its width and height (a format's safe zone). */
+export type TypeBounds = Rect
+
+const WHOLE: TypeBounds = { x: 0, y: 0, width: 1, height: 1 }
+
+/**
+ * Lays the blocks out on their anchors. With `bounds` (a format's safe zone, V16), every block
+ * is kept inside it: no line runs longer than the bounds allow, and a block that would cross
+ * an edge is moved back in.
+ */
 export function layoutPosterType(
   text: TypeText,
   anchors: TypeAnchors,
   size: { width: number; height: number },
-  measure: Measure
+  measure: Measure,
+  bounds: TypeBounds = WHOLE
 ): TypeLayout {
+  const px = { x: bounds.x * size.width, y: bounds.y * size.height, width: bounds.width * size.width, height: bounds.height * size.height }
   const blocks: TypeBlock[] = []
   for (const id of TYPE_BLOCKS) {
     const content = text[id].trim()
-    if (content) blocks.push(layoutBlock(id, content, anchors[id], size, measure))
+    if (content) blocks.push(layoutBlock(id, content, anchors[id], size, measure, px))
   }
   return { ...size, blocks }
 }
@@ -108,12 +170,15 @@ function layoutBlock(
   content: string,
   anchor: TypeAnchor,
   size: { width: number; height: number },
-  measure: Measure
+  measure: Measure,
+  bounds: TypeBounds
 ): TypeBlock {
   const style = STYLES[id]
   const textToSet = style.uppercase ? content.toUpperCase() : content
   let fontPx = anchor.size * Math.min(size.width, size.height)
-  const maxLength = anchor.maxLength * (anchor.vertical ? size.height : size.width)
+  const maxLength = anchor.vertical
+    ? Math.min(anchor.maxLength * size.height, bounds.height)
+    : Math.min(anchor.maxLength * size.width, bounds.width)
 
   let rows: string[]
   let width: number
@@ -137,8 +202,8 @@ function layoutBlock(
 
   const advance = style.lineHeight * fontPx
   const height = rows.length * advance
-  const x = anchor.x * size.width - anchor.alignX * width
-  const y = anchor.y * size.height - anchor.alignY * height
+  const x = within(anchor.x * size.width - anchor.alignX * width, width, bounds.x, bounds.width)
+  const y = within(anchor.y * size.height - anchor.alignY * height, height, bounds.y, bounds.height)
   const align = anchor.vertical ? 'center' : anchor.alignX === 0 ? 'left' : anchor.alignX === 1 ? 'right' : 'center'
   const lineX = align === 'left' ? x : align === 'right' ? x + width : x + width / 2
   return {
@@ -149,6 +214,11 @@ function layoutBlock(
     lines: rows.map((r, i) => ({ text: r, x: lineX, y: y + i * advance })),
     box: { x, y, width, height }
   }
+}
+
+/** Moves a span starting at `at` back inside [start, start + room]; one too big for the room starts at its start. */
+function within(at: number, length: number, start: number, room: number): number {
+  return Math.max(start, Math.min(at, start + room - length))
 }
 
 /** Greedy word wrap, keeping the line breaks that were typed. A word too long for a line gets one to itself. */

@@ -1,0 +1,13 @@
+{
+  "checked": null,
+  "note": "Conservative working margins from research/platform-specs, not yet checked against TikTok's and Instagram's current safe-zone templates. Shares of the frame. On 1080x1920, vertical keeps clear of the top 288 px, the bottom 442 px, the left 65 px and the right 173 px; the focus area is the central 4:5 (1080x1350) that survives feed and grid crops.",
+  "formats": {
+    "vertical": {
+      "margins": { "top": 0.15, "right": 0.16, "bottom": 0.23, "left": 0.06 },
+      "focus": { "top": 0.1484, "right": 0, "bottom": 0.1484, "left": 0 }
+    },
+    "square": {
+      "margins": { "top": 0.07, "right": 0.07, "bottom": 0.1, "left": 0.07 }
+    }
+  }
+}

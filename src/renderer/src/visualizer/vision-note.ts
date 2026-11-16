@@ -11,7 +11,7 @@ import type { Vision } from './vision'
  * data at that scope, what can change there, and a schema offering only the changes the scope
  * allows. Claude's change set comes back through `applyChangeSet` (controls.ts), which checks it.
  */
-export function noteRequest(vision: Vision, scope: Scope, note: string, trackId: number): VisionNoteRequest {
+export function noteRequest(vision: Vision, scope: Scope, note: string, trackId?: number): VisionNoteRequest {
   const context = {
     scope: scopeLabel(vision, scope),
     note,

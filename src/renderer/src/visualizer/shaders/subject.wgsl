@@ -1,5 +1,6 @@
 // Subject: an image (layerTex) fitted into the frame over the picture below, with a palette glow
 // off its edges. p0 = (height as a share of the frame, centre x, centre y, glow).
+// p1.x = own media (V18): 0 none (a generated or picked image, as it is), 1 treated, 2 untreated.
 
 @fragment
 fn fs(in: VsOut) -> @location(0) vec4f {
@@ -20,6 +21,10 @@ fn fs(in: VsOut) -> @location(0) vec4f {
   let img = textureSampleLevel(layerTex, samp, clamp(local, vec2f(0.0), vec2f(1.0)), 0.0);
   let inBox = all(local >= vec2f(0.0)) && all(local <= vec2f(1.0));
   let a = select(0.0, img.a, inBox);
+  var rgb = img.rgb;
+  if (frame.p1.x > 0.5) {
+    rgb = media_look(rgb, in.uv * res, frame.p1.x);
+  }
 
   // Glow: how much of the image is close by, where the image itself isn't.
   var near = 0.0;
@@ -33,5 +38,5 @@ fn fs(in: VsOut) -> @location(0) vec4f {
   let halo = near / 8.0 * (1.0 - a) * frame.p0.w;
   let glow = pal_ramp(local.y * 0.8 + time() * 0.08) * halo;
 
-  return vec4f(mix(base, img.rgb, a) + glow, 1.0);
+  return vec4f(mix(base, rgb, a) + glow, 1.0);
 }

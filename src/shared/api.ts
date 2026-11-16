@@ -1,13 +1,17 @@
 import type { BenchConfig, BenchReport, FileCheck } from './bench'
+import type { SafeZones } from './formats'
 import type { ExportFormatId, ExportJob, ExportRequest, ExportResult } from './export'
 import type { TrackAnalysis, TrackAnalysisState } from './analysis'
 import type { AudioProbe, HelperStatus } from './helper'
 import type { KeyName, KeyStatus, KeyTestResult } from './keys'
 import type { BackupStatus } from './backup'
+import type { LiveSet } from './live-set'
+import type { CoverArt, MediaItem } from './media'
 import type { MixSetup } from './mix-setup'
 import type { ArtistProfile } from './profile'
 import type { Release, ReleaseWithPlan, StartRelease } from './release'
 import type { SplitJob, Stem } from './stems'
+import type { SubjectImage, SubjectImageRequest, SubjectJob } from './subject-images'
 import type { Track } from './track'
 import type { VisionNoteRequest, VisionNoteResult } from './vision-note'
 
@@ -82,6 +86,12 @@ export interface ElyntApi {
     /** Shows a finished video in Explorer. */
     reveal(path: string): Promise<void>
   }
+  visualizer: {
+    /** The safe zones per format (V16): the owner's safe-zones.json beside the database, else the shipped margins. Read fresh each call. */
+    safeZones(): Promise<SafeZones>
+    /** Sends a note from the editor's note box (V14) to Claude; resolves to its unchecked change set or a message. */
+    askNote(request: VisionNoteRequest): Promise<VisionNoteResult>
+  }
   /** The export benchmark: only active when the app was started with --bench-export. */
   bench: {
     config(): Promise<BenchConfig | null>
@@ -100,6 +110,11 @@ export interface ElyntApi {
     /** The path on disk of a file dropped onto the window. */
     pathForDroppedFile(file: File): string
   }
+  /** The Live Set reader (M1). */
+  liveSet: {
+    /** Opens a file picker for an .als and reads it in the helper. Null if cancelled. */
+    pickAndRead(): Promise<LiveSet | null>
+  }
   /** Track analysis (V1): tempo, beats, sections, energy and mood, saved on the track. */
   analysis: {
     /** Null until the track has been queued for analysis. */
@@ -113,10 +128,21 @@ export interface ElyntApi {
     /** Calls back whenever any track's analysis changes. Returns a function that stops listening. */
     onChange(listener: (state: TrackAnalysisState) => void): () => void
   }
-  /** The Visualizer's calls to Claude. */
-  visualizer: {
-    /** Sends a note from the editor's note box; resolves to Claude's unchecked change set or a message. */
-    askNote(request: VisionNoteRequest): Promise<VisionNoteResult>
+  /**
+   * Subject images (V9): options for a track's Subject layers, made ahead of time by the helper's
+   * local image model. Show one with mediaUrl(image.path) from shared/subject-images.
+   */
+  subjectImages: {
+    list(trackId: number): Promise<SubjectImage[]>
+    /** Generates `count` options of one motif, one after another. Resolves to the new ones. */
+    generate(trackId: number, request: SubjectImageRequest, count: number): Promise<SubjectImage[]>
+    /** A new option from the same prompt with a fresh seed. */
+    regenerate(imageId: number): Promise<SubjectImage>
+    /** Drops an option and deletes its file. */
+    remove(imageId: number): Promise<void>
+    jobs(): Promise<SubjectJob[]>
+    /** Calls back as a generation starts, reports progress, finishes ('done') or fails. */
+    onJob(listener: (job: SubjectJob | { trackId: number; state: 'done' }) => void): () => void
   }
   helper: {
     status(): Promise<HelperStatus>
@@ -124,6 +150,22 @@ export interface ElyntApi {
     onStatus(listener: (status: HelperStatus) => void): () => void
     /** Asks the helper to read a track's mixdown header: duration, sample rate, channels. */
     probeTrack(trackId: number): Promise<AudioProbe>
+  }
+  /**
+   * The media shelf (V18): the owner's images, clips and logo, by path, for any track, and each
+   * track's cover art. Layers load them from the addresses in src/shared/media.ts.
+   */
+  media: {
+    list(): Promise<MediaItem[]>
+    /** Opens a picker for images and clips and puts them on the shelf. Resolves to the picked items, empty if cancelled. */
+    addPicked(): Promise<MediaItem[]>
+    remove(id: number): Promise<MediaItem[]>
+    /** Makes a shelf image the logo (null for none). Resolves to the whole shelf. */
+    setLogo(id: number | null): Promise<MediaItem[]>
+    coverArt(trackId: number): Promise<CoverArt | null>
+    /** Opens a picker for the track's cover art. Resolves to it, or to the old one if cancelled. */
+    attachPickedCoverArt(trackId: number): Promise<CoverArt | null>
+    removeCoverArt(trackId: number): Promise<void>
   }
 }
 
@@ -154,6 +196,7 @@ export const channels = {
   getMixSetup: 'mix-setup:get',
   saveMixSetup: 'mix-setup:save',
   pickReferenceTracks: 'mix-setup:pick-reference-tracks',
+  pickAndReadLiveSet: 'live-set:pick-and-read',
   getAnalysis: 'analysis:get',
   rerunAnalysis: 'analysis:rerun',
   saveAnalysisCorrection: 'analysis:save-correction',
@@ -168,8 +211,22 @@ export const channels = {
   finishExport: 'exports:finish',
   cancelExport: 'exports:cancel',
   revealExport: 'exports:reveal',
+  safeZones: 'visualizer:safe-zones',
   benchConfig: 'bench:config',
   benchCheckFile: 'bench:check-file',
   benchReport: 'bench:report',
-  askVisionNote: 'visualizer:ask-note'
+  askVisionNote: 'visualizer:ask-note',
+  listMedia: 'media:list',
+  addPickedMedia: 'media:add-picked',
+  removeMedia: 'media:remove',
+  setLogo: 'media:set-logo',
+  getCoverArt: 'media:cover-art',
+  attachPickedCoverArt: 'media:attach-picked-cover-art',
+  removeCoverArt: 'media:remove-cover-art',
+  listSubjectImages: 'subject-images:list',
+  generateSubjectImages: 'subject-images:generate',
+  regenerateSubjectImage: 'subject-images:regenerate',
+  removeSubjectImage: 'subject-images:remove',
+  subjectJobs: 'subject-images:jobs',
+  subjectJobChanged: 'subject-images:job-changed'
 } as const

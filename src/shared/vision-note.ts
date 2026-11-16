@@ -4,7 +4,8 @@
  * the request from the vision and the layer library; the main process makes the call.
  */
 export interface VisionNoteRequest {
-  trackId: number
+  /** The track the note is about, for the cost log. */
+  trackId?: number
   system: string
   /** The note and the vision data at its scope. */
   prompt: string

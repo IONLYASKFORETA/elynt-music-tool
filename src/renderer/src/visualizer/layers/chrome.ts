@@ -1,9 +1,11 @@
+import { mediaFlag, mediaImage, type LayerMedia } from '../media'
 import type { Reactivity } from '../reactivity'
-import { clamp01, type LayerKindDef } from './kind'
+import { clamp01, type FramedLayerKindDef } from './kind'
 
 /**
  * Chrome (house style): iridescent holographic liquid metal, a few blobs melting into each other,
- * lit by the vision's palette with a thin-film rainbow on top. Spikes on the snare.
+ * lit by the vision's palette with a thin-film rainbow on top. Spikes on the snare. The owner's
+ * own image or clip (V18) can be what the metal reflects.
  */
 export interface ChromeLayer {
   kind: 'chrome'
@@ -16,16 +18,22 @@ export interface ChromeLayer {
   film: number
   /** How fast the blobs drift, in loops per minute. */
   flow: number
+  /** An image or clip reflected in the metal in place of the palette room; null reflects the palette. */
+  media: LayerMedia | null
 }
 
-export const CHROME: LayerKindDef<ChromeLayer> = {
+export const CHROME: FramedLayerKindDef<ChromeLayer> = {
   name: 'Chrome',
   reactivity: { reactsTo: 'snare', strength: 0.8 },
-  create: (reactivity) => ({ kind: 'chrome', size: 0.42, spikes: 0.12, film: 0.55, flow: 3, reactivity }),
+  create: (reactivity) => ({ kind: 'chrome', size: 0.42, spikes: 0.12, film: 0.55, flow: 3, media: null, reactivity }),
   respond: {
     hard: (l, a) => ({ ...l, spikes: clamp01(l.spikes + a), size: clamp01(l.size * (1 + 0.25 * a)), film: clamp01(l.film + 0.3 * a) }),
     medium: (l, a) => ({ ...l, spikes: clamp01(l.spikes + 0.8 * a), size: clamp01(l.size * (1 + 0.1 * a)) }),
     slow: (l, a) => ({ ...l, size: clamp01(l.size * (1 + 0.3 * a)), flow: l.flow * (1 + a) })
   },
-  params: (l) => [l.size, l.spikes, l.film, l.flow]
+  /** p0 = (size, spikes, film, flow), p1.x = own media (0 none, 1 treated, 2 untreated). */
+  pass: (l, { context, t }) => {
+    const params = [l.size, l.spikes, l.film, l.flow, mediaFlag(l.media)]
+    return l.media ? { params, image: mediaImage(l.media, t, context.sectionStart) } : { params }
+  }
 }

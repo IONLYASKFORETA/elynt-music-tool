@@ -37,6 +37,9 @@ _Avoid_: "theme", "style" (a vision is made for one track, not reused as-is).
 **House style**: the single visual world every vision lives inside; for the Visualizer, the spectral, glitch, holographic-chrome poster aesthetic. Tracks differ within it, never outside it.
 _Avoid_: "theme" (a vision is per track; the house style is shared by all of them).
 
+**Subject image**: a picture of one of a track's motifs (a machine, a sigil, a figure) in the house style on black or off-white, made ahead of time by the local image model for a Subject layer to show. A track keeps its generated options; the owner picks, regenerates or drops them.
+_Avoid_: "asset" (too broad), "artwork" or "cover art" (the release's cover is the owner's own).
+
 **Brief**: the owner's own idea for a track's visuals, given up front in their words, before the Visualizer asks anything.
 
 **Remix**: a fresh take on a chosen vision, steered by a note or by a part borrowed from another vision.
@@ -57,6 +60,11 @@ _Avoid_: confusing with a musical remix; a remix here only ever changes visuals.
 **Note**: a few words the owner types in the editor at a scope ("make the drop angrier"), which Claude turns into a change set for that scope.
 
 **Change set**: the list of concrete edits to a vision that answers a note, checked against the layer library and applied as one undo step.
+
+**Format**: the shape a vision is laid out in: 16:9, 9:16 or 1:1. The owner edits once and every format re-flows from it, with optional tweaks kept per format.
+_Avoid_: "aspect" (say format); an export's size, rate and bitrate is its export format, which names the format it lays out in.
+
+**Safe zone**: the part of a format's frame that platform buttons, captions and crops leave clear; important content is kept inside it. Its margins are data, conservative until checked against the platforms' templates.
 
 **Media shelf**: the owner's own reusable images, clips and logo, available to any track's visuals.
 

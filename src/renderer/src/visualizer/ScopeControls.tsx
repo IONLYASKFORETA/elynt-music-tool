@@ -57,7 +57,7 @@ export function NoteBox({
 }: {
   vision: Vision
   scope: Scope
-  trackId: number
+  trackId?: number
   onChange(vision: Vision): void
   placeholder: string
 }) {

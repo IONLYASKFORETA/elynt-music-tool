@@ -1,4 +1,8 @@
 import { useState } from 'react'
+import type { FormatId } from '../../../shared/formats'
+import { FormatTweakControls } from './FormatTweakControls'
+import { MediaControls } from './MediaControls'
+import type { OwnMedia } from './MediaShelf'
 import { PosterLayerControls } from './PosterLayerControls'
 import { NoteBox, ScopeSliders } from './ScopeControls'
 import { MAX_COLORS, MIN_COLORS } from './palette'
@@ -14,7 +18,15 @@ import {
   type LayerKind
 } from './scene'
 import { SIGNALS } from './signals'
-import { addSectionLayer, removeSectionLayer, setVisionPalette, updateSectionLayer, type Vision } from './vision'
+import {
+  acceptCoverArt,
+  addSectionLayer,
+  removeSectionLayer,
+  setVisionPalette,
+  updateSectionLayer,
+  visionImages,
+  type Vision
+} from './vision'
 
 /** Layer kinds the owner can add between Ground and Finish: every kind in the layer library but those two. */
 const ADDABLE_KINDS = (Object.keys(LAYER_NAMES) as LayerKind[]).filter((k) => !EXEMPT_KINDS.includes(k))
@@ -22,19 +34,28 @@ const ADDABLE_KINDS = (Object.keys(LAYER_NAMES) as LayerKind[]).filter((k) => !E
 /**
  * The scene panel, with controls at every scope (V14): the whole video, the picked section and
  * each of its layers have their own sliders and a note box for Claude. For each layer, what it
- * reacts to and how strongly; active layers can be added (up to the limit) and removed.
+ * reacts to and how strongly; active layers can be added (up to the limit) and removed. Poster
+ * layers also take tweaks for the format the preview shows (V16).
  */
+const NO_MEDIA: OwnMedia = { shelf: [], coverArt: null }
+
 export function ScenePanel({
   vision,
-  onChange,
   trackId,
+  format,
+  media = NO_MEDIA,
+  onChange,
   section: picked,
   onSection: setPicked
 }: {
   vision: Vision
+  /** The track the vision is for: its Subject layers offer its generated images. */
+  trackId?: number
+  /** The format the preview shows, which the poster layers' tweaks apply to. */
+  format: FormatId
+  /** The media shelf and the track's cover art, which Subject, Ground, Chrome and Poster Frame can use. */
+  media?: OwnMedia
   onChange(vision: Vision): void
-  /** The track whose vision this is, for the cost log of each note. */
-  trackId: number
   /** The picked section; the timeline picks it too. */
   section: number
   onSection(index: number): void
@@ -52,6 +73,10 @@ export function ScenePanel({
 
   const palette = vision.palette
   const setPalette = (colors: string[]) => onChange(setVisionPalette(vision, colors))
+
+  // The vision never asks for media; with cover art on the track, it offers it as a Subject.
+  const cover = media.coverArt
+  const offerCover = cover && !visionImages(vision).includes(cover.url) && canAddLayer(scene, 'subject')
 
   return (
     <section className="scene-panel" aria-label="Scenes">
@@ -111,6 +136,14 @@ export function ScenePanel({
           placeholder={`A note for this ${section.label}, like “make it angrier”`}
         />
       </div>
+      {offerCover && (
+        <div className="scene-cover-offer">
+          This track has cover art.{' '}
+          <button className="link" onClick={() => onChange(acceptCoverArt(vision, index, cover))}>
+            Use it as the Subject here
+          </button>
+        </div>
+      )}
 
       <ol className="scene-layers">
         {scene.layers.map((layer, i) => (
@@ -148,11 +181,15 @@ export function ScenePanel({
             <PosterLayerControls
               layer={layer}
               credits={vision.credits}
+              trackId={trackId}
+              palette={vision.palette}
               onChange={(patch) => onChange(updateSectionLayer(vision, index, i, patch))}
             />
             <button className="link" onClick={() => setNoteLayer(noteLayer === i ? null : i)}>
               Note
             </button>
+            <FormatTweakControls vision={vision} sectionIndex={index} layerIndex={i} format={format} onChange={onChange} />
+            <MediaControls layer={layer} media={media} onChange={(patch) => onChange(updateSectionLayer(vision, index, i, patch))} />
             {countsTowardLimit(layer.kind) && (
               <button className="link" onClick={() => onChange(removeSectionLayer(vision, index, i))}>
                 Remove

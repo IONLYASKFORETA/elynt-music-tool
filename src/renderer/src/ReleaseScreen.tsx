@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from 'react'
+import { Fragment, useCallback, useEffect, useState } from 'react'
 import { formatOffset, LANES, STEP_RULES, TAGS } from '../../shared/playbook'
 import type { Release, ReleaseWithPlan } from '../../shared/release'
+import { boardOf } from '../../shared/release-board'
 import { stepsByPhase, type PlanStep, type ReleasePlan } from '../../shared/release-plan'
 import type { Track } from '../../shared/track'
 
@@ -18,6 +19,19 @@ function formatDay(date: string, withYear = true): string {
     ...(withYear ? { year: 'numeric' } : {})
   })
 }
+
+/** Today as YYYY-MM-DD on this computer's clock. */
+function localToday(): string {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+const PLAN_TABS = [
+  { id: 'timeline', name: 'Timeline' },
+  { id: 'board', name: 'Board' }
+] as const
+
+type PlanTab = (typeof PLAN_TABS)[number]['id']
 
 /** The Release Assistant: start a release, then see its plan. */
 export function ReleaseScreen({ tracks }: { tracks: Track[] }) {
@@ -127,6 +141,7 @@ function StartRelease({ tracks, onStarted }: { tracks: Track[]; onStarted: (r: R
 function ReleasePlanView({ releaseId }: { releaseId: number }) {
   const [data, setData] = useState<ReleaseWithPlan | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [tab, setTab] = useState<PlanTab>('timeline')
 
   useEffect(() => {
     window.elynt.releases.get(releaseId).then(setData, (e: unknown) => setError(message(e)))
@@ -149,11 +164,19 @@ function ReleasePlanView({ releaseId }: { releaseId: number }) {
         </div>
       </header>
       <div className="plan-tabs" role="tablist">
-        <button role="tab" aria-selected="true" className="plan-tab active">
-          Timeline
-        </button>
+        {PLAN_TABS.map((t) => (
+          <button
+            key={t.id}
+            role="tab"
+            aria-selected={tab === t.id}
+            className={tab === t.id ? 'plan-tab active' : 'plan-tab'}
+            onClick={() => setTab(t.id)}
+          >
+            {t.name}
+          </button>
+        ))}
       </div>
-      <Timeline plan={plan} />
+      {tab === 'timeline' ? <Timeline plan={plan} /> : <Board plan={plan} />}
     </section>
   )
 }
@@ -186,43 +209,121 @@ function Timeline({ plan }: { plan: ReleasePlan }) {
   )
 }
 
+/** Weeks as columns, lanes as rows (#64). Clicking a step opens the same detail as Timeline. */
+function Board({ plan }: { plan: ReleasePlan }) {
+  const [selected, setSelected] = useState<string | null>(null)
+  const board = boardOf(plan, localToday())
+  const picked = plan.steps.find((s) => s.stepId === selected) ?? null
+
+  return (
+    <div className="board">
+      <div className="board-scroll">
+        <div className="board-grid" style={{ ['--weeks' as string]: board.weeks.length }}>
+          <div className="board-head board-corner">Lane</div>
+          {board.weeks.map((w) => (
+            <div key={w.offset} className={w.isNow ? 'board-head now' : 'board-head'}>
+              <strong>{w.label}</strong>
+              {formatDay(w.from, false)}
+            </div>
+          ))}
+          {board.lanes.map((lane) => (
+            <Fragment key={lane.lane}>
+              <div className="board-lane">{lane.name}</div>
+              {lane.cells.map((cell, i) => (
+                <div key={i} className={board.weeks[i]?.isNow ? 'board-cell now' : 'board-cell'}>
+                  {cell.map((s) => (
+                    <button
+                      key={s.stepId}
+                      className={[
+                        'board-step',
+                        s.hardDeadline && 'hard',
+                        s.status !== 'open' && `is-${s.status}`,
+                        s.stepId === selected && 'picked'
+                      ]
+                        .filter(Boolean)
+                        .join(' ')}
+                      aria-pressed={s.stepId === selected}
+                      title={`${formatDay(s.dueDate)} · ${formatOffset(s.offset)}${s.hardDeadline ? ' · Hard deadline' : ''}`}
+                      onClick={() => setSelected(s.stepId === selected ? null : s.stepId)}
+                    >
+                      {s.status === 'done' && <span aria-label="Done">✓ </span>}
+                      {s.step.title}
+                    </button>
+                  ))}
+                </div>
+              ))}
+            </Fragment>
+          ))}
+        </div>
+      </div>
+      {picked ? (
+        <div className={picked.hardDeadline ? 'step step-hard board-detail' : 'step board-detail'}>
+          <div className="step-row">
+            <StepSummary step={picked} />
+          </div>
+          <StepDetail step={picked} />
+        </div>
+      ) : (
+        <p className="hint">Click a step to see what to do, why and how.</p>
+      )}
+    </div>
+  )
+}
+
 function StepRow({ step: s }: { step: PlanStep }) {
   const [open, setOpen] = useState(false)
-  const tag = TAGS.find((t) => t.id === s.step.tag)?.name
-  const lane = LANES.find((l) => l.id === s.step.lane)?.name
-  const when = s.step.when
-  const rule = 'rule' in when ? STEP_RULES.find((r) => r.id === when.rule) : null
 
   return (
     <li className={s.hardDeadline ? 'step step-hard' : 'step'}>
       <button className="step-row" aria-expanded={open} onClick={() => setOpen(!open)}>
-        <span className="step-date">
-          {formatDay(s.dueDate, false)}
-          <small>{formatOffset(s.offset)}</small>
-        </span>
-        <span className="step-title">{s.step.title}</span>
-        <span className="step-tags">
-          {s.hardDeadline && <span className="badge badge-hard">Hard deadline</span>}
-          <span className={`badge badge-${s.step.tag}`}>{tag}</span>
-          <span className="badge">{lane}</span>
-        </span>
+        <StepSummary step={s} />
       </button>
-      {open && (
-        <dl className="step-detail">
-          {rule && (
-            <>
-              <dt>When</dt>
-              <dd>{rule.name}. Suggested for {formatDay(s.dueDate)}.</dd>
-            </>
-          )}
-          <dt>What</dt>
-          <dd>{s.step.what}</dd>
-          <dt>Why</dt>
-          <dd>{s.step.why}</dd>
-          <dt>How</dt>
-          <dd>{s.step.how}</dd>
-        </dl>
-      )}
+      {open && <StepDetail step={s} />}
     </li>
+  )
+}
+
+/** The step's date, title and tags, as one row. Shared by Timeline and Board. */
+function StepSummary({ step: s }: { step: PlanStep }) {
+  const tag = TAGS.find((t) => t.id === s.step.tag)?.name
+  const lane = LANES.find((l) => l.id === s.step.lane)?.name
+  return (
+    <>
+      <span className="step-date">
+        {formatDay(s.dueDate, false)}
+        <small>{formatOffset(s.offset)}</small>
+      </span>
+      <span className="step-title">{s.step.title}</span>
+      <span className="step-tags">
+        {s.hardDeadline && <span className="badge badge-hard">Hard deadline</span>}
+        <span className={`badge badge-${s.step.tag}`}>{tag}</span>
+        <span className="badge">{lane}</span>
+      </span>
+    </>
+  )
+}
+
+/** The step detail: When (for rule steps), What, Why and How. Shared by Timeline and Board. */
+function StepDetail({ step: s }: { step: PlanStep }) {
+  const when = s.step.when
+  const rule = 'rule' in when ? STEP_RULES.find((r) => r.id === when.rule) : null
+
+  return (
+    <dl className="step-detail">
+      {rule && (
+        <>
+          <dt>When</dt>
+          <dd>
+            {rule.name}. Suggested for {formatDay(s.dueDate)}.
+          </dd>
+        </>
+      )}
+      <dt>What</dt>
+      <dd>{s.step.what}</dd>
+      <dt>Why</dt>
+      <dd>{s.step.why}</dd>
+      <dt>How</dt>
+      <dd>{s.step.how}</dd>
+    </dl>
   )
 }

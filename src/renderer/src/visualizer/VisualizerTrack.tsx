@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
+import type { FormatId } from '../../../shared/formats'
 import type { Track } from '../../../shared/track'
 import { useTrackAnalysis } from './AnalysisStrip'
 import { HeardCheck } from './HeardCheck'
+import { MediaShelfPanel, useOwnMedia } from './MediaShelf'
 import { Preview } from './Preview'
 import { ScenePanel } from './ScenePanel'
 import { defaultVision } from './vision'
@@ -28,6 +30,8 @@ export function VisualizerTrack({ track, onRenamed }: { track: Track; onRenamed:
   const sectionsKey = JSON.stringify([sections.map((s) => [s.label, s.start, s.end]), grid.beats.length, grid.downbeats[0], analysis?.bpm])
   const [vision, setVision] = useState(() => defaultVision(sections, duration, grid))
   const [section, setSection] = useState(0)
+  // The format the preview shows and the scene panel tweaks (V16). Edits to the vision apply to every format.
+  const [format, setFormat] = useState<FormatId>('wide')
   useEffect(() => {
     setVision(defaultVision(sections, duration, grid))
   }, [track.id, sectionsKey])
@@ -44,6 +48,9 @@ export function VisualizerTrack({ track, onRenamed }: { track: Track; onRenamed:
       cancelled = true
     }
   }, [])
+  // Own media (V18): the shelf is shared by every track; cover art belongs to this one.
+  const [media, mediaActions] = useOwnMedia(track.id)
+
   const credited = useMemo(() => ({ ...vision, credits: { title: track.title, artist: artistName } }), [vision, track.title, artistName])
 
   if (checking) {
@@ -73,8 +80,11 @@ export function VisualizerTrack({ track, onRenamed }: { track: Track; onRenamed:
         onVisionChange={setVision}
         section={section}
         onSection={setSection}
+        format={format}
+        onFormatChange={setFormat}
       />
-      <ScenePanel vision={credited} onChange={setVision} trackId={track.id} section={section} onSection={setSection} />
+      <ScenePanel vision={credited} trackId={track.id} format={format} media={media} onChange={setVision} section={section} onSection={setSection} />
+      <MediaShelfPanel media={media} actions={mediaActions} />
     </>
   )
 }

@@ -321,6 +321,16 @@ h2 { font-size: 12px; letter-spacing: 0.3em; text-transform: uppercase; color: v
 .step-detail { margin: 0; padding: 0 12px 12px 134px; display: grid; grid-template-columns: 60px 1fr; gap: 6px 12px; font-size: 14px; }
 .step-detail dt { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.1em; padding-top: 2px; }
 .step-detail dd { margin: 0; line-height: 1.45; }
+/* R3: Today view, header stats and step actions */
+.plan-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+.plan-stats { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; color: var(--muted); }
+.plan-stats strong { color: var(--text); }
+.plan-move-day { display: flex; gap: 6px; align-items: center; font-size: 13px; }
+.plan-lost { border: 1px solid #ff3d5a; background: #2a0b12; color: #ffd0d8; border-radius: 6px; padding: 10px 12px; margin: 8px 0; }
+.step-actions { grid-column: 2; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding-top: 6px; }
+.step-done .step-title, .step-skipped .step-title { color: var(--muted); text-decoration: line-through; }
+.badge-status-done { color: #3dffb4; }
+.badge-status-missed { color: #ff6b80; }
 .board { display: flex; flex-direction: column; gap: 16px; }
 .board-scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
 .board-grid { display: grid; grid-template-columns: 112px repeat(var(--weeks), minmax(132px, 1fr)); min-width: calc(112px + var(--weeks) * 132px); }

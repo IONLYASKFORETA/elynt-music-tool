@@ -31,6 +31,7 @@ import { CLIP_EXTENSIONS, IMAGE_EXTENSIONS } from '../shared/media'
 import { REFERENCE_EXTENSIONS, type MixSetup } from '../shared/mix-setup'
 import type { ArtistProfile } from '../shared/profile'
 import type { StartRelease } from '../shared/release'
+import { parseStepAction, type StepAction } from '../shared/release-plan-actions'
 import { createTrackStems, type StemSplitter } from './stems'
 import { createSubjectImages, type SubjectGenerator } from './subject-images'
 import { MEDIA_SCHEME, mediaPath, type SubjectImageRequest } from '../shared/subject-images'
@@ -448,6 +449,13 @@ function start(): void {
   ipcMain.handle(channels.getRelease, (_event, releaseId: number) => releases.get(releaseId))
   ipcMain.handle(channels.startRelease, (_event, input: StartRelease) =>
     releases.start({ trackId: Number(input.trackId), releaseDay: String(input.releaseDay) })
+  )
+  ipcMain.handle(channels.openReleaseToday, (_event, releaseId: number) => releases.openToday(Number(releaseId)))
+  ipcMain.handle(channels.actOnPlanStep, (_event, releaseId: number, stepId: string, action: StepAction) =>
+    releases.actOnStep(Number(releaseId), String(stepId), parseStepAction(action))
+  )
+  ipcMain.handle(channels.moveReleaseDay, (_event, releaseId: number, newDay: string) =>
+    releases.moveReleaseDay(Number(releaseId), String(newDay))
   )
 
   const visionHistory = createVisionHistoryStore(db)

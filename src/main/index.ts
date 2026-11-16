@@ -18,6 +18,8 @@ import { createHelperSupervisor } from './helper/supervisor'
 import { createMixSetupStore } from './mix-setup'
 import { createProfileStore } from './profile'
 import { createReleaseStore } from './releases'
+import type { PresetLevel } from '../shared/vision-history'
+import { createPresetStore, createVisionHistoryStore } from './vision-history'
 import { isKeyName } from '../shared/keys'
 import { ClaudeError, createClaudeClient, createUsageLog } from './claude'
 import { createGeminiTransport, createMoodListener } from './gemini'
@@ -330,6 +332,20 @@ function start(): void {
   ipcMain.handle(channels.startRelease, (_event, input: StartRelease) =>
     releases.start({ trackId: Number(input.trackId), releaseDay: String(input.releaseDay) })
   )
+
+  const visionHistory = createVisionHistoryStore(db)
+  const presets = createPresetStore(db)
+  ipcMain.handle(channels.currentVisionHistory, (_event, key: unknown) => visionHistory.current(String(key)))
+  ipcMain.handle(channels.recordVisionHistory, (_event, key: unknown, vision: unknown) => visionHistory.record(String(key), vision))
+  ipcMain.handle(channels.undoVision, (_event, key: unknown) => visionHistory.undo(String(key)))
+  ipcMain.handle(channels.redoVision, (_event, key: unknown) => visionHistory.redo(String(key)))
+  ipcMain.handle(channels.saveVisionSnapshot, (_event, key: unknown, name: unknown) => visionHistory.saveSnapshot(String(key), String(name)))
+  ipcMain.handle(channels.listVisionSnapshots, (_event, key: unknown) => visionHistory.listSnapshots(String(key)))
+  ipcMain.handle(channels.restoreVisionSnapshot, (_event, id: unknown) => visionHistory.restoreSnapshot(Number(id)))
+  ipcMain.handle(channels.deleteVisionSnapshot, (_event, id: unknown) => visionHistory.deleteSnapshot(Number(id)))
+  ipcMain.handle(channels.savePreset, (_event, level: PresetLevel, name: unknown, data: unknown) => presets.save(level, String(name), data))
+  ipcMain.handle(channels.listPresets, (_event, level?: PresetLevel) => presets.list(level))
+  ipcMain.handle(channels.deletePreset, (_event, id: unknown) => presets.delete(Number(id)))
 
   ipcMain.handle(channels.getMixSetup, (_event, trackId: number) => mixSetup.get(trackId))
   ipcMain.handle(channels.saveMixSetup, (_event, input: MixSetup) => mixSetup.save(input))

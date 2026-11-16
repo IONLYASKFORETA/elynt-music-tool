@@ -75,6 +75,21 @@ const api: ElyntApi = {
       return () => ipcRenderer.off(channels.analysisChanged, handler)
     }
   },
+  visionHistory: {
+    current: (key) => ipcRenderer.invoke(channels.currentVisionHistory, key),
+    record: (key, vision) => ipcRenderer.invoke(channels.recordVisionHistory, key, vision),
+    undo: (key) => ipcRenderer.invoke(channels.undoVision, key),
+    redo: (key) => ipcRenderer.invoke(channels.redoVision, key),
+    saveSnapshot: (key, name) => ipcRenderer.invoke(channels.saveVisionSnapshot, key, name),
+    listSnapshots: (key) => ipcRenderer.invoke(channels.listVisionSnapshots, key),
+    restoreSnapshot: (id) => ipcRenderer.invoke(channels.restoreVisionSnapshot, id),
+    deleteSnapshot: (id) => ipcRenderer.invoke(channels.deleteVisionSnapshot, id)
+  },
+  presets: {
+    save: (level, name, data) => ipcRenderer.invoke(channels.savePreset, level, name, data),
+    list: (level) => ipcRenderer.invoke(channels.listPresets, level),
+    delete: (id) => ipcRenderer.invoke(channels.deletePreset, id)
+  },
   helper: {
     status: () => ipcRenderer.invoke(channels.helperStatus),
     onStatus: (listener) => {

@@ -176,5 +176,41 @@ export const migrations: Migration[] = [
       );
       CREATE INDEX plan_steps_release ON plan_steps (release_id, position);
     `
+  },
+  {
+    version: 11,
+    name: 'vision history, snapshots and presets',
+    // Visualizer undo, snapshots and presets (V15). History keeps every state of a vision as a
+    // whole, as JSON, keyed by a vision key (the editor's vision of a track for now), so whatever
+    // a vision holds gets undo. cursor is the seq of the state showing; later seqs are redo.
+    sql: `
+      CREATE TABLE vision_history (
+        vision_key  TEXT NOT NULL,
+        seq         INTEGER NOT NULL,
+        vision      TEXT NOT NULL,
+        recorded_at TEXT NOT NULL,
+        PRIMARY KEY (vision_key, seq)
+      );
+      CREATE TABLE vision_history_cursor (
+        vision_key TEXT PRIMARY KEY,
+        seq        INTEGER NOT NULL
+      );
+      CREATE TABLE vision_snapshots (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        vision_key TEXT NOT NULL,
+        name       TEXT NOT NULL,
+        vision     TEXT NOT NULL,
+        saved_at   TEXT NOT NULL
+      );
+      CREATE INDEX vision_snapshots_key ON vision_snapshots (vision_key);
+      -- Presets are the owner's, not a track's: a layer, a scene or a whole vision, as JSON.
+      CREATE TABLE presets (
+        id       INTEGER PRIMARY KEY AUTOINCREMENT,
+        level    TEXT NOT NULL CHECK (level IN ('layer', 'scene', 'vision')),
+        name     TEXT NOT NULL,
+        data     TEXT NOT NULL,
+        saved_at TEXT NOT NULL
+      );
+    `
   }
 ]

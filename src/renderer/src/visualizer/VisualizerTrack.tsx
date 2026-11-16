@@ -4,7 +4,10 @@ import { useTrackAnalysis } from './AnalysisStrip'
 import { HeardCheck } from './HeardCheck'
 import { Preview } from './Preview'
 import { ScenePanel } from './ScenePanel'
-import { defaultVision } from './vision'
+import { trackVisionKey } from '../../../shared/vision-history'
+import { HistoryPanel } from './HistoryPanel'
+import { useVisionHistory } from './use-vision-history'
+import { defaultVision, visionFitsTrack } from './vision'
 
 /**
  * The Visualizer for one picked track. Once it's analysed, the "What I heard" check comes
@@ -19,18 +22,22 @@ export function VisualizerTrack({ track, onRenamed }: { track: Track; onRenamed:
   // A fresh result the owner hasn't seen yet opens the check by itself.
   const checking = analysis && (reopened || (state?.status === 'done' && state.check === 'unchecked'))
 
-  // One scene per section. Edits live for this visit; moving or relabelling sections starts the scenes over.
-  // (Saving visions comes with the vision flow, V10.)
+  // One scene per section. Every edit goes into the vision's history (V15), which survives a
+  // restart; moving or relabelling sections, or a nudged grid, starts the scenes over, as an edit.
   const sections = analysis?.sections ?? []
   const duration = analysis?.durationSeconds ?? 0
   const grid = { beats: analysis?.beats ?? [], downbeats: analysis?.downbeats ?? [] }
-  // Moments and transitions sit on the beat grid, so a nudged grid starts them over too.
-  const sectionsKey = JSON.stringify([sections.map((s) => [s.label, s.start, s.end]), grid.beats.length, grid.downbeats[0], analysis?.bpm])
-  const [vision, setVision] = useState(() => defaultVision(sections, duration, grid))
+  const trackShape = JSON.stringify([sections.map((s) => [s.label, s.start, s.end]), grid.beats, grid.downbeats, duration])
+  const visionKey = trackVisionKey(track.id)
+  const history = useVisionHistory({
+    key: visionKey,
+    ready: analysis !== null,
+    trackShape,
+    fresh: () => defaultVision(sections, duration, grid),
+    fits: (v) => visionFitsTrack(v, sections, grid, duration)
+  })
+  const { vision, setVision } = history
   const [section, setSection] = useState(0)
-  useEffect(() => {
-    setVision(defaultVision(sections, duration, grid))
-  }, [track.id, sectionsKey])
 
   // Poster layers set the track's title and the artist's name from the artist profile.
   const [artistName, setArtistName] = useState('')
@@ -75,6 +82,7 @@ export function VisualizerTrack({ track, onRenamed }: { track: Track; onRenamed:
         onSection={setSection}
       />
       <ScenePanel vision={credited} onChange={setVision} section={section} onSection={setSection} />
+      <HistoryPanel visionKey={visionKey} history={history} section={section} />
     </>
   )
 }

@@ -9,7 +9,8 @@ import { NO_SIGNALS, signalAt, type Tier, type TrackSignals } from './signals'
 import { POSTER_FRAME, type PosterFrameLayer } from './layers/poster-frame'
 import { POSTER_TYPE, type PosterTypeLayer } from './layers/poster-type'
 import { SUBJECT, type SubjectLayer } from './layers/subject'
-import type { TypeAnchors, TypeText } from './type-layout'
+import type { TypeAnchors, TypeBounds, TypeText } from './type-layout'
+import { WIDE_LAYOUT, type FormatLayout } from '../../../shared/formats'
 
 /**
  * The layer data model (GLOSSARY: Layer, Scene). A scene is plain data: the
@@ -157,11 +158,41 @@ export const BUILD_OFFSET = 12
 export const PALETTE_OFFSET = 16
 export const UNIFORM_FLOATS = PALETTE_OFFSET + PALETTE_FLOATS
 
+/**
+ * Passes that are not layers of the library: a white flash (a moment), and the transition
+ * that composites two scenes (V13).
+ */
+export type EffectKind = 'flash' | 'transition'
+/**
+ * What one step of a frame does. A "hold" step draws nothing: it sets the picture so far aside
+ * and starts the next passes from black, and the next transition pass reads the held picture.
+ */
+export type PassKind = DrawnKind | 'hold'
+/** The passes that run a shader. */
+export type DrawnKind = LayerKind | EffectKind
+
 export interface LayerPass {
-  kind: LayerKind
+  kind: PassKind
   uniforms: Float32Array
   /** A picture the pass draws from, for the layers that need one (type, a subject image). */
   image?: PassImage
+}
+
+/** One pass's uniforms: the frame row, up to 8 floats of its own parameters, the build, the palette. */
+export function passUniforms(
+  t: number,
+  features: AudioFeatures,
+  size: { width: number; height: number },
+  params: number[],
+  build: number,
+  palette: Palette
+): Float32Array {
+  const uniforms = new Float32Array(UNIFORM_FLOATS)
+  uniforms.set([t, features.energy, size.width, size.height])
+  uniforms.set(params, 4)
+  uniforms[BUILD_OFFSET] = build
+  uniforms.set(packPalette(palette), PALETTE_OFFSET)
+  return uniforms
 }
 
 /**
@@ -169,7 +200,7 @@ export interface LayerPass {
  * its text and anchors (cached by `key` and the frame size); a picture is loaded from its URL.
  */
 export type PassImage =
-  | { kind: 'type'; key: string; text: TypeText; anchors: TypeAnchors }
+  | { kind: 'type'; key: string; text: TypeText; anchors: TypeAnchors; bounds: TypeBounds }
   | { kind: 'picture'; url: string }
 
 /** The track's credits, as poster layers set them: the title from the track, the name from the artist profile. */
@@ -184,9 +215,11 @@ export interface FrameContext {
   sectionIndex: number
   sectionStart: number
   credits: Credits
+  /** The format the frame is laid out for and its safe zone (V16). */
+  layout: FormatLayout
 }
 
-export const NO_CONTEXT: FrameContext = { sectionIndex: 0, sectionStart: 0, credits: { title: '', artist: '' } }
+export const NO_CONTEXT: FrameContext = { sectionIndex: 0, sectionStart: 0, credits: { title: '', artist: '' }, layout: WIDE_LAYOUT }
 
 export interface FramePlan {
   passes: LayerPass[]
@@ -206,17 +239,13 @@ export function planFrame(
   palette: Palette = DEFAULT_PALETTE,
   context: FrameContext = NO_CONTEXT
 ): FramePlan {
-  const colors = packPalette(palette)
   const build = signalAt(signals, 'build', t)
   return {
     spectrum: features.bands,
     passes: drawnLayers(scene).map((layer) => {
-      const uniforms = new Float32Array(UNIFORM_FLOATS)
-      uniforms.set([t, features.energy, size.width, size.height])
-      const { params, image } = layerParams(react(layer, reactionAt(layer.reactivity, signals, t)), context, signals, t)
-      uniforms.set(params, 4)
-      uniforms[BUILD_OFFSET] = build
-      uniforms.set(colors, PALETTE_OFFSET)
+      const placed = place(layer, context.layout)
+      const { params, image } = layerParams(react(placed, reactionAt(placed.reactivity, signals, t)), context, signals, t)
+      const uniforms = passUniforms(t, features, size, params, build, palette)
       return image ? { kind: layer.kind, uniforms, image } : { kind: layer.kind, uniforms }
     })
   }
@@ -256,13 +285,26 @@ const TIER_RESPONSES: { [K in LayerKind]: TierResponse<K> } = {
   subject: SUBJECT.respond
 }
 
+/** Re-flows a layer for the frame's format; only the poster layers move. */
+function place(layer: Layer, layout: FormatLayout): Layer {
+  switch (layer.kind) {
+    case 'posterFrame':
+      return POSTER_FRAME.place!(layer, layout)
+    case 'subject':
+      return SUBJECT.place!(layer, layout)
+    default:
+      return layer
+  }
+}
+
 function react(layer: Layer, reaction: Reaction): Layer {
   if (reaction.amount <= 0) return layer
   const respond = TIER_RESPONSES[layer.kind][reaction.tier] as (l: Layer, a: number) => Layer
   return respond(layer, reaction.amount)
 }
 
-function layerParams(
+/** A layer's own uniforms (and any picture it draws from), as its shader reads them. */
+export function layerParams(
   layer: Layer,
   context: FrameContext,
   signals: TrackSignals,

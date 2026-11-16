@@ -3,6 +3,7 @@ import { channels, type ElyntApi } from '../shared/api'
 import type { TrackAnalysisState } from '../shared/analysis'
 import type { HelperStatus } from '../shared/helper'
 import type { SplitJob } from '../shared/stems'
+import type { SubjectJob } from '../shared/subject-images'
 
 const api: ElyntApi = {
   tracks: {
@@ -22,6 +23,18 @@ const api: ElyntApi = {
       const handler = (_event: Electron.IpcRendererEvent, job: SplitJob | { trackId: number; state: 'done' }) => listener(job)
       ipcRenderer.on(channels.splitJobChanged, handler)
       return () => ipcRenderer.off(channels.splitJobChanged, handler)
+    }
+  },
+  subjectImages: {
+    list: (trackId) => ipcRenderer.invoke(channels.listSubjectImages, trackId),
+    generate: (trackId, request, count) => ipcRenderer.invoke(channels.generateSubjectImages, trackId, request, count),
+    regenerate: (imageId) => ipcRenderer.invoke(channels.regenerateSubjectImage, imageId),
+    remove: (imageId) => ipcRenderer.invoke(channels.removeSubjectImage, imageId),
+    jobs: () => ipcRenderer.invoke(channels.subjectJobs),
+    onJob: (listener) => {
+      const handler = (_event: Electron.IpcRendererEvent, job: SubjectJob | { trackId: number; state: 'done' }) => listener(job)
+      ipcRenderer.on(channels.subjectJobChanged, handler)
+      return () => ipcRenderer.off(channels.subjectJobChanged, handler)
     }
   },
   keys: {
@@ -55,6 +68,9 @@ const api: ElyntApi = {
     cancel: (jobId) => ipcRenderer.invoke(channels.cancelExport, jobId),
     reveal: (path) => ipcRenderer.invoke(channels.revealExport, path)
   },
+  visualizer: {
+    safeZones: () => ipcRenderer.invoke(channels.safeZones)
+  },
   bench: {
     config: () => ipcRenderer.invoke(channels.benchConfig),
     checkFile: (path, frame, renders, width, height) => ipcRenderer.invoke(channels.benchCheckFile, path, frame, renders, width, height),
@@ -66,6 +82,9 @@ const api: ElyntApi = {
     pickReferenceTracks: () => ipcRenderer.invoke(channels.pickReferenceTracks),
     // File.path is gone in current Electron; webUtils is the supported way to get a dropped file's path.
     pathForDroppedFile: (file) => webUtils.getPathForFile(file)
+  },
+  liveSet: {
+    pickAndRead: () => ipcRenderer.invoke(channels.pickAndReadLiveSet)
   },
   analysis: {
     get: (trackId) => ipcRenderer.invoke(channels.getAnalysis, trackId),

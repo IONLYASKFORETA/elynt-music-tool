@@ -11,13 +11,13 @@ if (mode === 'exit-127') {
 }
 if (mode !== 'never-ready') {
   process.stdout.write('some library printed this on import\n')
-  send({ event: 'ready', protocol: mode === 'old-protocol' ? 0 : 2, version: 'stub' })
+  send({ event: 'ready', protocol: mode === 'old-protocol' ? 0 : 4, version: 'stub' })
 }
 
 const methods = {
   'helper.info': () => ({
     version: 'stub',
-    protocol: 2,
+    protocol: 4,
     python: '3.12.9',
     platform: 'linux',
     wsl: true,

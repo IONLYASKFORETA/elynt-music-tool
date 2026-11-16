@@ -28,6 +28,10 @@ uv pip install --python "$VENV/bin/python" "audio-separator[cpu]==0.48.0" audior
 uv pip install --python "$VENV/bin/python" "einops>=0.8" "soxr>=0.5"
 uv pip install --python "$VENV/bin/python" --no-deps "beat-this==1.1.0" "rotary-embedding-torch==0.9.2"
 
+# Subject images (V9): FLUX.2 [klein] 4B through diffusers (Flux2KleinPipeline). After torch, so the CUDA build stays.
+# Its weights (about 16 GB with the Qwen3 text encoder) download on the first image, into ~/.elynt/models/huggingface.
+uv pip install --python "$VENV/bin/python" "diffusers>=0.37" "transformers>=4.57" "accelerate>=1.10" sentencepiece
+
 echo
 echo "Helper venv ready at $VENV. Checking it:"
 echo '{"id":1,"method":"helper.info"}' | "$VENV/bin/python" -m elynt_helper

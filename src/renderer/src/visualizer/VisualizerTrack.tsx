@@ -30,8 +30,11 @@ export function VisualizerTrack({ track, onRenamed }: { track: Track; onRenamed:
   // One scene per section, saved on the track. Moving or relabelling sections starts the scenes over.
   const sections = analysis?.sections ?? []
   const duration = analysis?.durationSeconds ?? 0
-  const sectionsKey = JSON.stringify(sections.map((s) => [s.label, s.start, s.end]))
-  const [vision, setVision] = useState(() => defaultVision(sections, duration))
+  const grid = { beats: analysis?.beats ?? [], downbeats: analysis?.downbeats ?? [] }
+  // Moments and transitions sit on the beat grid, so a nudged grid starts them over too.
+  const sectionsKey = JSON.stringify([sections.map((s) => [s.label, s.start, s.end]), grid.beats.length, grid.downbeats[0], analysis?.bpm])
+  const [vision, setVision] = useState(() => defaultVision(sections, duration, grid))
+  const [section, setSection] = useState(0)
   const [from, setFrom] = useState<WorkingVision['from']>(null)
   const [set, setSet] = useState<VisionSet | null | undefined>(undefined)
   const [touring, setTouring] = useState<number | null>(null)
@@ -44,8 +47,8 @@ export function VisualizerTrack({ track, onRenamed }: { track: Track; onRenamed:
     Promise.all([window.elynt.visions.getWorking(track.id), window.elynt.visions.latest(track.id)])
       .then(([working, latest]) => {
         if (cancelled) return
-        const fits = working && fitsSections(working.vision, sections)
-        setVision(fits ? (working.vision as Vision) : defaultVision(sections, duration))
+        const fits = working && fitsSections(working.vision, sections, grid)
+        setVision(fits ? (working.vision as Vision) : defaultVision(sections, duration, grid))
         setFrom(fits ? working.from : null)
         setSet(latest)
         loaded.current = true
@@ -53,7 +56,7 @@ export function VisualizerTrack({ track, onRenamed }: { track: Track; onRenamed:
       .catch((e: unknown) => {
         console.error('Could not read the saved visions:', e)
         if (cancelled) return
-        setVision(defaultVision(sections, duration))
+        setVision(defaultVision(sections, duration, grid))
         setSet(null)
         loaded.current = true
       })
@@ -88,16 +91,19 @@ export function VisualizerTrack({ track, onRenamed }: { track: Track; onRenamed:
 
   // The three visions, built into scenes for their drop previews.
   const options = useMemo(
-    () => (set && analysis ? set.visions.map((plan) => ({ ...buildVision(plan, analysis.sections, analysis.durationSeconds), credits })) : []),
+    () => (set && analysis ? set.visions.map((plan) => ({ ...buildVision(plan, analysis.sections, analysis.durationSeconds, analysis), credits })) : []),
     [set, analysis, credits]
   )
   const drop = useMemo(() => (analysis ? dropWindow(analysis) : null), [analysis])
   const touringVision = touring !== null ? options[touring] : undefined
 
+  // Credits come from the track and the profile each time, so they aren't saved with the scenes.
+  const edit = ({ credits: _credits, ...edited }: Vision) => setVision(edited)
+
   const use = (index: number) => {
     if (!set || !analysis) return
     setTouring(null)
-    setVision(buildVision(set.visions[index]!, analysis.sections, analysis.durationSeconds))
+    setVision(buildVision(set.visions[index]!, analysis.sections, analysis.durationSeconds, analysis))
     setFrom({ setId: set.id, index })
   }
 
@@ -142,9 +148,11 @@ export function VisualizerTrack({ track, onRenamed }: { track: Track; onRenamed:
         vision={touringVision ?? credited}
         loop={touringVision && drop ? { ...drop, key: String(touring) } : null}
         onLoopEnd={() => setTouring((i) => (i === null ? null : nextInDropTour(i, options.length)))}
+        onVisionChange={edit}
+        section={section}
+        onSection={setSection}
       />
-      {/* Credits come from the track and the profile each time, so they aren't saved with the scenes. */}
-      <ScenePanel vision={credited} onChange={({ credits: _credits, ...edited }) => setVision(edited)} />
+      <ScenePanel vision={credited} trackId={track.id} onChange={edit} section={section} onSection={setSection} />
     </>
   )
 }

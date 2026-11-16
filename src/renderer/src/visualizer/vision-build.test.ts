@@ -55,6 +55,15 @@ describe('building a vision into scenes', () => {
     expect(vision.palette).toEqual(['#0b0f2a', '#ff3ea5', '#22e0ff'])
   })
 
+  it('starts on the track’s beat grid with cuts between sections and no moments yet', () => {
+    const grid = { beats: [0, 0.5, 1], downbeats: [0] }
+    const vision = buildVision(plan(), sections, 64, grid)
+
+    expect(vision.grid).toEqual(grid)
+    expect(vision.moments).toEqual([])
+    expect(vision.sections.map((s) => s.transition)).toEqual(['cut', 'cut', 'cut'])
+  })
+
   it("sets the planned settings and reactivity over the layer's own defaults", () => {
     const chrome = buildVision(plan(), sections, 64).sections[1]!.scene.layers[1]!
 

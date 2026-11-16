@@ -3,6 +3,7 @@ import { channels, type ElyntApi } from '../shared/api'
 import type { TrackAnalysisState } from '../shared/analysis'
 import type { HelperStatus } from '../shared/helper'
 import type { SplitJob } from '../shared/stems'
+import type { SubjectJob } from '../shared/subject-images'
 
 const api: ElyntApi = {
   tracks: {
@@ -24,6 +25,18 @@ const api: ElyntApi = {
       return () => ipcRenderer.off(channels.splitJobChanged, handler)
     }
   },
+  subjectImages: {
+    list: (trackId) => ipcRenderer.invoke(channels.listSubjectImages, trackId),
+    generate: (trackId, request, count) => ipcRenderer.invoke(channels.generateSubjectImages, trackId, request, count),
+    regenerate: (imageId) => ipcRenderer.invoke(channels.regenerateSubjectImage, imageId),
+    remove: (imageId) => ipcRenderer.invoke(channels.removeSubjectImage, imageId),
+    jobs: () => ipcRenderer.invoke(channels.subjectJobs),
+    onJob: (listener) => {
+      const handler = (_event: Electron.IpcRendererEvent, job: SubjectJob | { trackId: number; state: 'done' }) => listener(job)
+      ipcRenderer.on(channels.subjectJobChanged, handler)
+      return () => ipcRenderer.off(channels.subjectJobChanged, handler)
+    }
+  },
   keys: {
     status: () => ipcRenderer.invoke(channels.keyStatus),
     save: (name, value) => ipcRenderer.invoke(channels.saveKey, name, value),
@@ -38,6 +51,11 @@ const api: ElyntApi = {
   profile: {
     get: () => ipcRenderer.invoke(channels.getProfile),
     save: (profile) => ipcRenderer.invoke(channels.saveProfile, profile)
+  },
+  releases: {
+    list: () => ipcRenderer.invoke(channels.listReleases),
+    get: (releaseId) => ipcRenderer.invoke(channels.getRelease, releaseId),
+    start: (input) => ipcRenderer.invoke(channels.startRelease, input)
   },
   exports: {
     chooseOutput: (trackTitle, format) => ipcRenderer.invoke(channels.chooseExportOutput, trackTitle, format),
@@ -58,6 +76,9 @@ const api: ElyntApi = {
     pickReferenceTracks: () => ipcRenderer.invoke(channels.pickReferenceTracks),
     // File.path is gone in current Electron; webUtils is the supported way to get a dropped file's path.
     pathForDroppedFile: (file) => webUtils.getPathForFile(file)
+  },
+  liveSet: {
+    pickAndRead: () => ipcRenderer.invoke(channels.pickAndReadLiveSet)
   },
   analysis: {
     get: (trackId) => ipcRenderer.invoke(channels.getAnalysis, trackId),

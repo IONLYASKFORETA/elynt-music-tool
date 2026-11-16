@@ -7,8 +7,10 @@ import { VisualizerTrack } from './visualizer/VisualizerTrack'
 import { AnalysisStrip } from './visualizer/AnalysisStrip'
 import { ApiKeysPanel } from './ApiKeysPanel'
 import { BackupSettings } from './BackupSettings'
+import { LiveSetTree } from './LiveSetTree'
 import { MixSetupScreen } from './MixSetupScreen'
 import { ProfileScreen } from './ProfileScreen'
+import { ReleaseScreen } from './ReleaseScreen'
 import { TrackStems } from './TrackStems'
 
 const TOOLS = [
@@ -133,6 +135,8 @@ function Suite() {
             <VisualizerTrack key={pickedTrack.id} track={pickedTrack} onRenamed={() => void refresh().catch((e: unknown) => setError(String(e)))} />
           )}
           {active === 'mix-master' && pickedTrack && <MixSetupScreen key={pickedTrack.id} track={pickedTrack} />}
+          {active === 'mix-master' && pickedTrack && <LiveSetTree key={`live-set-${pickedTrack.id}`} />}
+          {active === 'release' && <ReleaseScreen tracks={tracks} />}
 
           <h2>{picks && tracks.length > 0 ? `Tracks · pick one to ${active === 'visualizer' ? 'preview' : 'open'}` : 'Tracks'}</h2>
           {tracks.length === 0 ? (

@@ -4,6 +4,7 @@ import type { TimeWindow } from '../../../shared/drop-preview'
 import type { Track } from '../../../shared/track'
 import { featuresAt, type MonoAudio } from './audio-features'
 import { ExportPanel } from './ExportPanel'
+import { Timeline } from './Timeline'
 import { PlaybackClock } from './playback-clock'
 import { SceneRenderer } from './renderer'
 import { NO_SIGNALS, type TrackSignals } from './signals'
@@ -33,7 +34,10 @@ export function Preview({
   analysis,
   vision,
   loop = null,
-  onLoopEnd
+  onLoopEnd,
+  onVisionChange,
+  section,
+  onSection
 }: {
   track: Track
   analysis: TrackAnalysis | null
@@ -44,6 +48,10 @@ export function Preview({
    */
   loop?: (TimeWindow & { key: string }) | null
   onLoopEnd?: () => void
+  onVisionChange(vision: Vision): void
+  /** The section picked on the timeline, whose scene the scene panel shows. */
+  section: number
+  onSection(index: number): void
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const loadedRef = useRef<Loaded | null>(null)
@@ -258,6 +266,16 @@ export function Preview({
           ))}
         </select>
       </div>
+      <Timeline
+        vision={vision}
+        time={time}
+        duration={duration}
+        disabled={status !== 'ready'}
+        onSeek={seek}
+        onChange={onVisionChange}
+        section={section}
+        onSection={onSection}
+      />
       <ExportPanel
         track={track}
         vision={vision}

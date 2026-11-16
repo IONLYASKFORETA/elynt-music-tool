@@ -4,9 +4,12 @@ import type { TrackAnalysis, TrackAnalysisState } from './analysis'
 import type { AudioProbe, HelperStatus } from './helper'
 import type { KeyName, KeyStatus, KeyTestResult } from './keys'
 import type { BackupStatus } from './backup'
+import type { LiveSet } from './live-set'
 import type { MixSetup } from './mix-setup'
 import type { ArtistProfile } from './profile'
+import type { Release, ReleaseWithPlan, StartRelease } from './release'
 import type { SplitJob, Stem } from './stems'
+import type { SubjectImage, SubjectImageRequest, SubjectJob } from './subject-images'
 import type { Track } from './track'
 import type { VisionFlowRequest, VisionFlowResult, VisionSet, WorkingVision } from './visions'
 
@@ -60,6 +63,15 @@ export interface ElyntApi {
     /** Saves the whole profile, half-filled or not. Rejects values the suite doesn't know. */
     save(profile: ArtistProfile): Promise<ArtistProfile>
   }
+  /** Release Assistant: releases and their dated plans, built from the playbook. */
+  releases: {
+    /** Every release, newest first. */
+    list(): Promise<Release[]>
+    /** A release and its plan. Null if there is no such release. */
+    get(releaseId: number): Promise<ReleaseWithPlan | null>
+    /** Builds the plan from the newest playbook and saves it. Rejects an unknown track or a bad date. */
+    start(input: StartRelease): Promise<ReleaseWithPlan>
+  }
   /** Video export. The window renders frames; the main process owns FFmpeg and the file. */
   exports: {
     /** Opens a save dialog for the video. Resolves to the path, or null if cancelled. */
@@ -90,6 +102,11 @@ export interface ElyntApi {
     /** The path on disk of a file dropped onto the window. */
     pathForDroppedFile(file: File): string
   }
+  /** The Live Set reader (M1). */
+  liveSet: {
+    /** Opens a file picker for an .als and reads it in the helper. Null if cancelled. */
+    pickAndRead(): Promise<LiveSet | null>
+  }
   /** Track analysis (V1): tempo, beats, sections, energy and mood, saved on the track. */
   analysis: {
     /** Null until the track has been queued for analysis. */
@@ -116,6 +133,22 @@ export interface ElyntApi {
     saveWorking(trackId: number, vision: unknown, from: WorkingVision['from']): Promise<WorkingVision>
     /** Everything the Visualizer has spent on Claude and Gemini calls for this track, in US dollars. */
     trackCost(trackId: number): Promise<number>
+  }
+  /**
+   * Subject images (V9): options for a track's Subject layers, made ahead of time by the helper's
+   * local image model. Show one with mediaUrl(image.path) from shared/subject-images.
+   */
+  subjectImages: {
+    list(trackId: number): Promise<SubjectImage[]>
+    /** Generates `count` options of one motif, one after another. Resolves to the new ones. */
+    generate(trackId: number, request: SubjectImageRequest, count: number): Promise<SubjectImage[]>
+    /** A new option from the same prompt with a fresh seed. */
+    regenerate(imageId: number): Promise<SubjectImage>
+    /** Drops an option and deletes its file. */
+    remove(imageId: number): Promise<void>
+    jobs(): Promise<SubjectJob[]>
+    /** Calls back as a generation starts, reports progress, finishes ('done') or fails. */
+    onJob(listener: (job: SubjectJob | { trackId: number; state: 'done' }) => void): () => void
   }
   helper: {
     status(): Promise<HelperStatus>
@@ -147,9 +180,13 @@ export const channels = {
   exportEverything: 'backup:export-everything',
   getProfile: 'profile:get',
   saveProfile: 'profile:save',
+  listReleases: 'releases:list',
+  getRelease: 'releases:get',
+  startRelease: 'releases:start',
   getMixSetup: 'mix-setup:get',
   saveMixSetup: 'mix-setup:save',
   pickReferenceTracks: 'mix-setup:pick-reference-tracks',
+  pickAndReadLiveSet: 'live-set:pick-and-read',
   getAnalysis: 'analysis:get',
   rerunAnalysis: 'analysis:rerun',
   saveAnalysisCorrection: 'analysis:save-correction',
@@ -171,5 +208,11 @@ export const channels = {
   revealExport: 'exports:reveal',
   benchConfig: 'bench:config',
   benchCheckFile: 'bench:check-file',
-  benchReport: 'bench:report'
+  benchReport: 'bench:report',
+  listSubjectImages: 'subject-images:list',
+  generateSubjectImages: 'subject-images:generate',
+  regenerateSubjectImage: 'subject-images:regenerate',
+  removeSubjectImage: 'subject-images:remove',
+  subjectJobs: 'subject-images:jobs',
+  subjectJobChanged: 'subject-images:job-changed'
 } as const

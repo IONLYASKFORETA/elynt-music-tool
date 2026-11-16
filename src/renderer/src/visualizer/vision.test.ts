@@ -5,16 +5,23 @@ import { DEFAULT_PALETTE, packPalette } from './palette'
 import { MAX_ACTIVE_LAYERS, newLayer, PALETTE_OFFSET, type ClassicLayer } from './scene'
 import { NO_SIGNALS, type TrackSignals } from './signals'
 import {
+  addMoment,
   addSectionLayer,
   defaultVision,
   fitsSections,
+  moveMoment,
   planVisionFrame,
+  removeMoment,
   removeSectionLayer,
   sectionIndexAt,
   sceneAt,
+  setTransition,
   setVisionPalette,
-  updateSectionLayer
+  transitionWindow,
+  updateSectionLayer,
+  type Vision
 } from './vision'
+import { TRANSITION_STYLES, type TransitionStyle } from './transitions'
 
 const section = (label: Section['label'], start: number, end: number): Section => ({
   label,
@@ -147,5 +154,133 @@ describe('restoring a saved vision', () => {
     expect(fitsSections(defaultVision(sections, 80), relabelled)).toBe(false)
     expect(fitsSections({ palette: [] }, sections)).toBe(false)
     expect(fitsSections(null, sections)).toBe(false)
+  })
+
+  it('does not fit once the beat grid was nudged, since moments and transitions sit on it', () => {
+    const nudged = { beats: grid.beats.map((t) => t + 0.1), downbeats: grid.downbeats.map((t) => t + 0.1) }
+    expect(fitsSections(defaultVision(sections, 80, grid), sections, grid)).toBe(true)
+    expect(fitsSections(defaultVision(sections, 80, grid), sections, nudged)).toBe(false)
+  })
+})
+
+// 120 BPM, 4 beats a bar: a beat every 0.5 s, a bar every 2 s, for the whole 80 s.
+const grid = {
+  beats: Array.from({ length: 160 }, (_, i) => i * 0.5),
+  downbeats: Array.from({ length: 40 }, (_, i) => i * 2)
+}
+
+describe('moments', () => {
+  it('pins a new moment to the nearest beat or bar', () => {
+    const vision = defaultVision(sections, 80, grid)
+    expect(addMoment(vision, 'flash', 10.3, 'beat').moments.map((m) => m.at)).toEqual([10.5])
+    expect(addMoment(vision, 'flash', 10.3, 'bar').moments.map((m) => m.at)).toEqual([10])
+  })
+
+  it('moves a moment to a new beat and keeps them in time order', () => {
+    let vision = defaultVision(sections, 80, grid)
+    vision = addMoment(addMoment(vision, 'flash', 10, 'beat'), 'glitch', 20, 'beat')
+    const flash = vision.moments[0]!.id
+    vision = moveMoment(vision, flash, 24.8, 'beat')
+    expect(vision.moments.map((m) => [m.kind, m.at])).toEqual([
+      ['glitch', 20],
+      ['flash', 25]
+    ])
+    expect(moveMoment(vision, flash, 24.8, 'bar').moments.find((m) => m.id === flash)!.at).toBe(24)
+  })
+
+  it('deletes one moment and leaves the rest', () => {
+    let vision = addMoment(addMoment(defaultVision(sections, 80, grid), 'flash', 10, 'beat'), 'pillar', 12, 'bar')
+    vision = removeMoment(vision, vision.moments[0]!.id)
+    expect(vision.moments.map((m) => m.kind)).toEqual(['pillar'])
+  })
+
+  it('fires on its beat, on top of the scene, and dies away within the next bar', () => {
+    const vision = addMoment(defaultVision(sections, 80, grid), 'flash', 10, 'beat')
+    const kinds = (t: number) => planVisionFrame(vision, features, t, size, NO_SIGNALS).passes.map((p) => p.kind)
+    const flashAmount = (t: number) => planVisionFrame(vision, features, t, size, NO_SIGNALS).passes.at(-1)!.uniforms[4]!
+    expect(kinds(9.99)).toEqual(['ground', 'classic', 'finish'])
+    expect(kinds(10)).toEqual(['ground', 'classic', 'finish', 'flash'])
+    expect(flashAmount(10)).toBe(1)
+    expect(flashAmount(10.25)).toBeGreaterThan(0)
+    expect(flashAmount(10.25)).toBeLessThan(flashAmount(10.1))
+    expect(kinds(12)).toEqual(['ground', 'classic', 'finish'])
+  })
+
+  it('draws each kind of moment with its own pass', () => {
+    let vision = defaultVision(sections, 80, grid)
+    vision = addMoment(vision, 'glitch', 4, 'beat')
+    vision = addMoment(vision, 'bleed', 6, 'beat')
+    vision = addMoment(vision, 'pillar', 8, 'beat')
+    const last = (t: number) => planVisionFrame(vision, features, t, size, NO_SIGNALS).passes.at(-1)!.kind
+    expect([last(4.05), last(6.05), last(8.05)]).toEqual(['glitch', 'colorBleed', 'lightPillar'])
+  })
+
+  it('stacks moments that overlap, oldest first', () => {
+    let vision = defaultVision(sections, 80, grid)
+    vision = addMoment(addMoment(vision, 'glitch', 4, 'beat'), 'flash', 4.5, 'beat')
+    const kinds = planVisionFrame(vision, features, 4.6, size, NO_SIGNALS).passes.map((p) => p.kind)
+    expect(kinds.slice(-2)).toEqual(['glitch', 'flash'])
+  })
+
+  it('snaps to a 120 BPM grid from 0 when the track has no beats yet', () => {
+    const vision = defaultVision(sections, 80)
+    expect(addMoment(vision, 'flash', 3.3, 'bar').moments[0]!.at).toBe(4)
+  })
+})
+
+describe('transitions', () => {
+  it('cuts on the downbeat nearest the boundary by default', () => {
+    const offGrid = [section('intro', 0, 15.7), section('build', 15.7, 32), section('drop', 32, 80)]
+    const vision = defaultVision(offGrid, 80, grid)
+    expect(vision.sections[0]!.transition).toBe('cut')
+    expect(transitionWindow(vision, 0)).toEqual({ start: 16, at: 16, end: 16 })
+    expect(sceneAt(vision, 15.9)).toBe(vision.sections[0]!.scene)
+    expect(sceneAt(vision, 16)).toBe(vision.sections[1]!.scene)
+  })
+
+  it('places each transition around the boundary, timed in beats', () => {
+    const vision = defaultVision(sections, 80, grid)
+    const around = (style: TransitionStyle) => transitionWindow(setTransition(vision, 1, style), 1)
+    expect(around('glitchWipe')).toEqual({ start: 31.5, at: 32, end: 32.5 })
+    expect(around('bleedWash')).toEqual({ start: 31, at: 32, end: 33 })
+    expect(around('chromeMorph')).toEqual({ start: 31, at: 32, end: 33 })
+    expect(around('whiteFlash')).toEqual({ start: 31.875, at: 32, end: 32.5 })
+  })
+
+  it('keeps a transition inside the two sections it joins', () => {
+    const short = [section('intro', 0, 1), section('build', 1, 1.6), section('drop', 1.6, 80)]
+    const vision = setTransition(defaultVision(short, 80, grid), 1, 'bleedWash')
+    expect(transitionWindow(vision, 1)).toEqual({ start: 1.3, at: 1.6, end: 2.6 })
+  })
+
+  it('draws both scenes through the transition, and only one outside it', () => {
+    const vision = setTransition(defaultVision(sections, 80, grid), 1, 'glitchWipe')
+    const kinds = (t: number) => planVisionFrame(vision, features, t, size, NO_SIGNALS).passes.map((p) => p.kind)
+    const scene = ['ground', 'classic', 'finish']
+    expect(kinds(31.49)).toEqual(scene)
+    expect(kinds(31.75)).toEqual([...scene, 'hold', ...scene, 'transition'])
+    expect(kinds(32.5)).toEqual(scene)
+    expect(sceneAt(vision, 31.75)).toBe(vision.sections[1]!.scene)
+  })
+
+  it('tells the transition pass its style, how far the new scene is in, how hard it hits, and its progress', () => {
+    const p0 = (vision: Vision, t: number) =>
+      Array.from(planVisionFrame(vision, features, t, size, NO_SIGNALS).passes.at(-1)!.uniforms.slice(4, 8))
+    const base = defaultVision(sections, 80, grid)
+    const wipe = setTransition(base, 1, 'glitchWipe')
+    expect(p0(wipe, 31.75)).toEqual([TRANSITION_STYLES.indexOf('glitchWipe'), 0.25, 0.5, 0.25])
+    const flash = setTransition(base, 1, 'whiteFlash')
+    const [, mixBefore, peakBefore] = p0(flash, 31.95)
+    const [, mixAt, peakAt] = p0(flash, 32)
+    expect([mixBefore, mixAt, peakAt]).toEqual([0, 1, 1])
+    expect(peakBefore).toBeGreaterThan(0)
+    expect(peakBefore).toBeLessThan(1)
+  })
+
+  it('draws moments over a transition', () => {
+    let vision = setTransition(defaultVision(sections, 80, grid), 1, 'chromeMorph')
+    vision = addMoment(vision, 'flash', 32, 'bar')
+    const kinds = planVisionFrame(vision, features, 32.1, size, NO_SIGNALS).passes.map((p) => p.kind)
+    expect(kinds.slice(-2)).toEqual(['transition', 'flash'])
   })
 })

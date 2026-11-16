@@ -6,16 +6,23 @@ import { GLITCH, type GlitchLayer } from './layers/glitch'
 import { LIGHT_PILLAR, type LightPillarLayer } from './layers/light-pillar'
 import { DEFAULT_PALETTE, packPalette, PALETTE_FLOATS, type Palette } from './palette'
 import { NO_SIGNALS, signalAt, type Tier, type TrackSignals } from './signals'
+import { POSTER_FRAME, type PosterFrameLayer } from './layers/poster-frame'
+import { POSTER_TYPE, type PosterTypeLayer } from './layers/poster-type'
+import { SUBJECT, type SubjectLayer } from './layers/subject'
+import type { TypeAnchors, TypeText } from './type-layout'
 
 /**
  * The layer data model (GLOSSARY: Layer, Scene). A scene is plain data: the
  * renderer draws whatever stack it is given, bottom to top, and the export
  * reads the same data. Each section of a track has its own scene (see vision.ts).
  */
-export type Layer = GroundLayer | ClassicLayer | FinishLayer | HitLayer
+export type Layer = GroundLayer | ClassicLayer | FinishLayer | HitLayer | PosterLayer
 /** The house-style hit layers (V7), one file each under layers/. */
 export type HitLayer = ColorBleedLayer | ChromeLayer | GlitchLayer | LightPillarLayer
 export type { ColorBleedLayer, ChromeLayer, GlitchLayer, LightPillarLayer }
+/** The poster layers (V8), one file each under layers/. */
+export type PosterLayer = PosterFrameLayer | PosterTypeLayer | SubjectLayer
+export type { PosterFrameLayer, PosterTypeLayer, SubjectLayer }
 export type LayerKind = Layer['kind']
 
 /** Every layer has a "reacts to" picker and a strength (GLOSSARY: Reactivity). */
@@ -66,6 +73,7 @@ export const EXEMPT_KINDS: readonly LayerKind[] = ['ground', 'finish']
 export const MAX_ACTIVE_LAYERS = 5
 
 const HIT_LAYERS = { colorBleed: COLOR_BLEED, chrome: CHROME, glitch: GLITCH, lightPillar: LIGHT_PILLAR }
+const POSTER_LAYERS = { posterFrame: POSTER_FRAME, posterType: POSTER_TYPE, subject: SUBJECT }
 
 export const LAYER_NAMES: Record<LayerKind, string> = {
   ground: 'Ground',
@@ -74,7 +82,10 @@ export const LAYER_NAMES: Record<LayerKind, string> = {
   colorBleed: COLOR_BLEED.name,
   chrome: CHROME.name,
   glitch: GLITCH.name,
-  lightPillar: LIGHT_PILLAR.name
+  lightPillar: LIGHT_PILLAR.name,
+  posterFrame: POSTER_FRAME.name,
+  posterType: POSTER_TYPE.name,
+  subject: SUBJECT.name
 }
 
 /** A layer of a kind with its starting look and default reactivity. */
@@ -92,6 +103,10 @@ export function newLayer(kind: LayerKind): Layer {
     case 'glitch':
     case 'lightPillar':
       return HIT_LAYERS[kind].create(reactivity)
+    case 'posterFrame':
+    case 'posterType':
+    case 'subject':
+      return POSTER_LAYERS[kind].create(reactivity)
   }
 }
 
@@ -145,7 +160,33 @@ export const UNIFORM_FLOATS = PALETTE_OFFSET + PALETTE_FLOATS
 export interface LayerPass {
   kind: LayerKind
   uniforms: Float32Array
+  /** A picture the pass draws from, for the layers that need one (type, a subject image). */
+  image?: PassImage
 }
+
+/**
+ * What a pass draws from besides the picture below. Type is rasterized by the renderer from
+ * its text and anchors (cached by `key` and the frame size); a picture is loaded from its URL.
+ */
+export type PassImage =
+  | { kind: 'type'; key: string; text: TypeText; anchors: TypeAnchors }
+  | { kind: 'picture'; url: string }
+
+/** The track's credits, as poster layers set them: the title from the track, the name from the artist profile. */
+export interface Credits {
+  title: string
+  artist: string
+}
+
+/** Where in the vision a frame falls, for the layers that care (Poster Type, Poster Frame). */
+export interface FrameContext {
+  /** Which section is playing, counted from 0, and when it started, in seconds. */
+  sectionIndex: number
+  sectionStart: number
+  credits: Credits
+}
+
+export const NO_CONTEXT: FrameContext = { sectionIndex: 0, sectionStart: 0, credits: { title: '', artist: '' } }
 
 export interface FramePlan {
   passes: LayerPass[]
@@ -162,7 +203,8 @@ export function planFrame(
   t: number,
   size: { width: number; height: number },
   signals: TrackSignals = NO_SIGNALS,
-  palette: Palette = DEFAULT_PALETTE
+  palette: Palette = DEFAULT_PALETTE,
+  context: FrameContext = NO_CONTEXT
 ): FramePlan {
   const colors = packPalette(palette)
   const build = signalAt(signals, 'build', t)
@@ -171,10 +213,11 @@ export function planFrame(
     passes: drawnLayers(scene).map((layer) => {
       const uniforms = new Float32Array(UNIFORM_FLOATS)
       uniforms.set([t, features.energy, size.width, size.height])
-      uniforms.set(layerParams(react(layer, reactionAt(layer.reactivity, signals, t))), 4)
+      const { params, image } = layerParams(react(layer, reactionAt(layer.reactivity, signals, t)), context, signals, t)
+      uniforms.set(params, 4)
       uniforms[BUILD_OFFSET] = build
       uniforms.set(colors, PALETTE_OFFSET)
-      return { kind: layer.kind, uniforms }
+      return image ? { kind: layer.kind, uniforms, image } : { kind: layer.kind, uniforms }
     })
   }
 }
@@ -207,7 +250,10 @@ const TIER_RESPONSES: { [K in LayerKind]: TierResponse<K> } = {
   colorBleed: COLOR_BLEED.respond,
   chrome: CHROME.respond,
   glitch: GLITCH.respond,
-  lightPillar: LIGHT_PILLAR.respond
+  lightPillar: LIGHT_PILLAR.respond,
+  posterFrame: POSTER_FRAME.respond,
+  posterType: POSTER_TYPE.respond,
+  subject: SUBJECT.respond
 }
 
 function react(layer: Layer, reaction: Reaction): Layer {
@@ -216,21 +262,32 @@ function react(layer: Layer, reaction: Reaction): Layer {
   return respond(layer, reaction.amount)
 }
 
-function layerParams(layer: Layer): number[] {
+function layerParams(
+  layer: Layer,
+  context: FrameContext,
+  signals: TrackSignals,
+  t: number
+): { params: number[]; image?: PassImage } {
   switch (layer.kind) {
     case 'ground':
-      return [layer.hueSpeed, layer.lift]
+      return { params: [layer.hueSpeed, layer.lift] }
     case 'classic':
-      return [layer.height, layer.bleed, layer.barFill, layer.glitch]
+      return { params: [layer.height, layer.bleed, layer.barFill, layer.glitch] }
     case 'finish':
-      return [layer.grain, layer.scanlines, layer.vignette, layer.energyResponse]
+      return { params: [layer.grain, layer.scanlines, layer.vignette, layer.energyResponse] }
     case 'colorBleed':
-      return COLOR_BLEED.params(layer)
+      return { params: COLOR_BLEED.params(layer) }
     case 'chrome':
-      return CHROME.params(layer)
+      return { params: CHROME.params(layer) }
     case 'glitch':
-      return GLITCH.params(layer)
+      return { params: GLITCH.params(layer) }
     case 'lightPillar':
-      return LIGHT_PILLAR.params(layer)
+      return { params: LIGHT_PILLAR.params(layer) }
+    case 'posterFrame':
+      return POSTER_FRAME.pass(layer, { context, signals, t })
+    case 'posterType':
+      return POSTER_TYPE.pass(layer, { context, signals, t })
+    case 'subject':
+      return SUBJECT.pass(layer, { context, signals, t })
   }
 }

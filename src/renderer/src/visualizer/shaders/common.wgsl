@@ -17,6 +17,8 @@ struct Frame {
 @group(0) @binding(1) var below: texture_2d<f32>;
 @group(0) @binding(2) var samp: sampler;
 @group(0) @binding(3) var<storage, read> spectrum: array<f32, 64>;
+// A picture some layers draw from (type, a subject image); a clear 1x1 for the rest.
+@group(0) @binding(4) var layerTex: texture_2d<f32>;
 
 struct VsOut {
   @builtin(position) pos: vec4f,

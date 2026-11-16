@@ -1,4 +1,5 @@
 import type { TrackAnalysis } from './analysis'
+import type { LiveSet } from './live-set'
 
 /**
  * The calls the app can make to the Python helper, and what comes back.
@@ -6,7 +7,7 @@ import type { TrackAnalysis } from './analysis'
  */
 
 /** Bump together with PROTOCOL_VERSION in helper/src/elynt_helper/__init__.py. */
-export const HELPER_PROTOCOL_VERSION = 3
+export const HELPER_PROTOCOL_VERSION = 4
 
 export interface GpuInfo {
   available: boolean
@@ -76,6 +77,8 @@ export interface GeneratedImageResult {
 export interface HelperMethods {
   /** Track analysis (V1). Errors: file_not_found, unreadable_audio, silent_audio, no_beat. Takes seconds to a minute. */
   'track.analyze': { params: { path: string }; result: TrackAnalysis }
+  /** The Live Set reader (M1). Errors: file_not_found, unreadable_live_set. Never fails on a missing element. */
+  'liveset.read': { params: { path: string }; result: LiveSet }
   'helper.info': { params: Record<string, never>; result: HelperInfo }
   /** Reads an audio file's header. `path` is as the helper sees it (a WSL path under WSL2). */
   'audio.probe': { params: { path: string }; result: AudioProbe }

@@ -156,6 +156,21 @@ function start(): void {
     for (const win of BrowserWindow.getAllWindows()) win.webContents.send(channels.helperStatusChanged, status)
   })
   ipcMain.handle(channels.helperStatus, () => helper.status())
+  // The Live Set reader (M1): the helper parses the .als.
+  ipcMain.handle(channels.pickAndReadLiveSet, async (event) => {
+    const parent = BrowserWindow.fromWebContents(event.sender)
+    const options: Electron.OpenDialogOptions = {
+      title: 'Pick a Live Set',
+      properties: ['openFile'],
+      filters: [{ name: 'Ableton Live Set', extensions: ['als'] }]
+    }
+    const result = parent ? await dialog.showOpenDialog(parent, options) : await dialog.showOpenDialog(options)
+    const [path] = result.filePaths
+    if (result.canceled || !path) return null
+    const liveSet = await helper.call('liveset.read', { path: helper.toHelperPath(path) })
+    // The helper answers with its own view of the path (WSL under WSL2); hand back the app's.
+    return { ...liveSet, path }
+  })
   ipcMain.handle(channels.probeTrack, (_event, trackId: number) => {
     const track = tracks.get(trackId)
     if (!track) throw new Error(`No track with id ${trackId}`)

@@ -208,3 +208,17 @@ h2 { font-size: 12px; letter-spacing: 0.3em; text-transform: uppercase; color: v
 .heard-boundary::after { content: ''; position: absolute; left: 4px; top: 0; bottom: 0; width: 2px; background: var(--text); opacity: 0.8; }
 .heard-actions { margin-left: auto; display: flex; gap: 12px; align-items: center; }
 .heard-reopen { font-size: 12px; margin-bottom: 8px; }
+
+/* Scene panel (V6): one scene per section, each layer's "reacts to" and strength. */
+.scene-panel { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+.scene-sections { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.scene-section { background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; font: inherit; font-size: 13px; cursor: pointer; }
+.scene-section.picked { border-color: #3db8ff; }
+.scene-section-time { color: var(--muted); font: 12px ui-monospace, monospace; }
+.scene-layers { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.scene-layer { display: flex; align-items: center; flex-wrap: wrap; gap: 14px; font-size: 13px; }
+.scene-layer-name { min-width: 64px; font-weight: 600; }
+.scene-layer select { background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px; font: inherit; }
+.scene-layer input[type='range'] { accent-color: #3db8ff; vertical-align: middle; }
+.scene-add { display: flex; align-items: center; gap: 12px; margin-top: 10px; }
+.scene-count { font-size: 12px; color: var(--muted); }

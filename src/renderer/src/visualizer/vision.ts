@@ -1,0 +1,100 @@
+import type { Section, SectionLabel } from '../../../shared/analysis'
+import type { AudioFeatures } from './audio-features'
+import { addLayer, newLayer, planFrame, type FramePlan, type Layer, type Scene } from './scene'
+import type { TrackSignals } from './signals'
+
+/**
+ * The part of a vision (GLOSSARY: Vision) the renderer reads: one scene per section of the
+ * track, in order, covering it start to end. Plain data, shared by the preview and the export.
+ */
+export interface Vision {
+  sections: VisionSection[]
+}
+
+export interface VisionSection {
+  label: SectionLabel
+  /** Seconds, from the track analysis. */
+  start: number
+  end: number
+  scene: Scene
+}
+
+/** How hard each kind of section pushes its layers by default. */
+const SECTION_STRENGTH: Record<SectionLabel, number> = {
+  intro: 0.4,
+  build: 0.6,
+  drop: 1,
+  breakdown: 0.3,
+  outro: 0.4
+}
+
+/**
+ * A starting vision: Ground, Classic and Finish in every section, reacting harder in drops.
+ * Drops hit on the drop itself; other sections hit on downbeats. A track with no sections yet
+ * is one section, start to end.
+ */
+export function defaultVision(sections: Section[], durationSeconds: number): Vision {
+  const spans: { label: SectionLabel; start: number; end: number }[] =
+    sections.length > 0 ? sections : [{ label: 'intro', start: 0, end: durationSeconds }]
+  return {
+    sections: spans.map(({ label, start, end }) => ({ label, start, end, scene: defaultSectionScene(label) }))
+  }
+}
+
+function defaultSectionScene(label: SectionLabel): Scene {
+  const strength = SECTION_STRENGTH[label]
+  const layers = (['ground', 'classic', 'finish'] as const).map((kind) => {
+    const layer = newLayer(kind)
+    const reactsTo = kind === 'finish' && label === 'drop' ? 'drop' : layer.reactivity.reactsTo
+    return { ...layer, reactivity: { reactsTo, strength: Math.min(1, layer.reactivity.strength * (0.5 + strength)) } }
+  })
+  return { layers }
+}
+
+/** The section playing at t. Before the start it is the first; past the end, the last. */
+export function sectionIndexAt(vision: Vision, t: number): number {
+  const { sections } = vision
+  for (let i = sections.length - 1; i > 0; i--) if (t >= sections[i]!.start) return i
+  return 0
+}
+
+/** The scene at t. Scenes switch with a hard cut at each section boundary (transitions come later). */
+export function sceneAt(vision: Vision, t: number): Scene {
+  return vision.sections[sectionIndexAt(vision, t)]!.scene
+}
+
+/** One frame of the whole track: the preview and the export both draw through this. */
+export function planVisionFrame(
+  vision: Vision,
+  features: AudioFeatures,
+  t: number,
+  size: { width: number; height: number },
+  signals: TrackSignals
+): FramePlan {
+  return planFrame(sceneAt(vision, t), features, t, size, signals)
+}
+
+function withScene(vision: Vision, index: number, change: (scene: Scene) => Scene): Vision {
+  return { sections: vision.sections.map((s, i) => (i === index ? { ...s, scene: change(s.scene) } : s)) }
+}
+
+/** Adds a layer to one section's scene. Throws past the active-layer limit. */
+export function addSectionLayer(vision: Vision, sectionIndex: number, layer: Layer): Vision {
+  return withScene(vision, sectionIndex, (scene) => addLayer(scene, layer))
+}
+
+export function removeSectionLayer(vision: Vision, sectionIndex: number, layerIndex: number): Vision {
+  return withScene(vision, sectionIndex, (scene) => ({ layers: scene.layers.filter((_, i) => i !== layerIndex) }))
+}
+
+/** Changes some of one layer's settings in one section, such as its reactivity. */
+export function updateSectionLayer(vision: Vision, sectionIndex: number, layerIndex: number, patch: Partial<Layer>): Vision {
+  return withScene(vision, sectionIndex, (scene) => ({
+    layers: scene.layers.map((l, i) => (i === layerIndex ? ({ ...l, ...patch, kind: l.kind } as Layer) : l))
+  }))
+}
+
+/** One scene for the whole track: for benchmarks, which don't care about sections. */
+export function singleSceneVision(scene: Scene, durationSeconds: number): Vision {
+  return { sections: [{ label: 'intro', start: 0, end: durationSeconds, scene }] }
+}

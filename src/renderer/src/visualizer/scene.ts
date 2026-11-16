@@ -1,15 +1,22 @@
 import type { AudioFeatures } from './audio-features'
+import { DEFAULT_REACTIVITY, reactionAt, type Reaction, type Reactivity } from './reactivity'
+import { NO_SIGNALS, type Tier, type TrackSignals } from './signals'
 
 /**
  * The layer data model (GLOSSARY: Layer, Scene). A scene is plain data: the
- * renderer draws whatever stack it is given, bottom to top. The export will
- * read the same data later.
+ * renderer draws whatever stack it is given, bottom to top, and the export
+ * reads the same data. Each section of a track has its own scene (see vision.ts).
  */
 export type Layer = GroundLayer | ClassicLayer | FinishLayer
 export type LayerKind = Layer['kind']
 
+/** Every layer has a "reacts to" picker and a strength (GLOSSARY: Reactivity). */
+interface LayerBase {
+  reactivity: Reactivity
+}
+
 /** Black field with a slow color shift. */
-export interface GroundLayer {
+export interface GroundLayer extends LayerBase {
   kind: 'ground'
   /** Full trips around the color wheel per minute. */
   hueSpeed: number
@@ -18,7 +25,7 @@ export interface GroundLayer {
 }
 
 /** The spectrum, drawn in the house style. Follows the spectrum directly. */
-export interface ClassicLayer {
+export interface ClassicLayer extends LayerBase {
   kind: 'classic'
   /** Tallest bar as a share of half the frame height, 0 to 1. */
   height: number
@@ -31,7 +38,7 @@ export interface ClassicLayer {
 }
 
 /** Grain, scanlines and vignette over everything below. Follows overall energy. */
-export interface FinishLayer {
+export interface FinishLayer extends LayerBase {
   kind: 'finish'
   grain: number
   scanlines: number
@@ -44,12 +51,63 @@ export interface Scene {
   layers: Layer[]
 }
 
-export const defaultScene: Scene = {
-  layers: [
-    { kind: 'ground', hueSpeed: 1.5, lift: 0.06 },
-    { kind: 'classic', height: 0.8, bleed: 6, barFill: 0.72, glitch: 0.6 },
-    { kind: 'finish', grain: 0.12, scanlines: 0.25, vignette: 0.55, energyResponse: 0.8 }
-  ]
+/** Ground and Finish sit under and over every scene; only the layers between them count toward the limit. */
+export const EXEMPT_KINDS: readonly LayerKind[] = ['ground', 'finish']
+
+/** At most this many active layers per scene (per section), Ground and Finish not counted. */
+export const MAX_ACTIVE_LAYERS = 5
+
+export const LAYER_NAMES: Record<LayerKind, string> = { ground: 'Ground', classic: 'Classic', finish: 'Finish' }
+
+/** A layer of a kind with its starting look and default reactivity. */
+export function newLayer(kind: LayerKind): Layer {
+  const reactivity = { ...DEFAULT_REACTIVITY[kind] }
+  switch (kind) {
+    case 'ground':
+      return { kind, hueSpeed: 1.5, lift: 0.06, reactivity }
+    case 'classic':
+      return { kind, height: 0.8, bleed: 6, barFill: 0.72, glitch: 0.6, reactivity }
+    case 'finish':
+      return { kind, grain: 0.12, scanlines: 0.25, vignette: 0.55, energyResponse: 0.8, reactivity }
+  }
+}
+
+export const defaultScene: Scene = { layers: [newLayer('ground'), newLayer('classic'), newLayer('finish')] }
+
+export function countsTowardLimit(kind: LayerKind): boolean {
+  return !EXEMPT_KINDS.includes(kind)
+}
+
+export function activeLayerCount(scene: Scene): number {
+  return scene.layers.filter((l) => countsTowardLimit(l.kind)).length
+}
+
+export function canAddLayer(scene: Scene, kind: LayerKind): boolean {
+  return !countsTowardLimit(kind) || activeLayerCount(scene) < MAX_ACTIVE_LAYERS
+}
+
+/**
+ * Adds a layer, refusing a sixth active one. Active layers go on top of the others but under
+ * the Finish; a Ground goes at the bottom and a Finish at the top.
+ */
+export function addLayer(scene: Scene, layer: Layer): Scene {
+  if (!canAddLayer(scene, layer.kind)) {
+    throw new Error(`A section can have at most ${MAX_ACTIVE_LAYERS} active layers (Ground and Finish don't count).`)
+  }
+  const layers = [...scene.layers]
+  if (layer.kind === 'ground') layers.unshift(layer)
+  else if (layer.kind === 'finish') layers.push(layer)
+  else {
+    const finish = layers.findIndex((l) => l.kind === 'finish')
+    layers.splice(finish === -1 ? layers.length : finish, 0, layer)
+  }
+  return { layers }
+}
+
+/** The layers that get drawn: past the limit, extra active layers are left out. */
+function drawnLayers(scene: Scene): Layer[] {
+  let active = 0
+  return scene.layers.filter((l) => !countsTowardLimit(l.kind) || ++active <= MAX_ACTIVE_LAYERS)
 }
 
 /**
@@ -68,22 +126,59 @@ export interface FramePlan {
   spectrum: Float32Array
 }
 
-/** Turns a scene plus what the audio sounds like at t into the passes the GPU runs. */
+/**
+ * Turns a scene plus what the audio sounds like at t into the passes the GPU runs. Each layer's
+ * reaction at t (from the track's signals) pushes its parameters the way its tier says.
+ */
 export function planFrame(
   scene: Scene,
   features: AudioFeatures,
   t: number,
-  size: { width: number; height: number }
+  size: { width: number; height: number },
+  signals: TrackSignals = NO_SIGNALS
 ): FramePlan {
   return {
     spectrum: features.bands,
-    passes: scene.layers.map((layer) => {
+    passes: drawnLayers(scene).map((layer) => {
       const uniforms = new Float32Array(UNIFORM_FLOATS)
       uniforms.set([t, features.energy, size.width, size.height])
-      uniforms.set(layerParams(layer), 4)
+      uniforms.set(layerParams(react(layer, reactionAt(layer.reactivity, signals, t))), 4)
       return { kind: layer.kind, uniforms }
     })
   }
+}
+
+type LayerOf<K extends LayerKind> = Extract<Layer, { kind: K }>
+type TierResponse<K extends LayerKind> = Record<Tier, (layer: LayerOf<K>, amount: number) => LayerOf<K>>
+
+const clamp01 = (x: number) => Math.min(1, Math.max(0, x))
+
+/**
+ * How each layer kind answers each tier. Hard hits cut through (glitch, flash), medium pulses
+ * swell with the drums, slow follows the energy. A new layer kind adds its own row here.
+ */
+const TIER_RESPONSES: { [K in LayerKind]: TierResponse<K> } = {
+  ground: {
+    hard: (l, a) => ({ ...l, lift: clamp01(l.lift + 0.3 * a) }),
+    medium: (l, a) => ({ ...l, lift: clamp01(l.lift + 0.1 * a) }),
+    slow: (l, a) => ({ ...l, lift: clamp01(l.lift + 0.12 * a) })
+  },
+  classic: {
+    hard: (l, a) => ({ ...l, glitch: clamp01(l.glitch + a), bleed: l.bleed * (1 + 2 * a) }),
+    medium: (l, a) => ({ ...l, height: clamp01(l.height * (1 + 0.5 * a)), bleed: l.bleed * (1 + a) }),
+    slow: (l, a) => ({ ...l, height: clamp01(l.height * (1 + 0.3 * a)) })
+  },
+  finish: {
+    hard: (l, a) => ({ ...l, grain: clamp01(l.grain + 0.4 * a), vignette: clamp01(l.vignette * (1 - 0.5 * a)) }),
+    medium: (l, a) => ({ ...l, grain: clamp01(l.grain + 0.15 * a) }),
+    slow: (l, a) => ({ ...l, energyResponse: clamp01(l.energyResponse * (1 + 0.5 * a)) })
+  }
+}
+
+function react(layer: Layer, reaction: Reaction): Layer {
+  if (reaction.amount <= 0) return layer
+  const respond = TIER_RESPONSES[layer.kind][reaction.tier] as (l: Layer, a: number) => Layer
+  return respond(layer, reaction.amount)
 }
 
 function layerParams(layer: Layer): number[] {

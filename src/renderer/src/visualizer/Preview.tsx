@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
+import type { TrackAnalysis } from '../../../shared/analysis'
 import type { Track } from '../../../shared/track'
 import { featuresAt, type MonoAudio } from './audio-features'
 import { ExportPanel } from './ExportPanel'
 import { PlaybackClock } from './playback-clock'
 import { SceneRenderer } from './renderer'
-import { defaultScene, planFrame, type Scene } from './scene'
-import { decodeTrackAudio } from './track-audio'
+import { NO_SIGNALS, type TrackSignals } from './signals'
+import { loadTrackSignals, decodeTrackAudio } from './track-audio'
+import { planVisionFrame, sectionIndexAt, type Vision } from './vision'
 
 /** Share of the canvas's pixels the layers render at. The preview runs reduced; export will run full. */
 const RENDER_SCALES = [
@@ -20,12 +22,18 @@ interface Loaded {
   clock: PlaybackClock
 }
 
-/** The Visualizer's live preview: plays a track's mixdown and draws the scene in time with it. */
-export function Preview({ track, scene = defaultScene }: { track: Track; scene?: Scene }) {
+/**
+ * The Visualizer's live preview: plays a track's mixdown and draws the vision in time with it,
+ * cutting to each section's scene as playback crosses into it, every layer reacting to the
+ * track's signals.
+ */
+export function Preview({ track, analysis, vision }: { track: Track; analysis: TrackAnalysis | null; vision: Vision }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const loadedRef = useRef<Loaded | null>(null)
   const sourceRef = useRef<AudioBufferSourceNode | null>(null)
-  const sceneRef = useRef(scene)
+  const visionRef = useRef(vision)
+  const signalsRef = useRef<TrackSignals>(NO_SIGNALS)
+  const [signals, setSignals] = useState<TrackSignals | undefined>(undefined)
   const scaleRef = useRef<number>(RENDER_SCALES[0].value)
   /** While a video exports, the preview stops drawing so the GPU is free for the export. */
   const exportingRef = useRef(false)
@@ -37,7 +45,7 @@ export function Preview({ track, scene = defaultScene }: { track: Track; scene?:
   const [fps, setFps] = useState(0)
   const [scale, setScale] = useState<number>(RENDER_SCALES[0].value)
 
-  sceneRef.current = scene
+  visionRef.current = vision
   scaleRef.current = scale
 
   useEffect(() => {
@@ -83,7 +91,7 @@ export function Preview({ track, scene = defaultScene }: { track: Track; scene?:
 
         const t = loaded.clock.time()
         if (loaded.clock.playing && loaded.clock.ended) stop(true)
-        renderer.draw(planFrame(sceneRef.current, featuresAt(loaded.mono, t), t, renderer.renderSize))
+        renderer.draw(planVisionFrame(visionRef.current, featuresAt(loaded.mono, t), t, renderer.renderSize, signalsRef.current))
 
         setTime((shown) => (Math.abs(shown - t) >= 0.05 ? t : shown))
         frames++
@@ -113,6 +121,26 @@ export function Preview({ track, scene = defaultScene }: { track: Track; scene?:
       renderer?.destroy()
     }
   }, [track.id])
+
+  // Signals come from the analysis and the stems, so they are derived again when either changes.
+  // Until they are ready the layers draw without reacting, and export waits.
+  useEffect(() => {
+    const loaded = loadedRef.current
+    if (status !== 'ready' || !loaded) return
+    let cancelled = false
+    signalsRef.current = NO_SIGNALS
+    setSignals(undefined)
+    loadTrackSignals(track.id, analysis, loaded.mono, loaded.context)
+      .then((next) => {
+        if (cancelled) return
+        signalsRef.current = next
+        setSignals(next)
+      })
+      .catch((e: unknown) => console.error('Could not derive the track signals:', e))
+    return () => {
+      cancelled = true
+    }
+  }, [track.id, analysis, status])
 
   const stop = (rewind: boolean) => {
     const loaded = loadedRef.current
@@ -176,6 +204,7 @@ export function Preview({ track, scene = defaultScene }: { track: Track; scene?:
         />
         <span className="preview-time">
           {formatTime(time)} / {formatTime(duration)}
+          {vision.sections.length > 1 && ` · ${sectionName(vision, time)}`}
         </span>
         <select aria-label="Preview resolution" value={scale} onChange={(e) => setScale(Number(e.target.value))}>
           {RENDER_SCALES.map((s) => (
@@ -187,7 +216,8 @@ export function Preview({ track, scene = defaultScene }: { track: Track; scene?:
       </div>
       <ExportPanel
         track={track}
-        scene={scene}
+        vision={vision}
+        signals={signals}
         audio={status === 'ready' && loadedRef.current ? { ...loadedRef.current.mono, duration } : undefined}
         onExportingChange={(exporting) => {
           exportingRef.current = exporting
@@ -196,6 +226,12 @@ export function Preview({ track, scene = defaultScene }: { track: Track; scene?:
       />
     </section>
   )
+}
+
+function sectionName(vision: Vision, t: number): string {
+  const i = sectionIndexAt(vision, t)
+  const label = vision.sections[i]!.label
+  return `${label[0]!.toUpperCase()}${label.slice(1)} (${i + 1}/${vision.sections.length})`
 }
 
 function formatTime(seconds: number): string {

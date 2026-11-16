@@ -15,6 +15,7 @@ const api: ElyntApi = {
     list: (trackId) => ipcRenderer.invoke(channels.listStems, trackId),
     attachPicked: (trackId) => ipcRenderer.invoke(channels.attachPickedStems, trackId),
     removeOwn: (stemId) => ipcRenderer.invoke(channels.removeOwnStem, stemId),
+    read: (trackId, stemId) => ipcRenderer.invoke(channels.readStem, trackId, stemId),
     split: (trackId) => ipcRenderer.invoke(channels.splitStems, trackId),
     jobs: () => ipcRenderer.invoke(channels.splitJobs),
     onJob: (listener) => {

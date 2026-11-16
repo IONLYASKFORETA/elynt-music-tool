@@ -158,11 +158,41 @@ export const BUILD_OFFSET = 12
 export const PALETTE_OFFSET = 16
 export const UNIFORM_FLOATS = PALETTE_OFFSET + PALETTE_FLOATS
 
+/**
+ * Passes that are not layers of the library: a white flash (a moment), and the transition
+ * that composites two scenes (V13).
+ */
+export type EffectKind = 'flash' | 'transition'
+/**
+ * What one step of a frame does. A "hold" step draws nothing: it sets the picture so far aside
+ * and starts the next passes from black, and the next transition pass reads the held picture.
+ */
+export type PassKind = DrawnKind | 'hold'
+/** The passes that run a shader. */
+export type DrawnKind = LayerKind | EffectKind
+
 export interface LayerPass {
-  kind: LayerKind
+  kind: PassKind
   uniforms: Float32Array
   /** A picture the pass draws from, for the layers that need one (type, a subject image). */
   image?: PassImage
+}
+
+/** One pass's uniforms: the frame row, up to 8 floats of its own parameters, the build, the palette. */
+export function passUniforms(
+  t: number,
+  features: AudioFeatures,
+  size: { width: number; height: number },
+  params: number[],
+  build: number,
+  palette: Palette
+): Float32Array {
+  const uniforms = new Float32Array(UNIFORM_FLOATS)
+  uniforms.set([t, features.energy, size.width, size.height])
+  uniforms.set(params, 4)
+  uniforms[BUILD_OFFSET] = build
+  uniforms.set(packPalette(palette), PALETTE_OFFSET)
+  return uniforms
 }
 
 /**
@@ -209,18 +239,13 @@ export function planFrame(
   palette: Palette = DEFAULT_PALETTE,
   context: FrameContext = NO_CONTEXT
 ): FramePlan {
-  const colors = packPalette(palette)
   const build = signalAt(signals, 'build', t)
   return {
     spectrum: features.bands,
     passes: drawnLayers(scene).map((layer) => {
-      const uniforms = new Float32Array(UNIFORM_FLOATS)
-      uniforms.set([t, features.energy, size.width, size.height])
       const placed = place(layer, context.layout)
       const { params, image } = layerParams(react(placed, reactionAt(placed.reactivity, signals, t)), context, signals, t)
-      uniforms.set(params, 4)
-      uniforms[BUILD_OFFSET] = build
-      uniforms.set(colors, PALETTE_OFFSET)
+      const uniforms = passUniforms(t, features, size, params, build, palette)
       return image ? { kind: layer.kind, uniforms, image } : { kind: layer.kind, uniforms }
     })
   }
@@ -278,7 +303,8 @@ function react(layer: Layer, reaction: Reaction): Layer {
   return respond(layer, reaction.amount)
 }
 
-function layerParams(
+/** A layer's own uniforms (and any picture it draws from), as its shader reads them. */
+export function layerParams(
   layer: Layer,
   context: FrameContext,
   signals: TrackSignals,

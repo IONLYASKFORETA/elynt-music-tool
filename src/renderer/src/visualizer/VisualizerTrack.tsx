@@ -24,12 +24,15 @@ export function VisualizerTrack({ track, onRenamed }: { track: Track; onRenamed:
   // (Saving visions comes with the vision flow, V10.)
   const sections = analysis?.sections ?? []
   const duration = analysis?.durationSeconds ?? 0
-  const sectionsKey = JSON.stringify(sections.map((s) => [s.label, s.start, s.end]))
-  const [vision, setVision] = useState(() => defaultVision(sections, duration))
+  const grid = { beats: analysis?.beats ?? [], downbeats: analysis?.downbeats ?? [] }
+  // Moments and transitions sit on the beat grid, so a nudged grid starts them over too.
+  const sectionsKey = JSON.stringify([sections.map((s) => [s.label, s.start, s.end]), grid.beats.length, grid.downbeats[0], analysis?.bpm])
+  const [vision, setVision] = useState(() => defaultVision(sections, duration, grid))
+  const [section, setSection] = useState(0)
   // The format the preview shows and the scene panel tweaks (V16). Edits to the vision apply to every format.
   const [format, setFormat] = useState<FormatId>('wide')
   useEffect(() => {
-    setVision(defaultVision(sections, duration))
+    setVision(defaultVision(sections, duration, grid))
   }, [track.id, sectionsKey])
 
   // Poster layers set the track's title and the artist's name from the artist profile.
@@ -66,8 +69,17 @@ export function VisualizerTrack({ track, onRenamed }: { track: Track; onRenamed:
           Check what I heard
         </button>
       )}
-      <Preview track={track} analysis={analysis} vision={credited} format={format} onFormatChange={setFormat} />
-      <ScenePanel vision={credited} format={format} onChange={setVision} />
+      <Preview
+        track={track}
+        analysis={analysis}
+        vision={credited}
+        onVisionChange={setVision}
+        section={section}
+        onSection={setSection}
+        format={format}
+        onFormatChange={setFormat}
+      />
+      <ScenePanel vision={credited} format={format} onChange={setVision} section={section} onSection={setSection} />
     </>
   )
 }

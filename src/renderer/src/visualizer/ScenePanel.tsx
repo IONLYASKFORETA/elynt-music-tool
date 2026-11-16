@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import type { FormatId } from '../../../shared/formats'
 import { FormatTweakControls } from './FormatTweakControls'
 import { PosterLayerControls } from './PosterLayerControls'
@@ -25,8 +24,21 @@ const ADDABLE_KINDS = (Object.keys(LAYER_NAMES) as LayerKind[]).filter((k) => !E
  * strongly. Active layers can be added (up to the limit) and removed. Poster layers also take
  * tweaks for the format the preview shows (V16).
  */
-export function ScenePanel({ vision, format, onChange }: { vision: Vision; format: FormatId; onChange(vision: Vision): void }) {
-  const [picked, setPicked] = useState(0)
+export function ScenePanel({
+  vision,
+  format,
+  onChange,
+  section: picked,
+  onSection: setPicked
+}: {
+  vision: Vision
+  /** The format the preview shows, which the poster layers' tweaks apply to. */
+  format: FormatId
+  onChange(vision: Vision): void
+  /** The picked section; the timeline picks it too. */
+  section: number
+  onSection(index: number): void
+}) {
   const index = Math.min(picked, vision.sections.length - 1)
   const section = vision.sections[index]!
   const { scene } = section

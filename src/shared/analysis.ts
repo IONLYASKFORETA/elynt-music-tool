@@ -36,6 +36,27 @@ export interface CoarseMood {
   source: 'heuristic'
 }
 
+/**
+ * Mood detail from the optional Gemini mood listen (V12). Claude can't hear audio,
+ * so this is the only AI that listens to the track. Only there when a Gemini key is set.
+ */
+export interface MoodDetail {
+  source: 'gemini'
+  /** The Gemini model that listened. */
+  model: string
+  label: MoodLabel
+  /** -1 calm to 1 energetic. */
+  arousal: number
+  /** -1 dark to 1 bright. */
+  valence: number
+  /** A few words for the emotion and vibe, for example "menacing", "weightless". */
+  words: string[]
+  /** One or two sentences on how the track feels. */
+  summary: string
+  /** How each section feels, by its place in `sections`. */
+  sections: { index: number; feeling: string; intensity: number }[]
+}
+
 export interface TrackAnalysis {
   analyzerVersion: number
   durationSeconds: number
@@ -52,6 +73,8 @@ export interface TrackAnalysis {
   /** Loudness over time, 0 to 1, `hz` values a second. */
   energy: { hz: number; values: number[] }
   mood: CoarseMood
+  /** Added by the Gemini mood listen when a key is set. Without it, `mood` is all there is. */
+  moodDetail?: MoodDetail
   /** Plain-words notes on how the result was reached. */
   notes: string[]
   /** How long the helper took. */

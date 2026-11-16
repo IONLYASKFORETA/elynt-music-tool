@@ -27,6 +27,8 @@ _Avoid_: using "layer" for audio parts; those are stems.
 
 **Track analysis**: what the Visualizer learns by listening to a track and its stems: tempo, beats, sections, energy, and its emotion and vibe.
 
+**Mood listen**: the optional step of track analysis where Gemini listens to the mixdown and adds mood detail (mood words, a summary, and how each section feels) to the coarse mood the app reads locally. Runs only when a Gemini key is set.
+
 **Vision**: the art direction for one track (mood, palette, motifs, the look of each section, and how the visuals react), agreed between the owner and the Visualizer before scenes are built.
 _Avoid_: "theme", "style" (a vision is made for one track, not reused as-is).
 

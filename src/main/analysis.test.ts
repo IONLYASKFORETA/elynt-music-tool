@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import type { TrackAnalysis, TrackAnalysisState } from '../shared/analysis'
+import type { MoodDetail, TrackAnalysis, TrackAnalysisState } from '../shared/analysis'
 import type { HelperStatus } from '../shared/helper'
 import { createAnalysisQueue, createTrackAnalysisStore, type AnalysisHelper } from './analysis'
 import { openSuiteDatabase, type SuiteDatabase } from './db/database'
@@ -211,5 +211,57 @@ describe('analysis queue', () => {
 
     expect(calls.sort()).toEqual(['/m/cut.wav', '/m/old.wav'])
     expect(store.get(done.id)?.analysis?.bpm).toBe(150)
+  })
+
+  it("adds the mood listen's detail to the saved analysis, after the local read", async () => {
+    const store = createTrackAnalysisStore(db)
+    const { helper } = fakeHelper(async () => analysisFor(134.14))
+    const detail: MoodDetail = {
+      source: 'gemini',
+      model: 'gemini-3.1-flash-lite',
+      label: 'dark',
+      arousal: 0.8,
+      valence: -0.4,
+      words: ['menacing', 'cold'],
+      summary: 'Cold and driving.',
+      sections: [{ index: 2, feeling: 'menacing', intensity: 1 }]
+    }
+    const heard: { trackId: number; mixdownPath: string; bpm: number }[] = []
+    const changes: TrackAnalysisState[] = []
+    const queue = createAnalysisQueue({
+      store,
+      tracks,
+      helper,
+      onChange: (s) => changes.push(s),
+      moodListen: async ({ trackId, mixdownPath, analysis }) => {
+        heard.push({ trackId, mixdownPath, bpm: analysis.bpm })
+        return detail
+      }
+    })
+    const track = tracks.addFromMixdown('D:\\Bounces\\flip.wav')
+
+    queue.enqueue(track.id)
+    await queue.idle()
+
+    expect(heard).toEqual([{ trackId: track.id, mixdownPath: 'D:\\Bounces\\flip.wav', bpm: 134.14 }])
+    const saved = store.get(track.id)!
+    expect(saved.status).toBe('done')
+    expect(saved.analysis?.moodDetail).toEqual(detail)
+    expect(saved.analysis?.mood.label).toBe('euphoric') // the coarse read stays alongside
+    expect(changes.at(-1)?.analysis?.moodDetail).toEqual(detail)
+  })
+
+  it('without a mood listen result, saves the coarse mood alone', async () => {
+    const store = createTrackAnalysisStore(db)
+    const { helper } = fakeHelper(async () => analysisFor(128))
+    const queue = createAnalysisQueue({ store, tracks, helper, moodListen: async () => null })
+    const track = tracks.addFromMixdown('/m/a.wav')
+
+    queue.enqueue(track.id)
+    await queue.idle()
+
+    expect(store.get(track.id)?.status).toBe('done')
+    expect(store.get(track.id)?.analysis?.moodDetail).toBeUndefined()
+    expect(store.get(track.id)?.analysis?.mood.label).toBe('euphoric')
   })
 })

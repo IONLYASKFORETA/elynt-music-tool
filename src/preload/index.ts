@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import { channels, type ElyntApi } from '../shared/api'
+import type { TrackAnalysisState } from '../shared/analysis'
 import type { HelperStatus } from '../shared/helper'
 import type { SplitJob } from '../shared/stems'
 
@@ -55,6 +56,15 @@ const api: ElyntApi = {
     pickReferenceTracks: () => ipcRenderer.invoke(channels.pickReferenceTracks),
     // File.path is gone in current Electron; webUtils is the supported way to get a dropped file's path.
     pathForDroppedFile: (file) => webUtils.getPathForFile(file)
+  },
+  analysis: {
+    get: (trackId) => ipcRenderer.invoke(channels.getAnalysis, trackId),
+    rerun: (trackId) => ipcRenderer.invoke(channels.rerunAnalysis, trackId),
+    onChange: (listener) => {
+      const handler = (_event: Electron.IpcRendererEvent, state: TrackAnalysisState) => listener(state)
+      ipcRenderer.on(channels.analysisChanged, handler)
+      return () => ipcRenderer.off(channels.analysisChanged, handler)
+    }
   },
   helper: {
     status: () => ipcRenderer.invoke(channels.helperStatus),

@@ -47,6 +47,15 @@ uv run pytest
 
 The app's own tests (`npm test`) use a Node stand-in for this helper, so they run without Python.
 
+## Track analysis
+
+`track.analyze` (V1) reads a mixdown and returns tempo, beats, downbeats, sections, an energy curve and a coarse mood (`src/elynt_helper/analysis/`). The app runs it when a track is added and saves the result on the track.
+
+- **Beats** come from Beat This! when it is installed (the setup scripts install it), snapped to one constant-tempo grid. Without it, a built-in signal-processing tracker does the job. The model's weights (about 80 MB) download once on first use.
+- Beat This! asks for torchaudio, which has no build for torch 2.13. It only uses torchaudio for one mel spectrogram, so the helper provides that class itself when torchaudio is missing (`beat_this_engine.py`, checked against librosa in `tests/test_beat_this_stand_in.py`).
+- **Sections** (intro, build, drop, breakdown, outro) come from energy and low-end heuristics on four-bar phrases, because no model labels builds or drops (research #6).
+- The results on the three test tracks are in `docs/track-analysis-check.md`.
+
 ## Install check
 
 `uv run python -m elynt_helper.install_check` checks whether NATTEN, SongFormer, Essentia and pyebur128 install on the current machine. Results are in `docs/helper-install-check.md`.

@@ -1,5 +1,6 @@
 import type { BenchConfig, BenchReport, FileCheck } from './bench'
 import type { ExportFormatId, ExportJob, ExportRequest, ExportResult } from './export'
+import type { TrackAnalysisState } from './analysis'
 import type { AudioProbe, HelperStatus } from './helper'
 import type { KeyName, KeyStatus, KeyTestResult } from './keys'
 import type { BackupStatus } from './backup'
@@ -84,6 +85,15 @@ export interface ElyntApi {
     /** The path on disk of a file dropped onto the window. */
     pathForDroppedFile(file: File): string
   }
+  /** Track analysis (V1): tempo, beats, sections, energy and mood, saved on the track. */
+  analysis: {
+    /** Null until the track has been queued for analysis. */
+    get(trackId: number): Promise<TrackAnalysisState | null>
+    /** Queues the track to be analysed again. */
+    rerun(trackId: number): Promise<TrackAnalysisState>
+    /** Calls back whenever any track's analysis changes. Returns a function that stops listening. */
+    onChange(listener: (state: TrackAnalysisState) => void): () => void
+  }
   helper: {
     status(): Promise<HelperStatus>
     /** Calls back on every status change. Returns a function that stops listening. */
@@ -115,6 +125,9 @@ export const channels = {
   getMixSetup: 'mix-setup:get',
   saveMixSetup: 'mix-setup:save',
   pickReferenceTracks: 'mix-setup:pick-reference-tracks',
+  getAnalysis: 'analysis:get',
+  rerunAnalysis: 'analysis:rerun',
+  analysisChanged: 'analysis:changed',
   helperStatus: 'helper:status',
   helperStatusChanged: 'helper:status-changed',
   probeTrack: 'helper:probe-track',

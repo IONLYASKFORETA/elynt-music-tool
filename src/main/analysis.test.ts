@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import type { TrackAnalysis, TrackAnalysisState } from '../shared/analysis'
+import type { MoodDetail, TrackAnalysis, TrackAnalysisState } from '../shared/analysis'
 import type { HelperStatus } from '../shared/helper'
 import { createAnalysisQueue, createTrackAnalysisStore, type AnalysisHelper } from './analysis'
 import { openSuiteDatabase, type SuiteDatabase } from './db/database'
@@ -105,6 +105,99 @@ describe('track analysis store', () => {
 
     expect(store.pending()).toEqual([b.id, a.id])
     expect(store.unanalysed()).toEqual([c.id])
+  })
+})
+
+describe('"What I heard" check on the store', () => {
+  it("saves the owner's corrections over the heard analysis, so every tool reads them, and they survive a reopen", () => {
+    const store = createTrackAnalysisStore(db, () => new Date('2026-11-16T10:00:00Z'))
+    const track = tracks.addFromMixdown('/m/flip.wav')
+    store.markPending(track.id)
+    store.saveResult(track.id, analysisFor(134))
+    expect(store.get(track.id)?.check).toBe('unchecked')
+
+    const fixed = analysisFor(128)
+    fixed.sections[1] = { ...fixed.sections[1]!, label: 'breakdown', source: 'owner', confidence: 1 }
+    const saved = store.saveCorrection(track.id, fixed)
+
+    expect(saved).toMatchObject({ status: 'done', check: 'confirmed', checkedAt: '2026-11-16T10:00:00.000Z' })
+    db.close()
+    db = openSuiteDatabase(join(dir, 'elynt.sqlite'))
+    const reread = createTrackAnalysisStore(db).get(track.id)!
+    expect(reread.analysis?.bpm).toBe(128)
+    expect(reread.analysis?.sections.map((s) => s.label)).toEqual(['intro', 'breakdown', 'drop'])
+    expect(reread.check).toBe('confirmed')
+  })
+
+  it('keeps a mood listen and the corrections whichever lands first', () => {
+    const store = createTrackAnalysisStore(db)
+    const track = tracks.addFromMixdown('/m/flip.wav')
+    store.markPending(track.id)
+    store.saveResult(track.id, analysisFor(134))
+    const detail: MoodDetail = { source: 'gemini', model: 'gemini-3.1-flash-lite', label: 'dark', arousal: 0.8, valence: -0.4, words: ['cold'], summary: 'Cold.', sections: [] }
+
+    // The owner corrects first; the mood listen arrives after and must not undo the check.
+    store.saveCorrection(track.id, analysisFor(128))
+    const afterMood = store.saveMoodDetail(track.id, detail)
+    expect(afterMood.check).toBe('confirmed')
+    expect(afterMood.analysis?.bpm).toBe(128)
+    expect(afterMood.analysis?.moodDetail).toEqual(detail)
+
+    // A correction made from a check opened before the mood came back keeps the stored mood.
+    const again = store.saveCorrection(track.id, analysisFor(130))
+    expect(again.analysis?.bpm).toBe(130)
+    expect(again.analysis?.moodDetail).toEqual(detail)
+  })
+
+  it('records a skipped check without touching the analysis', () => {
+    const store = createTrackAnalysisStore(db)
+    const track = tracks.addFromMixdown('/m/flip.wav')
+    store.markPending(track.id)
+    store.saveResult(track.id, analysisFor(134))
+
+    const skipped = store.skipCheck(track.id)
+
+    expect(skipped.check).toBe('skipped')
+    expect(skipped.analysis?.bpm).toBe(134)
+  })
+
+  it('asks for a fresh check when the track is analysed again', () => {
+    const store = createTrackAnalysisStore(db)
+    const track = tracks.addFromMixdown('/m/flip.wav')
+    store.markPending(track.id)
+    store.saveResult(track.id, analysisFor(134))
+    store.saveCorrection(track.id, analysisFor(128))
+
+    store.markPending(track.id)
+    expect(store.get(track.id)?.check).toBe('confirmed')
+    store.saveResult(track.id, analysisFor(130))
+    expect(store.get(track.id)).toMatchObject({ check: 'unchecked', checkedAt: null })
+  })
+
+  it('refuses corrections that break the section timeline, and keeps what was there', () => {
+    const store = createTrackAnalysisStore(db)
+    const track = tracks.addFromMixdown('/m/flip.wav')
+    store.markPending(track.id)
+    store.saveResult(track.id, analysisFor(134))
+
+    const gap = analysisFor(128)
+    gap.sections[1] = { ...gap.sections[1]!, start: 20 }
+    const badLabel = analysisFor(128)
+    badLabel.sections[0] = { ...badLabel.sections[0]!, label: 'chorus' as never }
+    const badBpm = analysisFor(0)
+
+    expect(() => store.saveCorrection(track.id, gap)).toThrow(/sections/i)
+    expect(() => store.saveCorrection(track.id, badLabel)).toThrow(/label/i)
+    expect(() => store.saveCorrection(track.id, badBpm)).toThrow(/BPM/)
+    expect(store.get(track.id)).toMatchObject({ check: 'unchecked', analysis: { bpm: 134 } })
+  })
+
+  it("can't check a track that has no analysis yet", () => {
+    const store = createTrackAnalysisStore(db)
+    const track = tracks.addFromMixdown('/m/flip.wav')
+
+    expect(() => store.saveCorrection(track.id, analysisFor(128))).toThrow(/no analysis/i)
+    expect(() => store.skipCheck(track.id)).toThrow(/no analysis/i)
   })
 })
 
@@ -211,5 +304,57 @@ describe('analysis queue', () => {
 
     expect(calls.sort()).toEqual(['/m/cut.wav', '/m/old.wav'])
     expect(store.get(done.id)?.analysis?.bpm).toBe(150)
+  })
+
+  it("adds the mood listen's detail to the saved analysis, after the local read", async () => {
+    const store = createTrackAnalysisStore(db)
+    const { helper } = fakeHelper(async () => analysisFor(134.14))
+    const detail: MoodDetail = {
+      source: 'gemini',
+      model: 'gemini-3.1-flash-lite',
+      label: 'dark',
+      arousal: 0.8,
+      valence: -0.4,
+      words: ['menacing', 'cold'],
+      summary: 'Cold and driving.',
+      sections: [{ index: 2, feeling: 'menacing', intensity: 1 }]
+    }
+    const heard: { trackId: number; mixdownPath: string; bpm: number }[] = []
+    const changes: TrackAnalysisState[] = []
+    const queue = createAnalysisQueue({
+      store,
+      tracks,
+      helper,
+      onChange: (s) => changes.push(s),
+      moodListen: async ({ trackId, mixdownPath, analysis }) => {
+        heard.push({ trackId, mixdownPath, bpm: analysis.bpm })
+        return detail
+      }
+    })
+    const track = tracks.addFromMixdown('D:\\Bounces\\flip.wav')
+
+    queue.enqueue(track.id)
+    await queue.idle()
+
+    expect(heard).toEqual([{ trackId: track.id, mixdownPath: 'D:\\Bounces\\flip.wav', bpm: 134.14 }])
+    const saved = store.get(track.id)!
+    expect(saved.status).toBe('done')
+    expect(saved.analysis?.moodDetail).toEqual(detail)
+    expect(saved.analysis?.mood.label).toBe('euphoric') // the coarse read stays alongside
+    expect(changes.at(-1)?.analysis?.moodDetail).toEqual(detail)
+  })
+
+  it('without a mood listen result, saves the coarse mood alone', async () => {
+    const store = createTrackAnalysisStore(db)
+    const { helper } = fakeHelper(async () => analysisFor(128))
+    const queue = createAnalysisQueue({ store, tracks, helper, moodListen: async () => null })
+    const track = tracks.addFromMixdown('/m/a.wav')
+
+    queue.enqueue(track.id)
+    await queue.idle()
+
+    expect(store.get(track.id)?.status).toBe('done')
+    expect(store.get(track.id)?.analysis?.moodDetail).toBeUndefined()
+    expect(store.get(track.id)?.analysis?.mood.label).toBe('euphoric')
   })
 })

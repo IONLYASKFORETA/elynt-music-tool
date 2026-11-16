@@ -1,11 +1,20 @@
 import { useEffect, useRef, useState } from 'react'
+import type { TrackAnalysis } from '../../../shared/analysis'
+import type { TimeWindow } from '../../../shared/drop-preview'
+import { DEFAULT_SAFE_ZONES, FORMAT_IDS, FORMATS, formatLayout, type FormatId, type SafeZones } from '../../../shared/formats'
 import type { Track } from '../../../shared/track'
 import { featuresAt, type MonoAudio } from './audio-features'
 import { ExportPanel } from './ExportPanel'
+import { SafeZoneGuides } from './SafeZoneGuides'
+import { Timeline } from './Timeline'
 import { PlaybackClock } from './playback-clock'
 import { SceneRenderer } from './renderer'
-import { defaultScene, planFrame, type Scene } from './scene'
-import { decodeTrackAudio } from './track-audio'
+import { NO_SIGNALS, type TrackSignals } from './signals'
+import { loadTrackSignals, decodeTrackAudio } from './track-audio'
+import { planVisionFrame, sectionIndexAt, type Vision } from './vision'
+
+/** The longest side the preview canvas gets, in pixels: 4K's width. */
+const MAX_CANVAS_SIDE = 3840
 
 /** Share of the canvas's pixels the layers render at. The preview runs reduced; export will run full. */
 const RENDER_SCALES = [
@@ -20,12 +29,46 @@ interface Loaded {
   clock: PlaybackClock
 }
 
-/** The Visualizer's live preview: plays a track's mixdown and draws the scene in time with it. */
-export function Preview({ track, scene = defaultScene }: { track: Track; scene?: Scene }) {
+/**
+ * The Visualizer's live preview: plays a track's mixdown and draws the vision in time with it,
+ * cutting to each section's scene as playback crosses into it, every layer reacting to the
+ * track's signals. It shows one format at a time (16:9, 9:16 or 1:1, V16), re-flowed from the
+ * same vision, with guides for the format's safe zone.
+ */
+export function Preview({
+  track,
+  analysis,
+  vision,
+  loop = null,
+  onLoopEnd,
+  format,
+  onFormatChange,
+  onVisionChange,
+  section,
+  onSection
+}: {
+  track: Track
+  analysis: TrackAnalysis | null
+  vision: Vision
+  /**
+   * Plays just this stretch, from its start, for a drop preview (V10). Each time playback reaches
+   * its end, `onLoopEnd` is called and it starts over; a new `loop.key` restarts it too.
+   */
+  loop?: (TimeWindow & { key: string }) | null
+  onLoopEnd?: () => void
+  format: FormatId
+  onFormatChange(format: FormatId): void
+  onVisionChange(vision: Vision): void
+  /** The section picked on the timeline, whose scene the scene panel shows. */
+  section: number
+  onSection(index: number): void
+}) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const loadedRef = useRef<Loaded | null>(null)
   const sourceRef = useRef<AudioBufferSourceNode | null>(null)
-  const sceneRef = useRef(scene)
+  const visionRef = useRef(vision)
+  const signalsRef = useRef<TrackSignals>(NO_SIGNALS)
+  const [signals, setSignals] = useState<TrackSignals | undefined>(undefined)
   const scaleRef = useRef<number>(RENDER_SCALES[0].value)
   /** While a video exports, the preview stops drawing so the GPU is free for the export. */
   const exportingRef = useRef(false)
@@ -36,9 +79,30 @@ export function Preview({ track, scene = defaultScene }: { track: Track; scene?:
   const [duration, setDuration] = useState(0)
   const [fps, setFps] = useState(0)
   const [scale, setScale] = useState<number>(RENDER_SCALES[0].value)
+  const [zones, setZones] = useState<SafeZones>(DEFAULT_SAFE_ZONES)
+  const [guides, setGuides] = useState(true)
+  const layoutRef = useRef(formatLayout(zones, format))
 
-  sceneRef.current = scene
+  visionRef.current = vision
   scaleRef.current = scale
+  const loopRef = useRef(loop)
+  loopRef.current = loop
+  /** Bumped by the frame loop when playback passes the end of the loop. */
+  const loopPassedRef = useRef(false)
+  const [loopEnds, setLoopEnds] = useState(0)
+  layoutRef.current = formatLayout(zones, format)
+
+  // The owner's safe-zones.json, if any, replaces the shipped margins.
+  useEffect(() => {
+    let cancelled = false
+    window.elynt.visualizer
+      .safeZones()
+      .then((loaded) => !cancelled && setZones(loaded))
+      .catch((e: unknown) => console.error('Could not read the safe zones:', e))
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -73,8 +137,9 @@ export function Preview({ track, scene = defaultScene }: { track: Track; scene?:
         frame = requestAnimationFrame(tick)
         const loaded = loadedRef.current
         if (!loaded || !renderer || exportingRef.current) return
-        const width = Math.min(canvas.clientWidth * devicePixelRatio, 3840)
-        const height = Math.min(canvas.clientHeight * devicePixelRatio, 2160)
+        const fit = Math.min(1, MAX_CANVAS_SIDE / (Math.max(canvas.clientWidth, canvas.clientHeight, 1) * devicePixelRatio))
+        const width = canvas.clientWidth * devicePixelRatio * fit
+        const height = canvas.clientHeight * devicePixelRatio * fit
         if (canvas.width !== Math.round(width) || canvas.height !== Math.round(height)) {
           canvas.width = Math.round(width)
           canvas.height = Math.round(height)
@@ -83,7 +148,14 @@ export function Preview({ track, scene = defaultScene }: { track: Track; scene?:
 
         const t = loaded.clock.time()
         if (loaded.clock.playing && loaded.clock.ended) stop(true)
-        renderer.draw(planFrame(sceneRef.current, featuresAt(loaded.mono, t), t, renderer.renderSize))
+        const span = loopRef.current
+        if (span && loaded.clock.playing && t >= span.end && !loopPassedRef.current) {
+          loopPassedRef.current = true
+          setLoopEnds((n) => n + 1)
+        }
+        renderer.draw(
+          planVisionFrame(visionRef.current, featuresAt(loaded.mono, t), t, renderer.renderSize, signalsRef.current, layoutRef.current)
+        )
 
         setTime((shown) => (Math.abs(shown - t) >= 0.05 ? t : shown))
         frames++
@@ -113,6 +185,43 @@ export function Preview({ track, scene = defaultScene }: { track: Track; scene?:
       renderer?.destroy()
     }
   }, [track.id])
+
+  // Signals come from the analysis and the stems, so they are derived again when either changes.
+  // Until they are ready the layers draw without reacting, and export waits.
+  useEffect(() => {
+    const loaded = loadedRef.current
+    if (status !== 'ready' || !loaded) return
+    let cancelled = false
+    signalsRef.current = NO_SIGNALS
+    setSignals(undefined)
+    loadTrackSignals(track.id, analysis, loaded.mono, loaded.context)
+      .then((next) => {
+        if (cancelled) return
+        signalsRef.current = next
+        setSignals(next)
+      })
+      .catch((e: unknown) => console.error('Could not derive the track signals:', e))
+    return () => {
+      cancelled = true
+    }
+  }, [track.id, analysis, status])
+
+  // A drop preview starts its stretch from the top whenever it (or the vision shown) changes.
+  useEffect(() => {
+    if (status !== 'ready') return
+    if (!loop) return void stop(false)
+    loopPassedRef.current = false
+    seek(loop.start)
+    if (!loadedRef.current?.clock.playing) void play()
+  }, [status, loop?.key, loop?.start, loop?.end])
+
+  useEffect(() => {
+    if (loopEnds === 0) return
+    loopPassedRef.current = false
+    const span = loopRef.current
+    if (span) seek(span.start)
+    onLoopEnd?.()
+  }, [loopEnds])
 
   const stop = (rewind: boolean) => {
     const loaded = loadedRef.current
@@ -151,8 +260,9 @@ export function Preview({ track, scene = defaultScene }: { track: Track; scene?:
 
   return (
     <section className="preview" aria-label="Live preview">
-      <div className="preview-stage">
+      <div className="preview-stage" style={stageStyle(format)}>
         <canvas ref={canvasRef} className="preview-canvas" />
+        {guides && <SafeZoneGuides zones={zones} format={format} />}
         {status !== 'ready' && (
           <p className={status === 'error' ? 'preview-note error' : 'preview-note'}>
             {status === 'error' ? `The preview could not start: ${error}` : `Loading ${track.title}…`}
@@ -176,7 +286,24 @@ export function Preview({ track, scene = defaultScene }: { track: Track; scene?:
         />
         <span className="preview-time">
           {formatTime(time)} / {formatTime(duration)}
+          {vision.sections.length > 1 && ` · ${sectionName(vision, time)}`}
         </span>
+        <span className="preview-formats" role="radiogroup" aria-label="Format">
+          {FORMAT_IDS.map((id) => (
+            <button
+              key={id}
+              role="radio"
+              aria-checked={id === format}
+              className={id === format ? 'preview-format picked' : 'preview-format'}
+              onClick={() => onFormatChange(id)}
+            >
+              {FORMATS[id].label}
+            </button>
+          ))}
+        </span>
+        <label className="preview-guides">
+          <input type="checkbox" checked={guides} onChange={(e) => setGuides(e.target.checked)} /> Safe zones
+        </label>
         <select aria-label="Preview resolution" value={scale} onChange={(e) => setScale(Number(e.target.value))}>
           {RENDER_SCALES.map((s) => (
             <option key={s.value} value={s.value}>
@@ -185,9 +312,20 @@ export function Preview({ track, scene = defaultScene }: { track: Track; scene?:
           ))}
         </select>
       </div>
+      <Timeline
+        vision={vision}
+        time={time}
+        duration={duration}
+        disabled={status !== 'ready'}
+        onSeek={seek}
+        onChange={onVisionChange}
+        section={section}
+        onSection={onSection}
+      />
       <ExportPanel
         track={track}
-        scene={scene}
+        vision={vision}
+        signals={signals}
         audio={status === 'ready' && loadedRef.current ? { ...loadedRef.current.mono, duration } : undefined}
         onExportingChange={(exporting) => {
           exportingRef.current = exporting
@@ -196,6 +334,18 @@ export function Preview({ track, scene = defaultScene }: { track: Track; scene?:
       />
     </section>
   )
+}
+
+/** The stage keeps the format's shape, as wide as the panel allows and never taller than most of the window. */
+function stageStyle(format: FormatId): React.CSSProperties {
+  const { width, height } = FORMATS[format]
+  return { aspectRatio: `${width} / ${height}`, width: `min(100%, calc(70vh * ${(width / height).toFixed(4)}))`, marginInline: 'auto' }
+}
+
+function sectionName(vision: Vision, t: number): string {
+  const i = sectionIndexAt(vision, t)
+  const label = vision.sections[i]!.label
+  return `${label[0]!.toUpperCase()}${label.slice(1)} (${i + 1}/${vision.sections.length})`
 }
 
 function formatTime(seconds: number): string {

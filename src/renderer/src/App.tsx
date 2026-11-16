@@ -3,12 +3,15 @@ import type { AudioProbe, HelperStatus } from '../../shared/helper'
 import type { Track } from '../../shared/track'
 import type { BenchConfig } from '../../shared/bench'
 import { BenchRunner } from './visualizer/BenchRunner'
-import { Preview } from './visualizer/Preview'
+import { VisualizerTrack } from './visualizer/VisualizerTrack'
 import { AnalysisStrip } from './visualizer/AnalysisStrip'
 import { ApiKeysPanel } from './ApiKeysPanel'
 import { BackupSettings } from './BackupSettings'
+import { LiveSetTree } from './LiveSetTree'
+import { MixProjectPanel } from './MixProjectPanel'
 import { MixSetupScreen } from './MixSetupScreen'
 import { ProfileScreen } from './ProfileScreen'
+import { ReleaseScreen } from './ReleaseScreen'
 import { TrackStems } from './TrackStems'
 
 const TOOLS = [
@@ -129,8 +132,13 @@ function Suite() {
 
           {error && <p className="error">{error}</p>}
 
-          {active === 'visualizer' && pickedTrack && <Preview key={pickedTrack.id} track={pickedTrack} />}
+          {active === 'visualizer' && pickedTrack && (
+            <VisualizerTrack key={pickedTrack.id} track={pickedTrack} onRenamed={() => void refresh().catch((e: unknown) => setError(String(e)))} />
+          )}
           {active === 'mix-master' && pickedTrack && <MixSetupScreen key={pickedTrack.id} track={pickedTrack} />}
+          {active === 'mix-master' && pickedTrack && <MixProjectPanel key={`project-${pickedTrack.id}`} track={pickedTrack} />}
+          {active === 'mix-master' && pickedTrack && <LiveSetTree key={`live-set-${pickedTrack.id}`} />}
+          {active === 'release' && <ReleaseScreen tracks={tracks} />}
 
           <h2>{picks && tracks.length > 0 ? `Tracks · pick one to ${active === 'visualizer' ? 'preview' : 'open'}` : 'Tracks'}</h2>
           {tracks.length === 0 ? (

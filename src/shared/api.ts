@@ -1,13 +1,23 @@
 import type { BenchConfig, BenchReport, FileCheck } from './bench'
+import type { SafeZones } from './formats'
 import type { ExportFormatId, ExportJob, ExportRequest, ExportResult } from './export'
-import type { TrackAnalysisState } from './analysis'
+import type { TrackAnalysis, TrackAnalysisState } from './analysis'
 import type { AudioProbe, HelperStatus } from './helper'
 import type { KeyName, KeyStatus, KeyTestResult } from './keys'
 import type { BackupStatus } from './backup'
+import type { LiveSet } from './live-set'
+import type { MixProject, MixProjectChangeEvent } from './mix-project'
+import type { CoverArt, MediaItem } from './media'
 import type { MixSetup } from './mix-setup'
 import type { ArtistProfile } from './profile'
+import type { Release, ReleaseToday, ReleaseWithPlan, StartRelease } from './release'
+import type { StepAction } from './release-plan-actions'
 import type { SplitJob, Stem } from './stems'
+import type { SubjectImage, SubjectImageRequest, SubjectJob } from './subject-images'
 import type { Track } from './track'
+import type { VisionNoteRequest, VisionNoteResult } from './vision-note'
+import type { HistoryState, Preset, PresetLevel, Snapshot, VisionKey } from './vision-history'
+import type { VisionFlowRequest, VisionFlowResult, VisionSet, WorkingVision } from './visions'
 
 /** What the preload script exposes to the UI as `window.elynt`. */
 export interface ElyntApi {
@@ -17,6 +27,8 @@ export interface ElyntApi {
     addFromPickedMixdown(): Promise<Track | null>
     /** The bytes of a track's mixdown file, for the Visualizer to decode and play. */
     readMixdown(trackId: number): Promise<Uint8Array>
+    /** Gives a track the owner's title (the "What I heard" check). Rejects an empty title. */
+    rename(trackId: number, title: string): Promise<Track>
   }
   /**
    * A track's stems: all the owner's own, or all AI-split by the helper. Own stems always win.
@@ -27,6 +39,8 @@ export interface ElyntApi {
     /** Opens a multi-file picker; the picked stems replace any split set. Null if cancelled. */
     attachPicked(trackId: number): Promise<Stem[] | null>
     removeOwn(stemId: number): Promise<void>
+    /** The bytes of one of a track's stems, for the Visualizer to decode and react to. */
+    read(trackId: number, stemId: number): Promise<Uint8Array>
     /** Splits the mixdown in the helper if the track has no stems yet. Resolves when done. */
     split(trackId: number): Promise<Stem[]>
     /** Splits running or failed right now. */
@@ -55,6 +69,21 @@ export interface ElyntApi {
     /** Saves the whole profile, half-filled or not. Rejects values the suite doesn't know. */
     save(profile: ArtistProfile): Promise<ArtistProfile>
   }
+  /** Release Assistant: releases and their dated plans, built from the playbook. */
+  releases: {
+    /** Every release, newest first. */
+    list(): Promise<Release[]>
+    /** A release and its plan. Null if there is no such release. */
+    get(releaseId: number): Promise<ReleaseWithPlan | null>
+    /** Builds the plan from the newest playbook and saves it. Rejects an unknown track or a bad date. */
+    start(input: StartRelease): Promise<ReleaseWithPlan>
+    /** The release brought up to today: passed steps marked missed, with anything a missed hard deadline lost. */
+    openToday(releaseId: number): Promise<ReleaseToday | null>
+    /** Done, skip, move or reopen one step. Warnings for hard deadlines are the window's job (stepActionWarning). */
+    actOnStep(releaseId: number, stepId: string, action: StepAction): Promise<ReleaseToday>
+    /** Moves release day; every step shifts and done steps stay done. */
+    moveReleaseDay(releaseId: number, newDay: string): Promise<ReleaseToday>
+  }
   /** Video export. The window renders frames; the main process owns FFmpeg and the file. */
   exports: {
     /** Opens a save dialog for the video. Resolves to the path, or null if cancelled. */
@@ -66,6 +95,12 @@ export interface ElyntApi {
     cancel(jobId: string): Promise<void>
     /** Shows a finished video in Explorer. */
     reveal(path: string): Promise<void>
+  }
+  visualizer: {
+    /** The safe zones per format (V16): the owner's safe-zones.json beside the database, else the shipped margins. Read fresh each call. */
+    safeZones(): Promise<SafeZones>
+    /** Sends a note from the editor's note box (V14) to Claude; resolves to its unchecked change set or a message. */
+    askNote(request: VisionNoteRequest): Promise<VisionNoteResult>
   }
   /** The export benchmark: only active when the app was started with --bench-export. */
   bench: {
@@ -85,14 +120,82 @@ export interface ElyntApi {
     /** The path on disk of a file dropped onto the window. */
     pathForDroppedFile(file: File): string
   }
+  /** The Live Set reader (M1). */
+  liveSet: {
+    /** Opens a file picker for an .als and reads it in the helper. Null if cancelled. */
+    pickAndRead(): Promise<LiveSet | null>
+  }
+  /** The track's project folder (M2): the newest Live Set in it and the bounces in `Elynt Bounces`. */
+  mixProject: {
+    /** Looks at the track's project folder as it is now, and watches it. Null before a folder is picked. */
+    open(trackId: number): Promise<MixProject | null>
+    /** Opens a folder picker, saves the folder against the track and opens it. Null if cancelled. */
+    pickFolder(trackId: number): Promise<MixProject | null>
+    /** A newer .als or new bounces landed in a watched project folder. Returns an unsubscribe function. */
+    onChange(listener: (event: MixProjectChangeEvent) => void): () => void
+  }
   /** Track analysis (V1): tempo, beats, sections, energy and mood, saved on the track. */
   analysis: {
     /** Null until the track has been queued for analysis. */
     get(trackId: number): Promise<TrackAnalysisState | null>
     /** Queues the track to be analysed again. */
     rerun(trackId: number): Promise<TrackAnalysisState>
+    /** Saves the owner's corrections from the "What I heard" check over the heard analysis. */
+    saveCorrection(trackId: number, analysis: TrackAnalysis): Promise<TrackAnalysisState>
+    /** The owner skipped the "What I heard" check. */
+    skipCheck(trackId: number): Promise<TrackAnalysisState>
     /** Calls back whenever any track's analysis changes. Returns a function that stops listening. */
     onChange(listener: (state: TrackAnalysisState) => void): () => void
+  }
+  /**
+   * The vision flow (V10): Claude writes three visions from the analysis, the brief and the tap
+   * answers. The working vision is what the scene editor shows and saves.
+   */
+  visions: {
+    /** The newest three visions for a track, or null if the flow never ran. */
+    latest(trackId: number): Promise<VisionSet | null>
+    /** Asks Claude for three visions and saves them. Rejects with a message the UI can show. */
+    generate(request: VisionFlowRequest): Promise<VisionFlowResult>
+    getWorking(trackId: number): Promise<WorkingVision | null>
+    saveWorking(trackId: number, vision: unknown, from: WorkingVision['from']): Promise<WorkingVision>
+    /** Everything the Visualizer has spent on Claude and Gemini calls for this track, in US dollars. */
+    trackCost(trackId: number): Promise<number>
+  }
+  /**
+   * Subject images (V9): options for a track's Subject layers, made ahead of time by the helper's
+   * local image model. Show one with mediaUrl(image.path) from shared/subject-images.
+   */
+  subjectImages: {
+    list(trackId: number): Promise<SubjectImage[]>
+    /** Generates `count` options of one motif, one after another. Resolves to the new ones. */
+    generate(trackId: number, request: SubjectImageRequest, count: number): Promise<SubjectImage[]>
+    /** A new option from the same prompt with a fresh seed. */
+    regenerate(imageId: number): Promise<SubjectImage>
+    /** Drops an option and deletes its file. */
+    remove(imageId: number): Promise<void>
+    jobs(): Promise<SubjectJob[]>
+    /** Calls back as a generation starts, reports progress, finishes ('done') or fails. */
+    onJob(listener: (job: SubjectJob | { trackId: number; state: 'done' }) => void): () => void
+  }
+  /**
+   * Visualizer undo and redo over a vision's whole state, without limit, kept across restarts;
+   * named snapshots of it. Restoring a snapshot is an edit, so it can be undone too.
+   */
+  visionHistory: {
+    current(key: VisionKey): Promise<HistoryState>
+    record(key: VisionKey, vision: unknown): Promise<HistoryState>
+    undo(key: VisionKey): Promise<HistoryState>
+    redo(key: VisionKey): Promise<HistoryState>
+    saveSnapshot(key: VisionKey, name: string): Promise<Snapshot>
+    listSnapshots(key: VisionKey): Promise<Snapshot[]>
+    restoreSnapshot(id: number): Promise<HistoryState>
+    deleteSnapshot(id: number): Promise<void>
+  }
+  /** The owner's presets: a layer, a scene or a whole vision, for any track. */
+  presets: {
+    save(level: PresetLevel, name: string, data: unknown): Promise<Preset>
+    list(level?: PresetLevel): Promise<Preset[]>
+    delete(id: number): Promise<void>
   }
   helper: {
     status(): Promise<HelperStatus>
@@ -101,15 +204,33 @@ export interface ElyntApi {
     /** Asks the helper to read a track's mixdown header: duration, sample rate, channels. */
     probeTrack(trackId: number): Promise<AudioProbe>
   }
+  /**
+   * The media shelf (V18): the owner's images, clips and logo, by path, for any track, and each
+   * track's cover art. Layers load them from the addresses in src/shared/media.ts.
+   */
+  media: {
+    list(): Promise<MediaItem[]>
+    /** Opens a picker for images and clips and puts them on the shelf. Resolves to the picked items, empty if cancelled. */
+    addPicked(): Promise<MediaItem[]>
+    remove(id: number): Promise<MediaItem[]>
+    /** Makes a shelf image the logo (null for none). Resolves to the whole shelf. */
+    setLogo(id: number | null): Promise<MediaItem[]>
+    coverArt(trackId: number): Promise<CoverArt | null>
+    /** Opens a picker for the track's cover art. Resolves to it, or to the old one if cancelled. */
+    attachPickedCoverArt(trackId: number): Promise<CoverArt | null>
+    removeCoverArt(trackId: number): Promise<void>
+  }
 }
 
 export const channels = {
   listTracks: 'tracks:list',
   addFromPickedMixdown: 'tracks:add-from-picked-mixdown',
   readMixdown: 'tracks:read-mixdown',
+  renameTrack: 'tracks:rename',
   listStems: 'stems:list',
   attachPickedStems: 'stems:attach-picked',
   removeOwnStem: 'stems:remove-own',
+  readStem: 'stems:read',
   splitStems: 'stems:split',
   splitJobs: 'stems:jobs',
   splitJobChanged: 'stems:job-changed',
@@ -122,12 +243,29 @@ export const channels = {
   exportEverything: 'backup:export-everything',
   getProfile: 'profile:get',
   saveProfile: 'profile:save',
+  listReleases: 'releases:list',
+  getRelease: 'releases:get',
+  startRelease: 'releases:start',
+  openReleaseToday: 'releases:open-today',
+  actOnPlanStep: 'releases:act-on-step',
+  moveReleaseDay: 'releases:move-release-day',
   getMixSetup: 'mix-setup:get',
   saveMixSetup: 'mix-setup:save',
   pickReferenceTracks: 'mix-setup:pick-reference-tracks',
+  pickAndReadLiveSet: 'live-set:pick-and-read',
+  openMixProject: 'mix-project:open',
+  pickMixProjectFolder: 'mix-project:pick-folder',
+  mixProjectChanged: 'mix-project:changed',
   getAnalysis: 'analysis:get',
   rerunAnalysis: 'analysis:rerun',
+  saveAnalysisCorrection: 'analysis:save-correction',
+  skipAnalysisCheck: 'analysis:skip-check',
   analysisChanged: 'analysis:changed',
+  latestVisions: 'visions:latest',
+  generateVisions: 'visions:generate',
+  getWorkingVision: 'visions:get-working',
+  saveWorkingVision: 'visions:save-working',
+  visionTrackCost: 'visions:track-cost',
   helperStatus: 'helper:status',
   helperStatusChanged: 'helper:status-changed',
   probeTrack: 'helper:probe-track',
@@ -137,7 +275,33 @@ export const channels = {
   finishExport: 'exports:finish',
   cancelExport: 'exports:cancel',
   revealExport: 'exports:reveal',
+  safeZones: 'visualizer:safe-zones',
   benchConfig: 'bench:config',
   benchCheckFile: 'bench:check-file',
-  benchReport: 'bench:report'
+  benchReport: 'bench:report',
+  askVisionNote: 'visualizer:ask-note',
+  listMedia: 'media:list',
+  addPickedMedia: 'media:add-picked',
+  removeMedia: 'media:remove',
+  setLogo: 'media:set-logo',
+  getCoverArt: 'media:cover-art',
+  attachPickedCoverArt: 'media:attach-picked-cover-art',
+  removeCoverArt: 'media:remove-cover-art',
+  currentVisionHistory: 'vision-history:current',
+  recordVisionHistory: 'vision-history:record',
+  undoVision: 'vision-history:undo',
+  redoVision: 'vision-history:redo',
+  saveVisionSnapshot: 'vision-history:save-snapshot',
+  listVisionSnapshots: 'vision-history:list-snapshots',
+  restoreVisionSnapshot: 'vision-history:restore-snapshot',
+  deleteVisionSnapshot: 'vision-history:delete-snapshot',
+  savePreset: 'presets:save',
+  listPresets: 'presets:list',
+  deletePreset: 'presets:delete',
+  listSubjectImages: 'subject-images:list',
+  generateSubjectImages: 'subject-images:generate',
+  regenerateSubjectImage: 'subject-images:regenerate',
+  removeSubjectImage: 'subject-images:remove',
+  subjectJobs: 'subject-images:jobs',
+  subjectJobChanged: 'subject-images:job-changed'
 } as const

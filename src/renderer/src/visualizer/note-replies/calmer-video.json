@@ -1,0 +1,9 @@
+{
+  "summary": "Calmed the whole video down and cooled the palette.",
+  "changes": [
+    { "op": "set", "section": null, "layer": null, "param": "intensity", "value": 0.6 },
+    { "op": "palette", "colors": ["#1b2a6b", "#3fb8ff", "#e0f7ff"] },
+    { "op": "set", "section": 0, "layer": 2, "param": "grain", "value": 0.05 },
+    { "op": "transition", "section": 2, "style": "bleedWash" }
+  ]
+}

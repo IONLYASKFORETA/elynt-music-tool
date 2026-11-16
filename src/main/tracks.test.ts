@@ -73,4 +73,24 @@ describe('track library', () => {
     expect(tracks.get(track.id)).toEqual(track)
     expect(tracks.get(track.id + 1)).toBeNull()
   })
+
+  it("renames a track to the owner's title, trimmed, for every tool", () => {
+    const tracks = createTrackLibrary(db)
+    const track = tracks.addFromMixdown('C:\\Bounces\\superfly_v7_FINAL.wav')
+
+    const renamed = tracks.rename(track.id, '  Superfly  ')
+
+    expect(renamed.title).toBe('Superfly')
+    expect(tracks.get(track.id)?.title).toBe('Superfly')
+    expect(tracks.addFromMixdown('C:\\Bounces\\superfly_v7_FINAL.wav').title).toBe('Superfly')
+  })
+
+  it('refuses an empty title and an unknown track', () => {
+    const tracks = createTrackLibrary(db)
+    const track = tracks.addFromMixdown('C:\\Bounces\\flip.wav')
+
+    expect(() => tracks.rename(track.id, '   ')).toThrow(/title/i)
+    expect(() => tracks.rename(999, 'Flip')).toThrow(/no track/i)
+    expect(tracks.get(track.id)?.title).toBe('flip')
+  })
 })

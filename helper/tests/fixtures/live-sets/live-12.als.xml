@@ -1,0 +1,335 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Hand-made Live 12 Set, written to the shape of real Live 12 files (daw-schemas' Live 12 schema, and the Live 11
+  pyableton Set for the parts that did not change). Only the elements the reader uses are here.
+  Live 12 calls the master track MainTrack and routes to it as AudioOut/Main.
+  Kick (audio) -> Main. Bass (MIDI, in group Low End) runs Serum (VST3), then a Compressor sidechained from Kick.
+  Low End (group) has an Audio Effect Rack with Saturator and Pro-Q 3 (VST3). One return, A-Reverb.
+-->
+<Ableton MajorVersion="5" MinorVersion="12.0_12117" SchemaChangeCount="2" Creator="Ableton Live 12.1.5" Revision="0">
+	<LiveSet>
+		<Tracks>
+			<AudioTrack Id="8">
+				<Name>
+					<EffectiveName Value="Kick" />
+					<UserName Value="Kick" />
+				</Name>
+				<TrackGroupId Value="-1" />
+				<DeviceChain>
+					<AudioInputRouting>
+						<Target Value="AudioIn/External/S0" />
+						<UpperDisplayString Value="Ext. In" />
+						<LowerDisplayString Value="1/2" />
+					</AudioInputRouting>
+					<AudioOutputRouting>
+						<Target Value="AudioOut/Main" />
+						<UpperDisplayString Value="Main" />
+						<LowerDisplayString Value="" />
+					</AudioOutputRouting>
+					<Mixer>
+						<On><Manual Value="true" /></On>
+						<Sends>
+							<TrackSendHolder Id="0">
+								<Send>
+									<Manual Value="0.0003162277571" />
+									<MidiControllerRange><Min Value="0.0003162277571" /><Max Value="1" /></MidiControllerRange>
+								</Send>
+								<Active Value="true" />
+							</TrackSendHolder>
+						</Sends>
+						<Speaker><Manual Value="true" /></Speaker>
+						<SoloSink Value="false" />
+						<PanMode Value="0" />
+						<Pan>
+							<Manual Value="0" />
+							<MidiControllerRange><Min Value="-1" /><Max Value="1" /></MidiControllerRange>
+						</Pan>
+						<Volume>
+							<Manual Value="0.7079457641" />
+							<MidiControllerRange><Min Value="0.0003162277571" /><Max Value="1.99526238" /></MidiControllerRange>
+						</Volume>
+					</Mixer>
+					<DeviceChain>
+						<Devices>
+							<Eq8 Id="0">
+								<On><Manual Value="true" /></On>
+								<UserName Value="" />
+								<Bands.0>
+									<ParameterA>
+										<IsOn><Manual Value="true" /></IsOn>
+										<Mode><Manual Value="0" /></Mode>
+										<Freq>
+											<Manual Value="30" />
+											<MidiControllerRange><Min Value="10" /><Max Value="22000" /></MidiControllerRange>
+										</Freq>
+										<Gain>
+											<Manual Value="0" />
+											<MidiControllerRange><Min Value="-15" /><Max Value="15" /></MidiControllerRange>
+										</Gain>
+										<Q>
+											<Manual Value="0.7071067095" />
+											<MidiControllerRange><Min Value="0.1000000015" /><Max Value="18" /></MidiControllerRange>
+										</Q>
+									</ParameterA>
+								</Bands.0>
+							</Eq8>
+						</Devices>
+					</DeviceChain>
+				</DeviceChain>
+			</AudioTrack>
+			<GroupTrack Id="10">
+				<Name>
+					<EffectiveName Value="Low End" />
+					<UserName Value="Low End" />
+				</Name>
+				<TrackGroupId Value="-1" />
+				<DeviceChain>
+					<AudioOutputRouting>
+						<Target Value="AudioOut/Main" />
+						<UpperDisplayString Value="Main" />
+						<LowerDisplayString Value="" />
+					</AudioOutputRouting>
+					<Mixer>
+						<Sends>
+							<TrackSendHolder Id="0">
+								<Send>
+									<Manual Value="0.0003162277571" />
+									<MidiControllerRange><Min Value="0.0003162277571" /><Max Value="1" /></MidiControllerRange>
+								</Send>
+								<Active Value="true" />
+							</TrackSendHolder>
+						</Sends>
+						<Speaker><Manual Value="true" /></Speaker>
+						<SoloSink Value="true" />
+						<Pan>
+							<Manual Value="0" />
+							<MidiControllerRange><Min Value="-1" /><Max Value="1" /></MidiControllerRange>
+						</Pan>
+						<Volume>
+							<Manual Value="1" />
+							<MidiControllerRange><Min Value="0.0003162277571" /><Max Value="1.99526238" /></MidiControllerRange>
+						</Volume>
+					</Mixer>
+					<DeviceChain>
+						<Devices>
+							<AudioEffectGroupDevice Id="0">
+								<On><Manual Value="true" /></On>
+								<UserName Value="Low Glue" />
+								<Branches>
+									<AudioEffectBranch Id="0">
+										<Name>
+											<EffectiveName Value="Warm" />
+											<UserName Value="Warm" />
+										</Name>
+										<DeviceChain>
+											<AudioToAudioDeviceChain Id="0">
+												<Devices>
+													<Saturator Id="0">
+														<On><Manual Value="true" /></On>
+														<UserName Value="" />
+														<PreDrive>
+															<Manual Value="3.5" />
+															<MidiControllerRange><Min Value="-36" /><Max Value="36" /></MidiControllerRange>
+														</PreDrive>
+														<Type><Manual Value="0" /></Type>
+													</Saturator>
+													<PluginDevice Id="1">
+														<On><Manual Value="false" /></On>
+														<UserName Value="" />
+														<PluginDesc>
+															<Vst3PluginInfo Id="0">
+																<Name Value="Pro-Q 3" />
+																<Uid>
+																	<Fields.0 Value="1920098119" />
+																	<Fields.1 Value="1366913364" />
+																	<Fields.2 Value="1178747472" />
+																	<Fields.3 Value="1095052848" />
+																</Uid>
+																<DeviceType Value="2" />
+															</Vst3PluginInfo>
+														</PluginDesc>
+														<ParameterList />
+													</PluginDevice>
+												</Devices>
+											</AudioToAudioDeviceChain>
+										</DeviceChain>
+									</AudioEffectBranch>
+								</Branches>
+							</AudioEffectGroupDevice>
+						</Devices>
+					</DeviceChain>
+				</DeviceChain>
+			</GroupTrack>
+			<MidiTrack Id="9">
+				<Name>
+					<EffectiveName Value="Bass" />
+					<UserName Value="Bass" />
+				</Name>
+				<TrackGroupId Value="10" />
+				<DeviceChain>
+					<AudioOutputRouting>
+						<Target Value="AudioOut/GroupTrack" />
+						<UpperDisplayString Value="Group" />
+						<LowerDisplayString Value="" />
+					</AudioOutputRouting>
+					<Mixer>
+						<Sends>
+							<TrackSendHolder Id="0">
+								<Send>
+									<Manual Value="0.1" />
+									<MidiControllerRange><Min Value="0.0003162277571" /><Max Value="1" /></MidiControllerRange>
+								</Send>
+								<Active Value="true" />
+							</TrackSendHolder>
+						</Sends>
+						<Speaker><Manual Value="false" /></Speaker>
+						<SoloSink Value="false" />
+						<Pan>
+							<Manual Value="-0.25" />
+							<MidiControllerRange><Min Value="-1" /><Max Value="1" /></MidiControllerRange>
+						</Pan>
+						<Volume>
+							<Manual Value="0.5011872053" />
+							<MidiControllerRange><Min Value="0.0003162277571" /><Max Value="1.99526238" /></MidiControllerRange>
+						</Volume>
+					</Mixer>
+					<DeviceChain>
+						<Devices>
+							<PluginDevice Id="0">
+								<On><Manual Value="true" /></On>
+								<UserName Value="" />
+								<PluginDesc>
+									<Vst3PluginInfo Id="0">
+										<Name Value="Serum" />
+										<Uid>
+											<Fields.0 Value="1448301392" />
+											<Fields.1 Value="1483109208" />
+											<Fields.2 Value="1936028019" />
+											<Fields.3 Value="1701667182" />
+										</Uid>
+										<DeviceType Value="1" />
+									</Vst3PluginInfo>
+								</PluginDesc>
+								<ParameterList>
+									<PluginFloatParameter Id="0">
+										<ParameterName Value="MasterVol" />
+										<ParameterId Value="0" />
+										<ParameterValue>
+											<Manual Value="0.7" />
+											<MidiControllerRange><Min Value="0" /><Max Value="1" /></MidiControllerRange>
+										</ParameterValue>
+									</PluginFloatParameter>
+								</ParameterList>
+							</PluginDevice>
+							<Compressor2 Id="1">
+								<On><Manual Value="true" /></On>
+								<UserName Value="Duck" />
+								<Threshold>
+									<Manual Value="0.1778279394" />
+									<MidiControllerRange><Min Value="0.0003162277571" /><Max Value="1.99526238" /></MidiControllerRange>
+								</Threshold>
+								<Ratio>
+									<Manual Value="4" />
+									<MidiControllerRange><Min Value="1" /><Max Value="3.40282347E+38" /></MidiControllerRange>
+								</Ratio>
+								<SideChain>
+									<OnOff><Manual Value="true" /></OnOff>
+									<RoutedInput>
+										<Routable>
+											<Target Value="AudioIn/Track.8/PostFxOut" />
+											<UpperDisplayString Value="1-Kick" />
+											<LowerDisplayString Value="Post FX" />
+										</Routable>
+										<Volume>
+											<Manual Value="1" />
+											<MidiControllerRange><Min Value="0.0003162277571" /><Max Value="15.8489332" /></MidiControllerRange>
+										</Volume>
+									</RoutedInput>
+									<DryWet>
+										<Manual Value="1" />
+										<MidiControllerRange><Min Value="0" /><Max Value="1" /></MidiControllerRange>
+									</DryWet>
+								</SideChain>
+							</Compressor2>
+						</Devices>
+					</DeviceChain>
+				</DeviceChain>
+			</MidiTrack>
+			<ReturnTrack Id="2">
+				<Name>
+					<EffectiveName Value="A-Reverb" />
+					<UserName Value="Reverb" />
+				</Name>
+				<TrackGroupId Value="-1" />
+				<DeviceChain>
+					<AudioOutputRouting>
+						<Target Value="AudioOut/Main" />
+						<UpperDisplayString Value="Main" />
+						<LowerDisplayString Value="" />
+					</AudioOutputRouting>
+					<Mixer>
+						<Speaker><Manual Value="true" /></Speaker>
+						<SoloSink Value="false" />
+						<Pan>
+							<Manual Value="0" />
+							<MidiControllerRange><Min Value="-1" /><Max Value="1" /></MidiControllerRange>
+						</Pan>
+						<Volume>
+							<Manual Value="1" />
+							<MidiControllerRange><Min Value="0.0003162277571" /><Max Value="1.99526238" /></MidiControllerRange>
+						</Volume>
+					</Mixer>
+					<DeviceChain>
+						<Devices>
+							<Hybrid Id="0">
+								<On><Manual Value="true" /></On>
+								<UserName Value="" />
+							</Hybrid>
+						</Devices>
+					</DeviceChain>
+				</DeviceChain>
+			</ReturnTrack>
+		</Tracks>
+		<MainTrack>
+			<Name>
+				<EffectiveName Value="Main" />
+				<UserName Value="" />
+			</Name>
+			<TrackGroupId Value="-1" />
+			<DeviceChain>
+				<AudioOutputRouting>
+					<Target Value="AudioOut/External/S0" />
+					<UpperDisplayString Value="Ext. Out" />
+					<LowerDisplayString Value="1/2" />
+				</AudioOutputRouting>
+				<Mixer>
+					<Speaker><Manual Value="true" /></Speaker>
+					<Pan>
+						<Manual Value="0" />
+						<MidiControllerRange><Min Value="-1" /><Max Value="1" /></MidiControllerRange>
+					</Pan>
+					<Volume>
+						<Manual Value="1" />
+						<MidiControllerRange><Min Value="0.0003162277571" /><Max Value="1.99526238" /></MidiControllerRange>
+					</Volume>
+					<Tempo>
+						<Manual Value="128" />
+						<MidiControllerRange><Min Value="60" /><Max Value="200" /></MidiControllerRange>
+					</Tempo>
+				</Mixer>
+				<DeviceChain>
+					<Devices>
+						<Limiter Id="0">
+							<On><Manual Value="true" /></On>
+							<UserName Value="" />
+							<Ceiling>
+								<Manual Value="-0.3000000119" />
+								<MidiControllerRange><Min Value="-24" /><Max Value="0" /></MidiControllerRange>
+							</Ceiling>
+						</Limiter>
+					</Devices>
+				</DeviceChain>
+			</DeviceChain>
+		</MainTrack>
+	</LiveSet>
+</Ableton>

@@ -1,9 +1,11 @@
-import type { ExportFormatId, ExportResult, VideoEncoder } from '../../../shared/export'
+import { EXPORT_FORMATS, type ExportFormatId, type ExportResult, type VideoEncoder } from '../../../shared/export'
+import { formatLayout } from '../../../shared/formats'
 import type { Track } from '../../../shared/track'
 import { featuresAt, type MonoAudio } from './audio-features'
 import { pumpFrames } from './frame-pump'
 import { SceneRenderer } from './renderer'
-import { planFrame, type Scene } from './scene'
+import type { TrackSignals } from './signals'
+import { planVisionFrame, visionImages, type Vision } from './vision'
 import { decodeTrackAudio } from './track-audio'
 
 export interface ExportProgress {
@@ -15,7 +17,10 @@ export interface ExportProgress {
 
 export interface ExportOptions {
   track: Track
-  scene: Scene
+  /** One scene per section; scenes cut at section boundaries exactly as in the preview. */
+  vision: Vision
+  /** The same signals the preview reacts to, so reactivity matches frame for frame. */
+  signals: TrackSignals
   format: ExportFormatId
   encoder: VideoEncoder
   outputPath: string
@@ -36,12 +41,12 @@ export interface ExportRun extends ExportResult {
 
 /**
  * Exports a track to video (ADR 0001): every frame is drawn offscreen at its
- * exact time from the same scene, spectrum and shaders as the live preview,
+ * exact time from the same vision, signals, spectrum and shaders as the live preview,
  * read back, and handed to FFmpeg in the main process. Nothing is captured
  * from the screen.
  */
 export async function exportVideo(options: ExportOptions): Promise<ExportRun> {
-  const { track, scene, signal } = options
+  const { track, vision, signals, signal } = options
   const audio = options.audio ?? (await decodeForExport(track.id))
   signal?.throwIfAborted()
 
@@ -56,6 +61,10 @@ export async function exportVideo(options: ExportOptions): Promise<ExportRun> {
   })
   try {
     renderer.setRenderSize(job.width, job.height)
+    // Every frame has to show its Subject's image, the first one included.
+    await renderer.loadImages(visionImages(vision))
+    // Laid out for the export's format, with its important content inside the safe zone (V16).
+    const layout = formatLayout(await window.elynt.visualizer.safeZones(), EXPORT_FORMATS[options.format].layout)
     const size = renderer.renderSize
     const started = performance.now()
     const elapsed = () => (performance.now() - started) / 1000
@@ -63,7 +72,8 @@ export async function exportVideo(options: ExportOptions): Promise<ExportRun> {
       frames: job.frames,
       fps: job.fps,
       signal,
-      render: (t) => renderer.renderPixels(planFrame(scene, featuresAt(audio, t), t, size)),
+      // Every clip is seeked to the exact frame each export frame needs (V18).
+      render: (t) => renderer.renderExactPixels(planVisionFrame(vision, featuresAt(audio, t), t, size, signals, layout)),
       write: (frame) => window.elynt.exports.writeFrame(job.jobId, frame),
       onProgress: (framesWritten) => options.onProgress?.({ framesWritten, frames: job.frames, elapsed: elapsed() })
     })

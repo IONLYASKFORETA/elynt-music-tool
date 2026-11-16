@@ -27,6 +27,8 @@ _Avoid_: using "layer" for audio parts; those are stems.
 
 **Track analysis**: what the Visualizer learns by listening to a track and its stems: tempo, beats, sections, energy, and its emotion and vibe.
 
+**Mood listen**: the optional step of track analysis where Gemini listens to the mixdown and adds mood detail (mood words, a summary, and how each section feels) to the coarse mood the app reads locally. Runs only when a Gemini key is set.
+
 **Vision**: the art direction for one track (mood, palette, motifs, the look of each section, and how the visuals react), agreed between the owner and the Visualizer before scenes are built.
 _Avoid_: "theme", "style" (a vision is made for one track, not reused as-is).
 
@@ -34,6 +36,9 @@ _Avoid_: "theme", "style" (a vision is made for one track, not reused as-is).
 
 **House style**: the single visual world every vision lives inside; for the Visualizer, the spectral, glitch, holographic-chrome poster aesthetic. Tracks differ within it, never outside it.
 _Avoid_: "theme" (a vision is per track; the house style is shared by all of them).
+
+**Subject image**: a picture of one of a track's motifs (a machine, a sigil, a figure) in the house style on black or off-white, made ahead of time by the local image model for a Subject layer to show. A track keeps its generated options; the owner picks, regenerates or drops them.
+_Avoid_: "asset" (too broad), "artwork" or "cover art" (the release's cover is the owner's own).
 
 **Brief**: the owner's own idea for a track's visuals, given up front in their words, before the Visualizer asks anything.
 
@@ -49,6 +54,17 @@ _Avoid_: confusing with a musical remix; a remix here only ever changes visuals.
 **Moment**: a visual event pinned to an exact bar or beat of a track, on top of what its section's scene already does.
 
 **Transition**: how one section's scene hands over to the next.
+
+**Scope**: what an editor control applies to: the whole video, one section, or one layer. Each scope has its own sliders and note box.
+
+**Note**: a few words the owner types in the editor at a scope ("make the drop angrier"), which Claude turns into a change set for that scope.
+
+**Change set**: the list of concrete edits to a vision that answers a note, checked against the layer library and applied as one undo step.
+
+**Format**: the shape a vision is laid out in: 16:9, 9:16 or 1:1. The owner edits once and every format re-flows from it, with optional tweaks kept per format.
+_Avoid_: "aspect" (say format); an export's size, rate and bitrate is its export format, which names the format it lays out in.
+
+**Safe zone**: the part of a format's frame that platform buttons, captions and crops leave clear; important content is kept inside it. Its margins are data, conservative until checked against the platforms' templates.
 
 **Media shelf**: the owner's own reusable images, clips and logo, available to any track's visuals.
 

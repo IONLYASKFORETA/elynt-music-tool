@@ -12,11 +12,11 @@ from __future__ import annotations
 
 import os
 import re
-import threading
 import time
 from pathlib import Path
 from typing import Any, Callable
 
+from .gpu import gpu_lock
 from .methods import HelperError, Progress
 
 DEFAULT_MODEL = "BS-Roformer-SW.ckpt"
@@ -33,10 +33,6 @@ STEM_ORDER = ["drums", "bass", "vocals", "other", "guitar", "piano"]
 # Runs the separation and returns the paths of the files it wrote. Swapped out in tests.
 Separate = Callable[[str, str, str, Progress], list[str]]
 
-# One split at a time: two RoFormer runs at once would only fight over the GPU's memory.
-_gpu = threading.Lock()
-
-
 def split_stems(params: dict[str, Any], progress: Progress, separate: Separate | None = None) -> dict[str, Any]:
     path = params.get("path")
     out_dir = params.get("outDir")
@@ -50,7 +46,7 @@ def split_stems(params: dict[str, Any], progress: Progress, separate: Separate |
     os.makedirs(out_dir, exist_ok=True)
 
     progress("Waiting for the GPU")
-    with _gpu:
+    with gpu_lock:
         started = time.monotonic()
         written = (separate or separate_with_audio_separator)(path, out_dir, model, progress)
 

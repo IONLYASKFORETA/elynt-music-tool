@@ -3,7 +3,8 @@ import { EXPORT_FORMATS, type ExportFormatId } from '../../../shared/export'
 import type { Track } from '../../../shared/track'
 import type { MonoAudio } from './audio-features'
 import { exportVideo, type ExportProgress } from './export-video'
-import type { Scene } from './scene'
+import type { TrackSignals } from './signals'
+import type { Vision } from './vision'
 
 type State =
   | { kind: 'idle' }
@@ -11,15 +12,18 @@ type State =
   | { kind: 'done'; path: string; elapsed: number }
   | { kind: 'error'; message: string }
 
-/** Export: renders the scene to a YouTube MP4, frame by frame, with the mixdown as its audio. */
+/** Export: renders the vision, scene by scene, to a YouTube MP4, frame by frame, with the mixdown as its audio. */
 export function ExportPanel({
   track,
-  scene,
+  vision,
+  signals,
   audio,
   onExportingChange
 }: {
   track: Track
-  scene: Scene
+  vision: Vision
+  /** Undefined until the preview has derived them; export waits for them like it waits for the audio. */
+  signals: TrackSignals | undefined
   audio: (MonoAudio & { duration: number }) | undefined
   onExportingChange(exporting: boolean): void
 }) {
@@ -37,7 +41,8 @@ export function ExportPanel({
     try {
       const run = await exportVideo({
         track,
-        scene,
+        vision,
+        signals: signals!,
         format,
         encoder: 'nvenc',
         outputPath,
@@ -70,7 +75,7 @@ export function ExportPanel({
           Cancel export
         </button>
       ) : (
-        <button className="add" disabled={!audio} onClick={() => void start()}>
+        <button className="add" disabled={!audio || !signals} onClick={() => void start()}>
           Export video
         </button>
       )}

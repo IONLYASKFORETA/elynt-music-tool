@@ -13,6 +13,9 @@ export function openSuiteDatabase(
 ): SuiteDatabase {
   const db = new DatabaseSync(path)
   db.exec('PRAGMA journal_mode = WAL')
+  // WAL with NORMAL sync survives an app crash and only syncs at checkpoints; FULL syncs on every
+  // commit, which made each undo step cost tens of milliseconds on Windows.
+  db.exec('PRAGMA synchronous = NORMAL')
   db.exec('PRAGMA foreign_keys = ON')
   try {
     migrate(db, migrations)

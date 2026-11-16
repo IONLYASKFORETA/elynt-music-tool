@@ -141,5 +141,34 @@ export const migrations: Migration[] = [
         CHECK (check_state IN ('unchecked', 'confirmed', 'skipped'));
       ALTER TABLE track_analysis ADD COLUMN checked_at TEXT;
     `
+  },
+  {
+    version: 9,
+    name: 'visions',
+    // The vision flow (V10). vision_sets keeps every run: the brief, the tap questions and answers,
+    // and Claude's three checked visions (VisionPlan[] as JSON), with what the run cost.
+    // track_vision is the vision the scene editor shows and saves, as the renderer's Vision JSON;
+    // from_set/from_index say which of a set's visions it was built from (null: the default one).
+    sql: `
+      CREATE TABLE vision_sets (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        track_id   INTEGER NOT NULL REFERENCES tracks(id) ON DELETE CASCADE,
+        brief      TEXT NOT NULL DEFAULT '',
+        questions  TEXT NOT NULL DEFAULT '[]',
+        answers    TEXT NOT NULL DEFAULT '{}',
+        visions    TEXT NOT NULL,
+        attempts   INTEGER NOT NULL,
+        cost_usd   REAL NOT NULL,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX vision_sets_track ON vision_sets (track_id);
+      CREATE TABLE track_vision (
+        track_id   INTEGER PRIMARY KEY REFERENCES tracks(id) ON DELETE CASCADE,
+        vision     TEXT NOT NULL,
+        from_set   INTEGER REFERENCES vision_sets(id) ON DELETE SET NULL,
+        from_index INTEGER,
+        updated_at TEXT NOT NULL
+      );
+    `
   }
 ]

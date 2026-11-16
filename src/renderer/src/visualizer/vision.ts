@@ -57,6 +57,16 @@ function defaultSectionScene(label: SectionLabel): Scene {
   return { layers }
 }
 
+/**
+ * Whether a saved vision still lines up with the track's sections: same labels, starts and ends,
+ * in order. Moving or relabelling a section in the "What I heard" check makes it stale.
+ */
+export function fitsSections(saved: unknown, sections: Section[]): saved is Vision {
+  const s = (saved as Partial<Vision> | null)?.sections
+  if (!Array.isArray(s) || s.length !== sections.length || !Array.isArray((saved as Vision).palette)) return false
+  return s.every((v, i) => v.label === sections[i]!.label && v.start === sections[i]!.start && v.end === sections[i]!.end)
+}
+
 /** The section playing at t. Before the start it is the first; past the end, the last. */
 export function sectionIndexAt(vision: Vision, t: number): number {
   const { sections } = vision

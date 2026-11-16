@@ -70,6 +70,13 @@ const api: ElyntApi = {
       return () => ipcRenderer.off(channels.analysisChanged, handler)
     }
   },
+  visions: {
+    latest: (trackId) => ipcRenderer.invoke(channels.latestVisions, trackId),
+    generate: (request) => ipcRenderer.invoke(channels.generateVisions, request),
+    getWorking: (trackId) => ipcRenderer.invoke(channels.getWorkingVision, trackId),
+    saveWorking: (trackId, vision, from) => ipcRenderer.invoke(channels.saveWorkingVision, trackId, vision, from),
+    trackCost: (trackId) => ipcRenderer.invoke(channels.visionTrackCost, trackId)
+  },
   helper: {
     status: () => ipcRenderer.invoke(channels.helperStatus),
     onStatus: (listener) => {

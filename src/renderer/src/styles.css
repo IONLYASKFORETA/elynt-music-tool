@@ -228,3 +228,24 @@ h2 { font-size: 12px; letter-spacing: 0.3em; text-transform: uppercase; color: v
 .scene-palette { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 10px; font-size: 13px; }
 .scene-swatch { display: inline-flex; align-items: center; gap: 2px; }
 .scene-swatch input[type='color'] { width: 28px; height: 22px; padding: 0; border: 1px solid var(--line); border-radius: 4px; background: none; cursor: pointer; }
+
+/* The vision flow (V10): brief, tap questions, and three visions with drop previews. */
+.vision-flow { margin-bottom: 20px; padding: 16px; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; display: flex; flex-direction: column; gap: 14px; }
+.vision-flow h2 { margin: 0; }
+.vision-brief { display: flex; flex-direction: column; gap: 6px; color: var(--muted); font-size: 13px; }
+.vision-brief textarea { background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 10px; font: inherit; resize: vertical; }
+.vision-question { border: 0; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.vision-question legend { padding: 0; margin-bottom: 6px; font-weight: 600; }
+.ghost.picked { border-color: #3db8ff; box-shadow: inset 0 0 0 1px #3db8ff; }
+.vision-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.vision-head { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; }
+.vision-cost { margin-left: auto; color: var(--muted); font: 600 12px ui-monospace, monospace; }
+.vision-cards { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+.vision-card { display: flex; flex-direction: column; gap: 8px; padding: 14px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); }
+.vision-card.playing { border-color: #3db8ff; }
+.vision-card h3 { margin: 0; font-size: 16px; }
+.vision-concept { margin: 0; }
+.vision-palette { display: flex; gap: 4px; }
+.vision-swatch { width: 28px; height: 18px; border-radius: 3px; border: 1px solid var(--line); }
+.vision-detail { margin: 0; color: var(--muted); font-size: 13px; }
+.vision-detail strong { color: var(--text); font-weight: 600; margin-right: 4px; }

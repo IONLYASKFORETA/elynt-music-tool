@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { TrackAnalysis } from '../../../shared/analysis'
+import type { TimeWindow } from '../../../shared/drop-preview'
 import type { Track } from '../../../shared/track'
 import { featuresAt, type MonoAudio } from './audio-features'
 import { ExportPanel } from './ExportPanel'
@@ -27,7 +28,23 @@ interface Loaded {
  * cutting to each section's scene as playback crosses into it, every layer reacting to the
  * track's signals.
  */
-export function Preview({ track, analysis, vision }: { track: Track; analysis: TrackAnalysis | null; vision: Vision }) {
+export function Preview({
+  track,
+  analysis,
+  vision,
+  loop = null,
+  onLoopEnd
+}: {
+  track: Track
+  analysis: TrackAnalysis | null
+  vision: Vision
+  /**
+   * Plays just this stretch, from its start, for a drop preview (V10). Each time playback reaches
+   * its end, `onLoopEnd` is called and it starts over; a new `loop.key` restarts it too.
+   */
+  loop?: (TimeWindow & { key: string }) | null
+  onLoopEnd?: () => void
+}) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const loadedRef = useRef<Loaded | null>(null)
   const sourceRef = useRef<AudioBufferSourceNode | null>(null)
@@ -47,6 +64,11 @@ export function Preview({ track, analysis, vision }: { track: Track; analysis: T
 
   visionRef.current = vision
   scaleRef.current = scale
+  const loopRef = useRef(loop)
+  loopRef.current = loop
+  /** Bumped by the frame loop when playback passes the end of the loop. */
+  const loopPassedRef = useRef(false)
+  const [loopEnds, setLoopEnds] = useState(0)
 
   useEffect(() => {
     let cancelled = false
@@ -91,6 +113,11 @@ export function Preview({ track, analysis, vision }: { track: Track; analysis: T
 
         const t = loaded.clock.time()
         if (loaded.clock.playing && loaded.clock.ended) stop(true)
+        const span = loopRef.current
+        if (span && loaded.clock.playing && t >= span.end && !loopPassedRef.current) {
+          loopPassedRef.current = true
+          setLoopEnds((n) => n + 1)
+        }
         renderer.draw(planVisionFrame(visionRef.current, featuresAt(loaded.mono, t), t, renderer.renderSize, signalsRef.current))
 
         setTime((shown) => (Math.abs(shown - t) >= 0.05 ? t : shown))
@@ -141,6 +168,23 @@ export function Preview({ track, analysis, vision }: { track: Track; analysis: T
       cancelled = true
     }
   }, [track.id, analysis, status])
+
+  // A drop preview starts its stretch from the top whenever it (or the vision shown) changes.
+  useEffect(() => {
+    if (status !== 'ready') return
+    if (!loop) return void stop(false)
+    loopPassedRef.current = false
+    seek(loop.start)
+    if (!loadedRef.current?.clock.playing) void play()
+  }, [status, loop?.key, loop?.start, loop?.end])
+
+  useEffect(() => {
+    if (loopEnds === 0) return
+    loopPassedRef.current = false
+    const span = loopRef.current
+    if (span) seek(span.start)
+    onLoopEnd?.()
+  }, [loopEnds])
 
   const stop = (rewind: boolean) => {
     const loaded = loadedRef.current

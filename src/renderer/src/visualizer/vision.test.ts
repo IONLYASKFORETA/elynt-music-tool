@@ -7,6 +7,7 @@ import { NO_SIGNALS, type TrackSignals } from './signals'
 import {
   addSectionLayer,
   defaultVision,
+  fitsSections,
   planVisionFrame,
   removeSectionLayer,
   sectionIndexAt,
@@ -130,5 +131,21 @@ describe("a vision's palette", () => {
     vision = updateSectionLayer(vision, 0, 1, { reactivity: { reactsTo: 'none', strength: 0 } })
     vision = removeSectionLayer(vision, 0, 1)
     expect(vision.palette).toEqual(rgb)
+  })
+})
+
+describe('restoring a saved vision', () => {
+  it('fits when its sections are the ones the analysis has now', () => {
+    expect(fitsSections(defaultVision(sections, 80), sections)).toBe(true)
+  })
+
+  it('does not fit once a section was moved or relabelled, or for something that is not a vision', () => {
+    const moved = [section('intro', 0, 18), section('build', 18, 32), section('drop', 32, 64), section('outro', 64, 80)]
+    const relabelled = [section('intro', 0, 16), section('drop', 16, 32), section('drop', 32, 64), section('outro', 64, 80)]
+
+    expect(fitsSections(defaultVision(sections, 80), moved)).toBe(false)
+    expect(fitsSections(defaultVision(sections, 80), relabelled)).toBe(false)
+    expect(fitsSections({ palette: [] }, sections)).toBe(false)
+    expect(fitsSections(null, sections)).toBe(false)
   })
 })

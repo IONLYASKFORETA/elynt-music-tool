@@ -8,6 +8,7 @@ import type { MixSetup } from './mix-setup'
 import type { ArtistProfile } from './profile'
 import type { SplitJob, Stem } from './stems'
 import type { Track } from './track'
+import type { VisionFlowRequest, VisionFlowResult, VisionSet, WorkingVision } from './visions'
 
 /** What the preload script exposes to the UI as `window.elynt`. */
 export interface ElyntApi {
@@ -102,6 +103,20 @@ export interface ElyntApi {
     /** Calls back whenever any track's analysis changes. Returns a function that stops listening. */
     onChange(listener: (state: TrackAnalysisState) => void): () => void
   }
+  /**
+   * The vision flow (V10): Claude writes three visions from the analysis, the brief and the tap
+   * answers. The working vision is what the scene editor shows and saves.
+   */
+  visions: {
+    /** The newest three visions for a track, or null if the flow never ran. */
+    latest(trackId: number): Promise<VisionSet | null>
+    /** Asks Claude for three visions and saves them. Rejects with a message the UI can show. */
+    generate(request: VisionFlowRequest): Promise<VisionFlowResult>
+    getWorking(trackId: number): Promise<WorkingVision | null>
+    saveWorking(trackId: number, vision: unknown, from: WorkingVision['from']): Promise<WorkingVision>
+    /** Everything the Visualizer has spent on Claude and Gemini calls for this track, in US dollars. */
+    trackCost(trackId: number): Promise<number>
+  }
   helper: {
     status(): Promise<HelperStatus>
     /** Calls back on every status change. Returns a function that stops listening. */
@@ -140,6 +155,11 @@ export const channels = {
   saveAnalysisCorrection: 'analysis:save-correction',
   skipAnalysisCheck: 'analysis:skip-check',
   analysisChanged: 'analysis:changed',
+  latestVisions: 'visions:latest',
+  generateVisions: 'visions:generate',
+  getWorkingVision: 'visions:get-working',
+  saveWorkingVision: 'visions:save-working',
+  visionTrackCost: 'visions:track-cost',
   helperStatus: 'helper:status',
   helperStatusChanged: 'helper:status-changed',
   probeTrack: 'helper:probe-track',

@@ -63,7 +63,7 @@ fn fs(in: VsOut) -> @location(0) vec4f {
   let logo = max(ring, plus) * frame.p1.x;
 
   let ink = vec3f(0.94);
-  let logoInk = mix(ink, spectral(time() * 0.04 + d.y / (4.0 * r)), 0.6);
+  let logoInk = mix(ink, pal_ramp(time() * 0.04 + d.y / (4.0 * r)), 0.6);
   var col = mix(base, ink, clamp(m * frame.p1.y, 0.0, 1.0));
   col = mix(col, logoInk, clamp(logo * (0.4 + frame.p1.y), 0.0, 1.0));
   return vec4f(col, 1.0);

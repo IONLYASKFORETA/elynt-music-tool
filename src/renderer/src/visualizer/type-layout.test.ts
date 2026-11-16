@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { layoutPosterType, POSTER_ANCHORS, typeReveals, type Measure, type TypeAnchors, type TypeText } from './poster-type'
+import { layoutPosterType, POSTER_ANCHORS, typeReveals, type Measure, type TypeAnchors, type TypeText } from './type-layout'
 
 /** Every character is 0.6 of the font size wide. */
 const measure: Measure = (text, font) => text.length * 0.6 * Number(/([\d.]+)px/.exec(font)![1])

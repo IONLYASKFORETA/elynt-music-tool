@@ -17,8 +17,8 @@ fn fs(in: VsOut) -> @location(0) vec4f {
   let mask = mix(clean, shifted, settling);
   let a = clamp(dot(mask, reveal), 0.0, 1.0);
 
-  // White type with the house style's spectral chrome running through it.
-  let tint = spectral(uv.y * 1.6 + uv.x * 0.25 + t * 0.05);
+  // White type with the vision's palette running through it like chrome.
+  let tint = pal_ramp(uv.y * 1.6 + uv.x * 0.25 + t * 0.05);
   let ink = mix(vec3f(0.96), tint, frame.p1.x);
   return vec4f(mix(base, ink, a), 1.0);
 }

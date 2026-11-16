@@ -1,4 +1,4 @@
-import { posterKatakana } from './poster-type'
+import { posterKatakana } from './layers/poster-type'
 import type { Credits, Layer } from './scene'
 
 /**

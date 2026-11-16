@@ -1,4 +1,4 @@
-// Subject: an image (layerTex) fitted into the frame over the picture below, with a spectral glow
+// Subject: an image (layerTex) fitted into the frame over the picture below, with a palette glow
 // off its edges. p0 = (height as a share of the frame, centre x, centre y, glow).
 
 @fragment
@@ -31,7 +31,7 @@ fn fs(in: VsOut) -> @location(0) vec4f {
     }
   }
   let halo = near / 8.0 * (1.0 - a) * frame.p0.w;
-  let glow = spectral(local.y * 0.8 + time() * 0.08) * halo;
+  let glow = pal_ramp(local.y * 0.8 + time() * 0.08) * halo;
 
   return vec4f(mix(base, img.rgb, a) + glow, 1.0);
 }

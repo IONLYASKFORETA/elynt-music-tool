@@ -6,13 +6,10 @@ import { GLITCH, type GlitchLayer } from './layers/glitch'
 import { LIGHT_PILLAR, type LightPillarLayer } from './layers/light-pillar'
 import { DEFAULT_PALETTE, packPalette, PALETTE_FLOATS, type Palette } from './palette'
 import { NO_SIGNALS, signalAt, type Tier, type TrackSignals } from './signals'
-import { POSTER_FRAME_DEFAULTS, POSTER_FRAME_RESPONSES, posterFrameParams, type PosterFrameLayer } from './poster-frame'
-import { POSTER_TYPE_DEFAULTS, POSTER_TYPE_RESPONSES, posterTypePass, type PosterTypeLayer, type TypeAnchors, type TypeText } from './poster-type'
-import { SUBJECT_DEFAULTS, SUBJECT_RESPONSES, subjectPass, type SubjectLayer } from './subject'
-
-export type { PosterFrameLayer } from './poster-frame'
-export type { PosterTypeLayer } from './poster-type'
-export type { SubjectLayer } from './subject'
+import { POSTER_FRAME, type PosterFrameLayer } from './layers/poster-frame'
+import { POSTER_TYPE, type PosterTypeLayer } from './layers/poster-type'
+import { SUBJECT, type SubjectLayer } from './layers/subject'
+import type { TypeAnchors, TypeText } from './type-layout'
 
 /**
  * The layer data model (GLOSSARY: Layer, Scene). A scene is plain data: the
@@ -23,8 +20,9 @@ export type Layer = GroundLayer | ClassicLayer | FinishLayer | HitLayer | Poster
 /** The house-style hit layers (V7), one file each under layers/. */
 export type HitLayer = ColorBleedLayer | ChromeLayer | GlitchLayer | LightPillarLayer
 export type { ColorBleedLayer, ChromeLayer, GlitchLayer, LightPillarLayer }
-/** The poster layers (V8). */
+/** The poster layers (V8), one file each under layers/. */
 export type PosterLayer = PosterFrameLayer | PosterTypeLayer | SubjectLayer
+export type { PosterFrameLayer, PosterTypeLayer, SubjectLayer }
 export type LayerKind = Layer['kind']
 
 /** Every layer has a "reacts to" picker and a strength (GLOSSARY: Reactivity). */
@@ -75,6 +73,7 @@ export const EXEMPT_KINDS: readonly LayerKind[] = ['ground', 'finish']
 export const MAX_ACTIVE_LAYERS = 5
 
 const HIT_LAYERS = { colorBleed: COLOR_BLEED, chrome: CHROME, glitch: GLITCH, lightPillar: LIGHT_PILLAR }
+const POSTER_LAYERS = { posterFrame: POSTER_FRAME, posterType: POSTER_TYPE, subject: SUBJECT }
 
 export const LAYER_NAMES: Record<LayerKind, string> = {
   ground: 'Ground',
@@ -84,9 +83,9 @@ export const LAYER_NAMES: Record<LayerKind, string> = {
   chrome: CHROME.name,
   glitch: GLITCH.name,
   lightPillar: LIGHT_PILLAR.name,
-  posterFrame: 'Poster Frame',
-  posterType: 'Poster Type',
-  subject: 'Subject'
+  posterFrame: POSTER_FRAME.name,
+  posterType: POSTER_TYPE.name,
+  subject: SUBJECT.name
 }
 
 /** A layer of a kind with its starting look and default reactivity. */
@@ -105,11 +104,9 @@ export function newLayer(kind: LayerKind): Layer {
     case 'lightPillar':
       return HIT_LAYERS[kind].create(reactivity)
     case 'posterFrame':
-      return { kind, ...POSTER_FRAME_DEFAULTS, reactivity }
     case 'posterType':
-      return { kind, ...POSTER_TYPE_DEFAULTS, reactivity }
     case 'subject':
-      return { kind, ...SUBJECT_DEFAULTS, reactivity }
+      return POSTER_LAYERS[kind].create(reactivity)
   }
 }
 
@@ -254,9 +251,9 @@ const TIER_RESPONSES: { [K in LayerKind]: TierResponse<K> } = {
   chrome: CHROME.respond,
   glitch: GLITCH.respond,
   lightPillar: LIGHT_PILLAR.respond,
-  posterFrame: POSTER_FRAME_RESPONSES,
-  posterType: POSTER_TYPE_RESPONSES,
-  subject: SUBJECT_RESPONSES
+  posterFrame: POSTER_FRAME.respond,
+  posterType: POSTER_TYPE.respond,
+  subject: SUBJECT.respond
 }
 
 function react(layer: Layer, reaction: Reaction): Layer {
@@ -287,10 +284,10 @@ function layerParams(
     case 'lightPillar':
       return { params: LIGHT_PILLAR.params(layer) }
     case 'posterFrame':
-      return { params: posterFrameParams(layer, context) }
+      return POSTER_FRAME.pass(layer, { context, signals, t })
     case 'posterType':
-      return posterTypePass(layer, context, signals.events.downbeat, t)
+      return POSTER_TYPE.pass(layer, { context, signals, t })
     case 'subject':
-      return subjectPass(layer)
+      return SUBJECT.pass(layer, { context, signals, t })
   }
 }

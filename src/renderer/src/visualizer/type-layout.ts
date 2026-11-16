@@ -1,15 +1,12 @@
 /**
- * Poster Type's words and where they sit. Pure: the renderer rasterizes the layout this gives,
- * and nothing here touches a canvas, so it is the same for the preview and the export.
+ * Poster Type's words and where they sit (the layer itself is layers/poster-type.ts). Pure: the
+ * renderer rasterizes the layout this gives, and nothing here touches a canvas, so it is the same
+ * for the preview and the export.
  *
  * Every block hangs off an anchor given as a share of the frame, with its size a share of the
  * frame's shorter side. Another aspect ratio (V16 formats) re-flows the type by passing other
  * anchors, or the same ones, to `layoutPosterType`.
  */
-import { toKatakana } from './katakana'
-import type { Reactivity } from './reactivity'
-import type { Credits, FrameContext, PassImage } from './scene'
-import type { Tier } from './signals'
 
 /** The blocks of Poster Type, in the order downbeats reveal them. */
 export const TYPE_BLOCKS = ['title', 'artist', 'katakana', 'words'] as const
@@ -193,63 +190,3 @@ export function typeReveals(text: TypeText, downbeats: readonly number[], sectio
   }
   return out
 }
-
-/**
- * Poster Type (layer library): big set type for the title, the artist's name, katakana and the
- * owner's own words, each block snapping in on a downbeat. The title comes from the track and the
- * name from the artist profile (through the vision's credits), so neither is stored here.
- */
-export interface PosterTypeLayer {
-  kind: 'posterType'
-  reactivity: Reactivity
-  /** The owner's own words, set small. Empty leaves them out. */
-  words: string
-  /** Katakana as the owner edited it; null means generate it from the title. */
-  katakana: string | null
-  /** How much the spectral chrome tints the white type, 0 to 1. */
-  chrome: number
-  /** How hard the type slices sideways as it snaps in, 0 to 1. */
-  glitch: number
-}
-
-export const POSTER_TYPE_DEFAULTS: Omit<PosterTypeLayer, 'kind' | 'reactivity'> = {
-  words: '',
-  katakana: null,
-  chrome: 0.35,
-  glitch: 0.5
-}
-
-/** The katakana a Poster Type shows: the owner's edit, or what the title reads as. */
-export function posterKatakana(layer: PosterTypeLayer, title: string): string {
-  return layer.katakana ?? toKatakana(title)
-}
-
-export function posterTypeText(layer: PosterTypeLayer, credits: Credits): TypeText {
-  return { title: credits.title, artist: credits.artist, katakana: posterKatakana(layer, credits.title), words: layer.words }
-}
-
-export const POSTER_TYPE_RESPONSES: Record<Tier, (layer: PosterTypeLayer, amount: number) => PosterTypeLayer> = {
-  hard: (l, a) => ({ ...l, glitch: clamp01(l.glitch + a), chrome: clamp01(l.chrome + 0.5 * a) }),
-  medium: (l, a) => ({ ...l, glitch: clamp01(l.glitch + 0.4 * a) }),
-  slow: (l, a) => ({ ...l, chrome: clamp01(l.chrome + 0.3 * a) })
-}
-
-/**
- * One frame of Poster Type: the text and anchors to rasterize, and its uniforms, each block's
- * reveal (p0, in TYPE_BLOCKS order) then (chrome, glitch).
- */
-export function posterTypePass(
-  layer: PosterTypeLayer,
-  context: FrameContext,
-  downbeats: readonly number[],
-  t: number
-): { params: number[]; image: PassImage } {
-  const text = posterTypeText(layer, context.credits)
-  const reveals = typeReveals(text, downbeats, context.sectionStart, t)
-  return {
-    params: [...TYPE_BLOCKS.map((id) => reveals[id]), layer.chrome, layer.glitch],
-    image: { kind: 'type', key: JSON.stringify([text, POSTER_ANCHORS]), text, anchors: POSTER_ANCHORS }
-  }
-}
-
-const clamp01 = (x: number) => Math.min(1, Math.max(0, x))

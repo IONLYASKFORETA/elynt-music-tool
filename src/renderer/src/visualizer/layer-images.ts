@@ -1,4 +1,4 @@
-import { layoutPosterType, TYPE_BLOCKS, type Measure, type TypeLayout } from './poster-type'
+import { layoutPosterType, TYPE_BLOCKS, type Measure, type TypeLayout } from './type-layout'
 import type { PassImage } from './scene'
 
 /** Type textures kept at once: a few sections' worth, at a couple of sizes. */

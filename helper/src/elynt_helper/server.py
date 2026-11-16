@@ -6,11 +6,11 @@ and the helper answers on stdout, one line each, in any order:
     {"id": 1, "result": {...}}
     {"id": 1, "error": {"code": "file_not_found", "message": "..."}}
 
-A long call (a stem split) may send progress lines for its id before its answer:
+A long call (a stem split, an image generation) may send progress lines for its id before its answer:
     {"id": 1, "progress": {"stage": "Splitting", "fraction": 0.4}}
 
 Before the first request, the helper writes one ready line:
-    {"event": "ready", "protocol": 2, "version": "0.1.0"}
+    {"event": "ready", "protocol": 3, "version": "0.1.0"}
 
 Each request runs on its own worker thread, so a split that takes a minute doesn't hold up a probe.
 stdout carries only protocol lines. Anything else (logs, library noise) goes to stderr.

@@ -1,9 +1,19 @@
 import type { Section, SectionLabel } from '../../../shared/analysis'
 import type { AudioFeatures } from './audio-features'
+import { beatSeconds, NO_GRID, snapToGrid, type BeatGrid, type Snap } from './beat-grid'
+import { momentPasses, type Moment, type MomentKind } from './moments'
 import { clipKey, newImageMedia, type ClipMedia, type LayerMedia } from './media'
 import { DEFAULT_PALETTE, paletteProblem, type Palette } from './palette'
-import { addLayer, newLayer, NO_CONTEXT, planFrame, type Credits, type FramePlan, type Layer, type Scene, type SubjectLayer } from './scene'
-import type { TrackSignals } from './signals'
+import { addLayer, newLayer, NO_CONTEXT, passUniforms, planFrame, type Credits, type FramePlan, type Layer, type Scene, type SubjectLayer } from './scene'
+import { signalAt, type TrackSignals } from './signals'
+import {
+  TRANSITION_STYLES,
+  transitionBlend,
+  transitionWindow as windowBetween,
+  type TransitionBlend,
+  type TransitionStyle,
+  type TransitionWindow
+} from './transitions'
 
 /**
  * The part of a vision (GLOSSARY: Vision) the renderer reads: one scene per section of the
@@ -13,6 +23,10 @@ export interface Vision {
   sections: VisionSection[]
   /** The track's 3 to 5 colors, which every house-style layer takes. */
   palette: Palette
+  /** Visual events pinned to the grid, on top of the scenes, in time order. */
+  moments: Moment[]
+  /** The track's beats and bars, from the analysis: what moments snap to and transitions are timed in. */
+  grid: BeatGrid
   /** What the poster layers set: the track's title and the artist's name. Blank until given. */
   credits?: Credits
 }
@@ -23,6 +37,8 @@ export interface VisionSection {
   start: number
   end: number
   scene: Scene
+  /** How this section hands over to the next. The last section's is never used. Missing reads as a cut. */
+  transition?: TransitionStyle
 }
 
 /** How hard each kind of section pushes its layers by default. */
@@ -39,12 +55,14 @@ const SECTION_STRENGTH: Record<SectionLabel, number> = {
  * Drops hit on the drop itself; other sections hit on downbeats. A track with no sections yet
  * is one section, start to end.
  */
-export function defaultVision(sections: Section[], durationSeconds: number): Vision {
+export function defaultVision(sections: Section[], durationSeconds: number, grid: BeatGrid = NO_GRID): Vision {
   const spans: { label: SectionLabel; start: number; end: number }[] =
     sections.length > 0 ? sections : [{ label: 'intro', start: 0, end: durationSeconds }]
   return {
-    sections: spans.map(({ label, start, end }) => ({ label, start, end, scene: defaultSectionScene(label) })),
-    palette: DEFAULT_PALETTE
+    sections: spans.map(({ label, start, end }) => ({ label, start, end, scene: defaultSectionScene(label), transition: 'cut' })),
+    palette: DEFAULT_PALETTE,
+    moments: [],
+    grid: { beats: [...grid.beats], downbeats: [...grid.downbeats] }
   }
 }
 
@@ -65,12 +83,49 @@ export function sectionIndexAt(vision: Vision, t: number): number {
   return 0
 }
 
-/** The scene at t. Scenes switch with a hard cut at each section boundary (transitions come later). */
-export function sceneAt(vision: Vision, t: number): Scene {
-  return vision.sections[sectionIndexAt(vision, t)]!.scene
+/**
+ * Where the handover from section `index` to the next happens (see transitions.ts). For the
+ * last section, which hands over to nothing, it is an empty window at its end.
+ */
+export function transitionWindow(vision: Vision, index: number): TransitionWindow {
+  const outgoing = vision.sections[index]!
+  const incoming = vision.sections[index + 1]
+  if (!incoming) return { start: outgoing.end, at: outgoing.end, end: outgoing.end }
+  return windowBetween(outgoing.transition ?? 'cut', outgoing, incoming, vision.grid)
 }
 
-/** One frame of the whole track: the preview and the export both draw through this. */
+/** The scene at t. Each section's scene takes over where its transition lands (for a cut, on the downbeat). */
+export function sceneAt(vision: Vision, t: number): Scene {
+  return vision.sections[sceneIndexAt(vision, t)]!.scene
+}
+
+function sceneIndexAt(vision: Vision, t: number): number {
+  let index = 0
+  for (let i = 0; i < vision.sections.length - 1; i++) if (t >= transitionWindow(vision, i).at) index = i + 1
+  return index
+}
+
+/** The boundary whose transition is being drawn at t, and how far along it is. */
+export function transitionAt(vision: Vision, t: number): (TransitionBlend & { index: number }) | null {
+  for (let i = 0; i < vision.sections.length - 1; i++) {
+    const window = transitionWindow(vision, i)
+    if (window.start < window.end && t >= window.start && t < window.end) {
+      return { index: i, ...transitionBlend(vision.sections[i]!.transition ?? 'cut', window, t) }
+    }
+  }
+  return null
+}
+
+/** Chooses how section `index` hands over to the next. */
+export function setTransition(vision: Vision, index: number, transition: TransitionStyle): Vision {
+  return { ...vision, sections: vision.sections.map((s, i) => (i === index ? { ...s, transition } : s)) }
+}
+
+/**
+ * One frame of the whole track: the preview and the export both draw through this. Through a
+ * transition both scenes are drawn, the outgoing one set aside by a hold step, and the
+ * transition pass composites them. Moments go on top of everything.
+ */
 export function planVisionFrame(
   vision: Vision,
   features: AudioFeatures,
@@ -78,13 +133,31 @@ export function planVisionFrame(
   size: { width: number; height: number },
   signals: TrackSignals
 ): FramePlan {
-  const sectionIndex = sectionIndexAt(vision, t)
-  const section = vision.sections[sectionIndex]!
-  return planFrame(section.scene, features, t, size, signals, vision.palette, {
-    sectionIndex,
-    sectionStart: section.start,
-    credits: vision.credits ?? NO_CONTEXT.credits
-  })
+  const { palette } = vision
+  const build = signalAt(signals, 'build', t)
+  const credits = vision.credits ?? NO_CONTEXT.credits
+  const scenePlan = (sectionIndex: number) => {
+    const section = vision.sections[sectionIndex]!
+    return planFrame(section.scene, features, t, size, signals, palette, { sectionIndex, sectionStart: section.start, credits })
+  }
+  const transition = transitionAt(vision, t)
+  let plan: FramePlan
+  if (transition) {
+    const outgoing = scenePlan(transition.index)
+    const incoming = scenePlan(transition.index + 1)
+    const params = [TRANSITION_STYLES.indexOf(transition.style), transition.mix, transition.intensity, transition.progress]
+    plan = {
+      spectrum: incoming.spectrum,
+      passes: [
+        ...outgoing.passes,
+        { kind: 'hold', uniforms: passUniforms(t, features, size, [], build, palette) },
+        ...incoming.passes,
+        { kind: 'transition', uniforms: passUniforms(t, features, size, params, build, palette) }
+      ]
+    }
+  } else plan = scenePlan(sceneIndexAt(vision, t))
+  const moments = momentPasses(vision.moments, t, beatSeconds(vision.grid), { features, size, build, palette })
+  return { ...plan, passes: [...plan.passes, ...moments] }
 }
 
 /** The media a layer shows: a Subject's image or own media, a Ground's or Chrome's media, a Poster Frame's logo. */
@@ -162,5 +235,25 @@ export function updateSectionLayer(vision: Vision, sectionIndex: number, layerIn
 
 /** One scene for the whole track: for benchmarks, which don't care about sections. */
 export function singleSceneVision(scene: Scene, durationSeconds: number): Vision {
-  return { sections: [{ label: 'intro', start: 0, end: durationSeconds, scene }], palette: DEFAULT_PALETTE }
+  return { sections: [{ label: 'intro', start: 0, end: durationSeconds, scene }], palette: DEFAULT_PALETTE, moments: [], grid: NO_GRID }
+}
+
+/** Pins a moment of a kind to the bar or beat nearest t. */
+export function addMoment(vision: Vision, kind: MomentKind, t: number, snap: Snap): Vision {
+  const id = Math.max(0, ...vision.moments.map((m) => m.id)) + 1
+  return withMoments(vision, [...vision.moments, { id, kind, at: snapToGrid(vision.grid, t, snap) }])
+}
+
+/** Moves a moment to the bar or beat nearest t. */
+export function moveMoment(vision: Vision, id: number, t: number, snap: Snap): Vision {
+  const at = snapToGrid(vision.grid, t, snap)
+  return withMoments(vision, vision.moments.map((m) => (m.id === id ? { ...m, at } : m)))
+}
+
+export function removeMoment(vision: Vision, id: number): Vision {
+  return withMoments(vision, vision.moments.filter((m) => m.id !== id))
+}
+
+function withMoments(vision: Vision, moments: Moment[]): Vision {
+  return { ...vision, moments: [...moments].sort((a, b) => a.at - b.at || a.id - b.id) }
 }

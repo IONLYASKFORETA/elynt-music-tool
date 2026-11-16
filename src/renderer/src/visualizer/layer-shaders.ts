@@ -1,4 +1,4 @@
-import type { LayerKind } from './scene'
+import type { DrawnKind, EffectKind, LayerKind } from './scene'
 import common from './shaders/common.wgsl?raw'
 import ground from './shaders/ground.wgsl?raw'
 import classic from './shaders/classic.wgsl?raw'
@@ -10,6 +10,8 @@ import lightPillar from './shaders/light-pillar.wgsl?raw'
 import posterFrame from './shaders/poster-frame.wgsl?raw'
 import posterType from './shaders/poster-type.wgsl?raw'
 import subject from './shaders/subject.wgsl?raw'
+import flash from './shaders/flash.wgsl?raw'
+import transition from './shaders/transition.wgsl?raw'
 import blit from './shaders/blit.wgsl?raw'
 
 /** The WGSL every pass starts with: the Frame uniforms, the bindings, the vertex shader and helpers. */
@@ -29,9 +31,15 @@ export const LAYER_SHADERS: Record<LayerKind, string> = {
   subject
 }
 
+/** The passes that are not layers: a moment's white flash and the transition between two scenes. */
+export const EFFECT_SHADERS: Record<EffectKind, string> = { flash, transition }
+
+/** Every pass the renderer runs a pipeline for. */
+export const PASS_SHADERS: Record<DrawnKind, string> = { ...LAYER_SHADERS, ...EFFECT_SHADERS }
+
 export const BLIT_WGSL = blit
 
-/** The whole shader module for one layer kind, as the GPU builds it. */
-export function shaderSource(kind: LayerKind): string {
-  return `${COMMON_WGSL}\n${LAYER_SHADERS[kind]}`
+/** The whole shader module for one pass kind, as the GPU builds it. */
+export function shaderSource(kind: DrawnKind): string {
+  return `${COMMON_WGSL}\n${PASS_SHADERS[kind]}`
 }

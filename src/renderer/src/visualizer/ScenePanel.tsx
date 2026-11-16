@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { MediaControls } from './MediaControls'
 import type { OwnMedia } from './MediaShelf'
 import { PosterLayerControls } from './PosterLayerControls'
@@ -36,15 +35,22 @@ const NO_MEDIA: OwnMedia = { shelf: [], coverArt: null }
 
 export function ScenePanel({
   vision,
+  trackId,
   media = NO_MEDIA,
-  onChange
+  onChange,
+  section: picked,
+  onSection: setPicked
 }: {
   vision: Vision
+  /** The track the vision is for: its Subject layers offer its generated images. */
+  trackId?: number
   /** The media shelf and the track's cover art, which Subject, Ground, Chrome and Poster Frame can use. */
   media?: OwnMedia
   onChange(vision: Vision): void
+  /** The picked section; the timeline picks it too. */
+  section: number
+  onSection(index: number): void
 }) {
-  const [picked, setPicked] = useState(0)
   const index = Math.min(picked, vision.sections.length - 1)
   const section = vision.sections[index]!
   const { scene } = section
@@ -144,6 +150,8 @@ export function ScenePanel({
             <PosterLayerControls
               layer={layer}
               credits={vision.credits}
+              trackId={trackId}
+              palette={vision.palette}
               onChange={(patch) => onChange(updateSectionLayer(vision, index, i, patch))}
             />
             <MediaControls layer={layer} media={media} onChange={(patch) => onChange(updateSectionLayer(vision, index, i, patch))} />

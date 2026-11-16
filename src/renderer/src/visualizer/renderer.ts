@@ -1,7 +1,7 @@
 import { BAND_COUNT } from './audio-features'
-import type { FramePlan, LayerKind } from './scene'
+import type { DrawnKind, FramePlan } from './scene'
 import { UNIFORM_FLOATS } from './scene'
-import { BLIT_WGSL, COMMON_WGSL, LAYER_SHADERS } from './layer-shaders'
+import { BLIT_WGSL, COMMON_WGSL, PASS_SHADERS } from './layer-shaders'
 import { LayerImages } from './layer-images'
 const WORK_FORMAT: GPUTextureFormat = 'rgba16float'
 /** What an offscreen (export) frame is read back as: 8-bit RGBA, top row first, the layout FFmpeg takes. */
@@ -15,14 +15,15 @@ const PIXEL_FORMAT: GPUTextureFormat = 'rgba8unorm'
  */
 export class SceneRenderer {
   private readonly layout: GPUBindGroupLayout
-  private readonly pipelines: Record<LayerKind, GPURenderPipeline>
+  private readonly pipelines: Record<DrawnKind, GPURenderPipeline>
   private readonly blitPipeline: GPURenderPipeline
   private readonly pixelBlitPipeline: GPURenderPipeline
   private readonly sampler: GPUSampler
   private readonly spectrum: GPUBuffer
   private readonly uniforms: GPUBuffer[] = []
   private readonly images: LayerImages
-  private targets: [GPUTexture, GPUTexture] | null = null
+  /** Three, so a transition can hold one scene's picture while the next is drawn in the other two. */
+  private targets: GPUTexture[] | null = null
   private blank: GPUTexture | null = null
   private pixels: GPUTexture | null = null
   /** The target the last encodeLayers left the finished picture in. */
@@ -62,8 +63,8 @@ export class SceneRenderer {
       })
     }
     this.pipelines = Object.fromEntries(
-      (Object.keys(LAYER_SHADERS) as LayerKind[]).map((kind) => [kind, make(LAYER_SHADERS[kind], WORK_FORMAT)])
-    ) as Record<LayerKind, GPURenderPipeline>
+      (Object.keys(PASS_SHADERS) as DrawnKind[]).map((kind) => [kind, make(PASS_SHADERS[kind], WORK_FORMAT)])
+    ) as Record<DrawnKind, GPURenderPipeline>
     this.images = new LayerImages(device, context !== null)
     this.blitPipeline = make(BLIT_WGSL, canvasFormat)
     this.pixelBlitPipeline = canvasFormat === PIXEL_FORMAT ? this.blitPipeline : make(BLIT_WGSL, PIXEL_FORMAT)
@@ -109,7 +110,7 @@ export class SceneRenderer {
         format: WORK_FORMAT,
         usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_SRC
       })
-    this.targets = [texture(), texture()]
+    this.targets = [texture(), texture(), texture()]
     this.blank = texture()
     const clear = this.device.createCommandEncoder()
     clear
@@ -206,11 +207,20 @@ export class SceneRenderer {
     this.device.queue.writeBuffer(this.spectrum, 0, plan.spectrum)
     const encoder = this.device.createCommandEncoder()
     let below = this.blank
+    // The picture a "hold" step set aside; the next transition pass reads it in place of an image.
+    let held: GPUTexture | null = null
     plan.passes.forEach((pass, i) => {
-      const out = this.targets![i % 2]!
-      const image = this.images.textureFor(pass.image, this.width, this.height)
+      if (pass.kind === 'hold') {
+        held = below
+        below = this.blank!
+        return
+      }
+      const out = this.targets!.find((target) => target !== below && target !== held)!
+      const image =
+        pass.kind === 'transition' ? (held ?? this.images.blank) : this.images.textureFor(pass.image, this.width, this.height)
       this.runPass(encoder, this.pipelines[pass.kind], this.uniformBuffer(i), pass.uniforms, below, out.createView(), image)
       below = out
+      if (pass.kind === 'transition') held = null
     })
     this.finished = below
     return encoder

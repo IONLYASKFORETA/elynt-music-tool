@@ -7,7 +7,9 @@ import type { BackupStatus } from './backup'
 import type { CoverArt, MediaItem } from './media'
 import type { MixSetup } from './mix-setup'
 import type { ArtistProfile } from './profile'
+import type { Release, ReleaseWithPlan, StartRelease } from './release'
 import type { SplitJob, Stem } from './stems'
+import type { SubjectImage, SubjectImageRequest, SubjectJob } from './subject-images'
 import type { Track } from './track'
 
 /** What the preload script exposes to the UI as `window.elynt`. */
@@ -60,6 +62,15 @@ export interface ElyntApi {
     /** Saves the whole profile, half-filled or not. Rejects values the suite doesn't know. */
     save(profile: ArtistProfile): Promise<ArtistProfile>
   }
+  /** Release Assistant: releases and their dated plans, built from the playbook. */
+  releases: {
+    /** Every release, newest first. */
+    list(): Promise<Release[]>
+    /** A release and its plan. Null if there is no such release. */
+    get(releaseId: number): Promise<ReleaseWithPlan | null>
+    /** Builds the plan from the newest playbook and saves it. Rejects an unknown track or a bad date. */
+    start(input: StartRelease): Promise<ReleaseWithPlan>
+  }
   /** Video export. The window renders frames; the main process owns FFmpeg and the file. */
   exports: {
     /** Opens a save dialog for the video. Resolves to the path, or null if cancelled. */
@@ -102,6 +113,22 @@ export interface ElyntApi {
     skipCheck(trackId: number): Promise<TrackAnalysisState>
     /** Calls back whenever any track's analysis changes. Returns a function that stops listening. */
     onChange(listener: (state: TrackAnalysisState) => void): () => void
+  }
+  /**
+   * Subject images (V9): options for a track's Subject layers, made ahead of time by the helper's
+   * local image model. Show one with mediaUrl(image.path) from shared/subject-images.
+   */
+  subjectImages: {
+    list(trackId: number): Promise<SubjectImage[]>
+    /** Generates `count` options of one motif, one after another. Resolves to the new ones. */
+    generate(trackId: number, request: SubjectImageRequest, count: number): Promise<SubjectImage[]>
+    /** A new option from the same prompt with a fresh seed. */
+    regenerate(imageId: number): Promise<SubjectImage>
+    /** Drops an option and deletes its file. */
+    remove(imageId: number): Promise<void>
+    jobs(): Promise<SubjectJob[]>
+    /** Calls back as a generation starts, reports progress, finishes ('done') or fails. */
+    onJob(listener: (job: SubjectJob | { trackId: number; state: 'done' }) => void): () => void
   }
   helper: {
     status(): Promise<HelperStatus>
@@ -149,6 +176,9 @@ export const channels = {
   exportEverything: 'backup:export-everything',
   getProfile: 'profile:get',
   saveProfile: 'profile:save',
+  listReleases: 'releases:list',
+  getRelease: 'releases:get',
+  startRelease: 'releases:start',
   getMixSetup: 'mix-setup:get',
   saveMixSetup: 'mix-setup:save',
   pickReferenceTracks: 'mix-setup:pick-reference-tracks',
@@ -175,5 +205,11 @@ export const channels = {
   setLogo: 'media:set-logo',
   getCoverArt: 'media:cover-art',
   attachPickedCoverArt: 'media:attach-picked-cover-art',
-  removeCoverArt: 'media:remove-cover-art'
+  removeCoverArt: 'media:remove-cover-art',
+  listSubjectImages: 'subject-images:list',
+  generateSubjectImages: 'subject-images:generate',
+  regenerateSubjectImage: 'subject-images:regenerate',
+  removeSubjectImage: 'subject-images:remove',
+  subjectJobs: 'subject-images:jobs',
+  subjectJobChanged: 'subject-images:job-changed'
 } as const

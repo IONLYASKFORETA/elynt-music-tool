@@ -1,4 +1,5 @@
 import { fileExtension } from './paths'
+import { MEDIA_SCHEME } from './subject-images'
 
 /**
  * The media shelf (V18; GLOSSARY: Media shelf): the owner's reusable images, clips and logo,
@@ -38,8 +39,8 @@ export function mediaTypeOf(path: string): MediaType | null {
   return null
 }
 
-/** The scheme the main process serves media on. It only ever serves paths the database holds. */
-export const MEDIA_SCHEME = 'elynt-media'
+/** The scheme the main process serves media on (shared with subject images). It only serves paths the database holds. */
+export { MEDIA_SCHEME }
 
 export function shelfUrl(id: number): string {
   return `${MEDIA_SCHEME}://shelf/${id}`

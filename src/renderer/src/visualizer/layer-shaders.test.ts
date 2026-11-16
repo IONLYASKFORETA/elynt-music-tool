@@ -1,12 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { COMMON_WGSL, LAYER_SHADERS, shaderSource } from './layer-shaders'
-import { LAYER_NAMES, type LayerKind } from './scene'
+import { COMMON_WGSL, PASS_SHADERS, shaderSource } from './layer-shaders'
+import { LAYER_NAMES, type DrawnKind } from './scene'
 
 /**
  * No GPU here, so these catch what would stop a shader module from building on Aden's PC
  * before it gets there: a kind with no shader, a name declared twice, a uniform that isn't there.
  */
-const KINDS = Object.keys(LAYER_NAMES) as LayerKind[]
+/** Every layer kind, plus the passes moments and transitions draw. */
+const KINDS: DrawnKind[] = [...(Object.keys(LAYER_NAMES) as DrawnKind[]), 'flash', 'transition']
 
 /** Names declared at module scope (unindented), where a second declaration is an error. */
 function declared(source: string): string[] {
@@ -38,7 +39,7 @@ describe('layer shaders', () => {
   const frameFields = [.../struct Frame \{([^}]*)\}/.exec(COMMON_WGSL)![1]!.matchAll(/^\s*(\w+)\s*:/gm)].map((m) => m[1])
 
   it.each(KINDS)('%s has a fragment shader', (kind) => {
-    expect(LAYER_SHADERS[kind]).toMatch(/@fragment\s+fn fs\(/)
+    expect(PASS_SHADERS[kind]).toMatch(/@fragment\s+fn fs\(/)
   })
 
   it.each(KINDS)('%s declares nothing the common code already declares, nor anything twice', (kind) => {
@@ -47,7 +48,7 @@ describe('layer shaders', () => {
   })
 
   it.each(KINDS)('%s reads only uniforms the frame has', (kind) => {
-    const used = [...LAYER_SHADERS[kind].matchAll(/\bframe\.(\w+)/g)].map((m) => m[1])
+    const used = [...PASS_SHADERS[kind].matchAll(/\bframe\.(\w+)/g)].map((m) => m[1])
     for (const field of used) expect(frameFields).toContain(field)
   })
 

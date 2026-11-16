@@ -37,6 +37,9 @@ _Avoid_: "theme", "style" (a vision is made for one track, not reused as-is).
 **House style**: the single visual world every vision lives inside; for the Visualizer, the spectral, glitch, holographic-chrome poster aesthetic. Tracks differ within it, never outside it.
 _Avoid_: "theme" (a vision is per track; the house style is shared by all of them).
 
+**Subject image**: a picture of one of a track's motifs (a machine, a sigil, a figure) in the house style on black or off-white, made ahead of time by the local image model for a Subject layer to show. A track keeps its generated options; the owner picks, regenerates or drops them.
+_Avoid_: "asset" (too broad), "artwork" or "cover art" (the release's cover is the owner's own).
+
 **Brief**: the owner's own idea for a track's visuals, given up front in their words, before the Visualizer asks anything.
 
 **Remix**: a fresh take on a chosen vision, steered by a note or by a part borrowed from another vision.

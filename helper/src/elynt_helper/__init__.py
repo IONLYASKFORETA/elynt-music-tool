@@ -3,4 +3,4 @@
 __version__ = "0.1.0"
 
 # Bump when a request or response shape changes, so the app can refuse a stale helper.
-PROTOCOL_VERSION = 3
+PROTOCOL_VERSION = 4

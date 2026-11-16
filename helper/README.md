@@ -52,6 +52,10 @@ uv run pytest
 
 The app's own tests (`npm test`) use a Node stand-in for this helper, so they run without Python.
 
+## Live Set reader
+
+`liveset.read` (M1) reads an Ableton Live .als (gzipped XML, Live 10 to 12) and returns its Live tracks, returns and main track with grouping, routing, mixer values, sends and device chains, racks included (`src/elynt_helper/live_set.py`). Native device parameters come with their stored values and ranges; third-party plug-ins and Max for Live devices are listed by name and ID only. Anything missing is `"unknown"`, never an error. Every call logs the Set's `Creator` and `MinorVersion` to stderr. Fixtures are in `tests/fixtures/live-sets`: pyableton's Live 11.1.5 test Set (MIT) and hand-made Live 10 and 12 Sets.
+
 ## Track analysis
 
 `track.analyze` (V1) reads a mixdown and returns tempo, beats, downbeats, sections, an energy curve and a coarse mood (`src/elynt_helper/analysis/`). The app runs it when a track is added and saves the result on the track.

@@ -123,6 +123,8 @@ export function VisualizerTrack({ track, onRenamed }: { track: Track; onRenamed:
 
   // Credits come from the track and the profile each time, so they aren't saved with the scenes.
   const edit = ({ credits: _credits, ...edited }: Vision) => setVision(edited)
+  // A note's change set (V14) is one step of undo of its own, apart from slider moves around it.
+  const applyNote = ({ credits: _credits, ...edited }: Vision) => history.commit(edited)
 
   const use = (index: number) => {
     if (!set || !analysis) return
@@ -178,7 +180,7 @@ export function VisualizerTrack({ track, onRenamed }: { track: Track; onRenamed:
         format={format}
         onFormatChange={setFormat}
       />
-      <ScenePanel vision={credited} trackId={track.id} format={format} media={media} onChange={edit} section={section} onSection={setSection} />
+      <ScenePanel vision={credited} trackId={track.id} format={format} media={media} onChange={edit} onApplyNote={applyNote} section={section} onSection={setSection} />
       <MediaShelfPanel media={media} actions={mediaActions} />
       <HistoryPanel visionKey={visionKey} history={history} section={section} />
     </>

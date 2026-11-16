@@ -223,6 +223,11 @@ export interface FrameContext {
   sectionIndex: number
   sectionStart: number
   credits: Credits
+  /**
+   * How hard reactions push, from the video's and the section's intensity sliders (V14): 1 is as
+   * each layer's strength says, 0 is still, 2 is twice as hard. Missing reads as 1.
+   */
+  intensity?: number
   /** The format the frame is laid out for and its safe zone (V16). */
   layout: FormatLayout
 }
@@ -248,11 +253,13 @@ export function planFrame(
   context: FrameContext = NO_CONTEXT
 ): FramePlan {
   const build = signalAt(signals, 'build', t)
+  const intensity = Math.max(0, context.intensity ?? 1)
   return {
     spectrum: features.bands,
     passes: drawnLayers(scene).map((layer) => {
       const placed = place(layer, context.layout)
-      const { params, image } = layerParams(react(placed, reactionAt(placed.reactivity, signals, t)), context, signals, t)
+      const reaction = reactionAt(placed.reactivity, signals, t)
+      const { params, image } = layerParams(react(placed, { ...reaction, amount: reaction.amount * intensity }), context, signals, t)
       const uniforms = passUniforms(t, features, size, params, build, palette)
       return image ? { kind: layer.kind, uniforms, image } : { kind: layer.kind, uniforms }
     })

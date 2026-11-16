@@ -17,6 +17,8 @@ export type ScenePreset = Scene
 
 export interface VisionPreset {
   palette: Palette
+  /** The video's intensity slider (V14). Missing reads as 1. */
+  intensity?: number
   sections: PresetSection[]
 }
 
@@ -24,6 +26,8 @@ export interface PresetSection {
   label: SectionLabel
   scene: Scene
   transition: TransitionStyle
+  /** The section's intensity slider (V14). Missing reads as 1. */
+  intensity?: number
   /** Where the section sat in its track: its midpoint, as a share of the track, 0 to 1. */
   position: number
   /** Each moment as a share of the way through its section, 0 to 1. */
@@ -37,10 +41,12 @@ export function visionPreset(vision: Vision): VisionPreset {
   const end = trackEnd(vision)
   return copy({
     palette: [...vision.palette],
+    ...(vision.intensity !== undefined && { intensity: vision.intensity }),
     sections: vision.sections.map((s) => ({
       label: s.label,
       scene: s.scene,
       transition: s.transition ?? 'cut',
+      ...(s.intensity !== undefined && { intensity: s.intensity }),
       position: (s.start + s.end) / 2 / end,
       moments: vision.moments
         .filter((m) => m.at >= s.start && m.at < s.end)
@@ -56,7 +62,7 @@ export function visionPreset(vision: Vision): VisionPreset {
  * same point of the track. Moments land at the same point of their section, on the nearest beat.
  */
 export function applyVisionPreset(vision: Vision, preset: VisionPreset): Vision {
-  if (preset.sections.length === 0) return { ...vision, palette: [...preset.palette] }
+  if (preset.sections.length === 0) return { ...vision, palette: [...preset.palette], intensity: preset.intensity }
   const seen = new Map<SectionLabel, number>()
   const end = trackEnd(vision)
   const sections = vision.sections.map((s) => {
@@ -64,7 +70,7 @@ export function applyVisionPreset(vision: Vision, preset: VisionPreset): Vision 
     const nth = seen.get(s.label) ?? 0
     seen.set(s.label, nth + 1)
     const source = ofKind.length > 0 ? ofKind[nth % ofKind.length]! : nearestByPosition(preset.sections, (s.start + s.end) / 2 / end)
-    return { section: { ...s, scene: copy(source.scene), transition: source.transition }, source }
+    return { section: { ...s, scene: copy(source.scene), transition: source.transition, intensity: source.intensity }, source }
   })
   const moments = sections
     .flatMap(({ section, source }) =>
@@ -72,7 +78,7 @@ export function applyVisionPreset(vision: Vision, preset: VisionPreset): Vision 
     )
     .sort((a, b) => a.at - b.at)
     .map((m, i) => ({ id: i + 1, ...m }))
-  return { ...vision, palette: [...preset.palette], sections: sections.map((s) => s.section), moments }
+  return { ...vision, palette: [...preset.palette], intensity: preset.intensity, sections: sections.map((s) => s.section), moments }
 }
 
 /** Replaces one section's scene with a scene preset. */

@@ -1,8 +1,10 @@
+import { useState } from 'react'
 import type { FormatId } from '../../../shared/formats'
 import { FormatTweakControls } from './FormatTweakControls'
 import { MediaControls } from './MediaControls'
 import type { OwnMedia } from './MediaShelf'
 import { PosterLayerControls } from './PosterLayerControls'
+import { NoteBox, ScopeSliders } from './ScopeControls'
 import { MAX_COLORS, MIN_COLORS } from './palette'
 import { PICKABLE_SIGNALS, signalLabel, type Reactivity } from './reactivity'
 import {
@@ -30,9 +32,10 @@ import {
 const ADDABLE_KINDS = (Object.keys(LAYER_NAMES) as LayerKind[]).filter((k) => !EXEMPT_KINDS.includes(k))
 
 /**
- * A basic scene panel: pick a section, then for each of its layers what it reacts to and how
- * strongly. Active layers can be added (up to the limit) and removed. Poster layers also take
- * tweaks for the format the preview shows (V16).
+ * The scene panel, with controls at every scope (V14): the whole video, the picked section and
+ * each of its layers have their own sliders and a note box for Claude. For each layer, what it
+ * reacts to and how strongly; active layers can be added (up to the limit) and removed. Poster
+ * layers also take tweaks for the format the preview shows (V16).
  */
 const NO_MEDIA: OwnMedia = { shelf: [], coverArt: null }
 
@@ -42,6 +45,7 @@ export function ScenePanel({
   format,
   media = NO_MEDIA,
   onChange,
+  onApplyNote = onChange,
   section: picked,
   onSection: setPicked
 }: {
@@ -53,6 +57,8 @@ export function ScenePanel({
   /** The media shelf and the track's cover art, which Subject, Ground, Chrome and Poster Frame can use. */
   media?: OwnMedia
   onChange(vision: Vision): void
+  /** Applies a note's change set as one undo step of its own. */
+  onApplyNote?(vision: Vision): void
   /** The picked section; the timeline picks it too. */
   section: number
   onSection(index: number): void
@@ -65,6 +71,9 @@ export function ScenePanel({
   const setReactivity = (layerIndex: number, reactivity: Reactivity) =>
     onChange(updateSectionLayer(vision, index, layerIndex, { reactivity }))
 
+  const [noteLayer, setNoteLayer] = useState<number | null>(null)
+  const sectionName = section.label[0]!.toUpperCase() + section.label.slice(1)
+
   const palette = vision.palette
   const setPalette = (colors: string[]) => onChange(setVisionPalette(vision, colors))
 
@@ -74,6 +83,12 @@ export function ScenePanel({
 
   return (
     <section className="scene-panel" aria-label="Scenes">
+      <div className="scope-controls" aria-label="Whole video">
+        <span className="scene-layer-name">Whole video</span>
+        <ScopeSliders vision={vision} target={{ section: null, layer: null }} onChange={onChange} />
+        <NoteBox vision={vision} scope={{ kind: 'video' }} trackId={trackId} onApply={onApplyNote} placeholder="A note for the whole video, like “colder and calmer”" />
+      </div>
+
       <div className="scene-palette" aria-label="Palette">
         <span className="scene-layer-name">Palette</span>
         {palette.map((color, i) => (
@@ -112,6 +127,18 @@ export function ScenePanel({
         ))}
       </div>
 
+      <div className="scope-controls" aria-label={`${sectionName} section`}>
+        <span className="scene-layer-name">{sectionName}</span>
+        <ScopeSliders vision={vision} target={{ section: index, layer: null }} onChange={onChange} />
+        <NoteBox
+          key={index}
+          vision={vision}
+          scope={{ kind: 'section', section: index }}
+          trackId={trackId}
+          onApply={onApplyNote}
+          placeholder={`A note for this ${section.label}, like “make it angrier”`}
+        />
+      </div>
       {offerCover && (
         <div className="scene-cover-offer">
           This track has cover art.{' '}
@@ -153,6 +180,7 @@ export function ScenePanel({
                 onChange={(e) => setReactivity(i, { ...layer.reactivity, strength: Number(e.target.value) })}
               />
             </label>
+            <ScopeSliders vision={vision} target={{ section: index, layer: i }} onChange={onChange} skip={['strength']} />
             <PosterLayerControls
               layer={layer}
               credits={vision.credits}
@@ -160,12 +188,25 @@ export function ScenePanel({
               palette={vision.palette}
               onChange={(patch) => onChange(updateSectionLayer(vision, index, i, patch))}
             />
+            <button className="link" onClick={() => setNoteLayer(noteLayer === i ? null : i)}>
+              Note
+            </button>
             <FormatTweakControls vision={vision} sectionIndex={index} layerIndex={i} format={format} onChange={onChange} />
             <MediaControls layer={layer} media={media} onChange={(patch) => onChange(updateSectionLayer(vision, index, i, patch))} />
             {countsTowardLimit(layer.kind) && (
               <button className="link" onClick={() => onChange(removeSectionLayer(vision, index, i))}>
                 Remove
               </button>
+            )}
+            {noteLayer === i && (
+              <NoteBox
+                key={`${index}:${i}`}
+                vision={vision}
+                scope={{ kind: 'layer', section: index, layer: i }}
+                trackId={trackId}
+                onApply={onApplyNote}
+                placeholder={`A note for this ${LAYER_NAMES[layer.kind]}, like “hit harder on the snare”`}
+              />
             )}
           </li>
         ))}

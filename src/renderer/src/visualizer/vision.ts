@@ -30,6 +30,8 @@ export interface Vision {
   grid: BeatGrid
   /** What the poster layers set: the track's title and the artist's name. Blank until given. */
   credits?: Credits
+  /** How hard the whole video reacts, 0 to 2: it scales every layer's strength. Missing reads as 1. */
+  intensity?: number
 }
 
 export interface VisionSection {
@@ -40,6 +42,8 @@ export interface VisionSection {
   scene: Scene
   /** How this section hands over to the next. The last section's is never used. Missing reads as a cut. */
   transition?: TransitionStyle
+  /** How hard this section reacts, 0 to 2, on top of the video's intensity. Missing reads as 1. */
+  intensity?: number
 }
 
 /** How hard each kind of section pushes its layers by default. */
@@ -168,7 +172,8 @@ export function planVisionFrame(
   const credits = vision.credits ?? NO_CONTEXT.credits
   const scenePlan = (sectionIndex: number) => {
     const section = vision.sections[sectionIndex]!
-    return planFrame(section.scene, features, t, size, signals, palette, { sectionIndex, sectionStart: section.start, credits, layout })
+    const intensity = (vision.intensity ?? 1) * (section.intensity ?? 1)
+    return planFrame(section.scene, features, t, size, signals, palette, { sectionIndex, sectionStart: section.start, credits, layout, intensity })
   }
   const transition = transitionAt(vision, t)
   let plan: FramePlan

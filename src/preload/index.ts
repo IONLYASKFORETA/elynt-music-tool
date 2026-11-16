@@ -69,7 +69,8 @@ const api: ElyntApi = {
     reveal: (path) => ipcRenderer.invoke(channels.revealExport, path)
   },
   visualizer: {
-    safeZones: () => ipcRenderer.invoke(channels.safeZones)
+    safeZones: () => ipcRenderer.invoke(channels.safeZones),
+    askNote: (request) => ipcRenderer.invoke(channels.askVisionNote, request)
   },
   bench: {
     config: () => ipcRenderer.invoke(channels.benchConfig),

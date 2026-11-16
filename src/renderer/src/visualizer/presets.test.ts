@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Section } from '../../../shared/analysis'
+import { applyChange } from './controls'
 import { MAX_ACTIVE_LAYERS, newLayer, type Scene } from './scene'
 import { applyLayerPreset, applyScenePreset, applyVisionPreset, visionPreset } from './presets'
 import {
@@ -67,6 +68,15 @@ describe('vision presets', () => {
     expect(kinds(applied, 0)).toEqual(['ground', 'classic', 'finish'])
     expect(applied.sections[2]!.transition).toBe('whiteFlash')
     expect(applied.sections[1]!.transition).toBe('cut')
+  })
+
+  it('carry the video’s and each section’s intensity (V14)', () => {
+    let source = applyChange(sourceVision(), { op: 'set', section: null, layer: null, param: 'intensity', value: 0.7 })
+    source = applyChange(source, { op: 'set', section: 2, layer: null, param: 'intensity', value: 1.8 })
+    const target = defaultVision([section('intro', 0, 8), section('drop', 8, 24)], 24, grid(24))
+    const applied = applyVisionPreset(target, visionPreset(source))
+    expect(applied.intensity).toBe(0.7)
+    expect(applied.sections.map((s) => s.intensity ?? 1)).toEqual([1, 1.8])
   })
 
   it('places moments at the same point of each matching section, on the new track’s beats', () => {

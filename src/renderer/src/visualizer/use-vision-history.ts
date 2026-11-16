@@ -11,6 +11,8 @@ export interface VisionHistory {
   loaded: boolean
   /** Shows an edit straight away and records it for undo once edits settle. */
   setVision(vision: Vision): void
+  /** Records an edit as a step of its own straight away, apart from edits before and after it (an applied note, V14). */
+  commit(vision: Vision): void
   canUndo: boolean
   canRedo: boolean
   undo(): void
@@ -103,6 +105,18 @@ export function useVisionHistory({
     [flush]
   )
 
+  const commit = useCallback(
+    (next: Vision) => {
+      flush()
+        .then(() => {
+          setVision(next)
+          return flush()
+        })
+        .catch((e: unknown) => console.error('Could not record the edit:', e))
+    },
+    [flush, setVision]
+  )
+
   const step = useCallback(
     (direction: 'undo' | 'redo') => {
       flush()
@@ -117,6 +131,7 @@ export function useVisionHistory({
     vision,
     loaded,
     setVision,
+    commit,
     canUndo: flags.canUndo,
     canRedo: flags.canRedo,
     undo: () => step('undo'),

@@ -14,6 +14,7 @@ import type { StepAction } from './release-plan-actions'
 import type { SplitJob, Stem } from './stems'
 import type { SubjectImage, SubjectImageRequest, SubjectJob } from './subject-images'
 import type { Track } from './track'
+import type { VisionNoteRequest, VisionNoteResult } from './vision-note'
 import type { HistoryState, Preset, PresetLevel, Snapshot, VisionKey } from './vision-history'
 import type { VisionFlowRequest, VisionFlowResult, VisionSet, WorkingVision } from './visions'
 
@@ -97,6 +98,8 @@ export interface ElyntApi {
   visualizer: {
     /** The safe zones per format (V16): the owner's safe-zones.json beside the database, else the shipped margins. Read fresh each call. */
     safeZones(): Promise<SafeZones>
+    /** Sends a note from the editor's note box (V14) to Claude; resolves to its unchecked change set or a message. */
+    askNote(request: VisionNoteRequest): Promise<VisionNoteResult>
   }
   /** The export benchmark: only active when the app was started with --bench-export. */
   bench: {
@@ -263,6 +266,7 @@ export const channels = {
   benchConfig: 'bench:config',
   benchCheckFile: 'bench:check-file',
   benchReport: 'bench:report',
+  askVisionNote: 'visualizer:ask-note',
   listMedia: 'media:list',
   addPickedMedia: 'media:add-picked',
   removeMedia: 'media:remove',

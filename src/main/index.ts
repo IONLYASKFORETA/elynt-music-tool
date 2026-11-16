@@ -36,6 +36,8 @@ import { createTrackStems, type StemSplitter } from './stems'
 import { createSubjectImages, type SubjectGenerator } from './subject-images'
 import { MEDIA_SCHEME, mediaPath, type SubjectImageRequest } from '../shared/subject-images'
 import { createTrackLibrary } from './tracks'
+import { askVisionNote } from './visualizer/vision-note'
+import type { VisionNoteRequest } from '../shared/vision-note'
 import { createVisionFlow } from './visions/flow'
 import { createVisionStore } from './visions/store'
 import type { VisionFlowRequest, WorkingVision } from '../shared/visions'
@@ -343,6 +345,7 @@ function start(): void {
     await keys.remove(keyName(name))
     return keys.status()
   })
+  ipcMain.handle(channels.askVisionNote, (_event, request: VisionNoteRequest) => askVisionNote(claude, request))
   // The vision flow (V10): Claude writes three visions; each call is costed against the track.
   // With ELYNT_RECORD_CLAUDE_DIR set, every raw reply is also saved there, to replay in tests.
   const visionStore = createVisionStore(db)

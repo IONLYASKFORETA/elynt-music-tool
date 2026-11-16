@@ -55,6 +55,12 @@ _Avoid_: confusing with a musical remix; a remix here only ever changes visuals.
 
 **Transition**: how one section's scene hands over to the next.
 
+**Scope**: what an editor control applies to: the whole video, one section, or one layer. Each scope has its own sliders and note box.
+
+**Note**: a few words the owner types in the editor at a scope ("make the drop angrier"), which Claude turns into a change set for that scope.
+
+**Change set**: the list of concrete edits to a vision that answers a note, checked against the layer library and applied as one undo step.
+
 **Format**: the shape a vision is laid out in: 16:9, 9:16 or 1:1. The owner edits once and every format re-flows from it, with optional tweaks kept per format.
 _Avoid_: "aspect" (say format); an export's size, rate and bitrate is its export format, which names the format it lays out in.
 

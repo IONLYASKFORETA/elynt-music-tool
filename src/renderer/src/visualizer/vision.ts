@@ -1,7 +1,7 @@
 import type { Section, SectionLabel } from '../../../shared/analysis'
 import type { AudioFeatures } from './audio-features'
 import { DEFAULT_PALETTE, paletteProblem, type Palette } from './palette'
-import { addLayer, newLayer, planFrame, type FramePlan, type Layer, type Scene } from './scene'
+import { addLayer, newLayer, NO_CONTEXT, planFrame, type Credits, type FramePlan, type Layer, type Scene } from './scene'
 import type { TrackSignals } from './signals'
 
 /**
@@ -12,6 +12,8 @@ export interface Vision {
   sections: VisionSection[]
   /** The track's 3 to 5 colors, which every house-style layer takes. */
   palette: Palette
+  /** What the poster layers set: the track's title and the artist's name. Blank until given. */
+  credits?: Credits
 }
 
 export interface VisionSection {
@@ -75,7 +77,19 @@ export function planVisionFrame(
   size: { width: number; height: number },
   signals: TrackSignals
 ): FramePlan {
-  return planFrame(sceneAt(vision, t), features, t, size, signals, vision.palette)
+  const sectionIndex = sectionIndexAt(vision, t)
+  const section = vision.sections[sectionIndex]!
+  return planFrame(section.scene, features, t, size, signals, vision.palette, {
+    sectionIndex,
+    sectionStart: section.start,
+    credits: vision.credits ?? NO_CONTEXT.credits
+  })
+}
+
+/** Every image the vision's Subjects show, once each: an export loads them all before its first frame. */
+export function visionImages(vision: Vision): string[] {
+  const urls = vision.sections.flatMap((s) => s.scene.layers.flatMap((l) => (l.kind === 'subject' && l.image ? [l.image] : [])))
+  return [...new Set(urls)]
 }
 
 /** Swaps the vision's palette. Throws for one that isn't 3 to 5 #rrggbb colors. */

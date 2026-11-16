@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { Track } from '../../../shared/track'
 import { useTrackAnalysis } from './AnalysisStrip'
 import { HeardCheck } from './HeardCheck'
@@ -29,6 +29,20 @@ export function VisualizerTrack({ track, onRenamed }: { track: Track; onRenamed:
     setVision(defaultVision(sections, duration))
   }, [track.id, sectionsKey])
 
+  // Poster layers set the track's title and the artist's name from the artist profile.
+  const [artistName, setArtistName] = useState('')
+  useEffect(() => {
+    let cancelled = false
+    window.elynt.profile
+      .get()
+      .then((profile) => !cancelled && setArtistName(profile.artistName ?? ''))
+      .catch((e: unknown) => console.error('Could not read the artist profile:', e))
+    return () => {
+      cancelled = true
+    }
+  }, [])
+  const credited = useMemo(() => ({ ...vision, credits: { title: track.title, artist: artistName } }), [vision, track.title, artistName])
+
   if (checking) {
     return (
       <HeardCheck
@@ -49,8 +63,8 @@ export function VisualizerTrack({ track, onRenamed }: { track: Track; onRenamed:
           Check what I heard
         </button>
       )}
-      <Preview track={track} analysis={analysis} vision={vision} />
-      <ScenePanel vision={vision} onChange={setVision} />
+      <Preview track={track} analysis={analysis} vision={credited} />
+      <ScenePanel vision={credited} onChange={setVision} />
     </>
   )
 }

@@ -4,7 +4,7 @@ import { featuresAt, type MonoAudio } from './audio-features'
 import { pumpFrames } from './frame-pump'
 import { SceneRenderer } from './renderer'
 import type { TrackSignals } from './signals'
-import { planVisionFrame, type Vision } from './vision'
+import { planVisionFrame, visionImages, type Vision } from './vision'
 import { decodeTrackAudio } from './track-audio'
 
 export interface ExportProgress {
@@ -60,6 +60,8 @@ export async function exportVideo(options: ExportOptions): Promise<ExportRun> {
   })
   try {
     renderer.setRenderSize(job.width, job.height)
+    // Every frame has to show its Subject's image, the first one included.
+    await renderer.loadImages(visionImages(vision))
     const size = renderer.renderSize
     const started = performance.now()
     const elapsed = () => (performance.now() - started) / 1000

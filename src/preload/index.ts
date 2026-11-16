@@ -59,6 +59,9 @@ const api: ElyntApi = {
     // File.path is gone in current Electron; webUtils is the supported way to get a dropped file's path.
     pathForDroppedFile: (file) => webUtils.getPathForFile(file)
   },
+  liveSet: {
+    pickAndRead: () => ipcRenderer.invoke(channels.pickAndReadLiveSet)
+  },
   analysis: {
     get: (trackId) => ipcRenderer.invoke(channels.getAnalysis, trackId),
     rerun: (trackId) => ipcRenderer.invoke(channels.rerunAnalysis, trackId),

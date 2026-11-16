@@ -139,7 +139,24 @@ def stems_split(params: dict[str, Any], progress: Progress) -> dict[str, Any]:
     return split_stems(params, progress)
 
 
+def liveset_read(params: dict[str, Any], _progress: Progress) -> dict[str, Any]:
+    """The Live Set reader (M1): Live tracks, routing, mixer and device chains of an .als file."""
+    path = params.get("path")
+    if not isinstance(path, str) or not path:
+        raise HelperError("bad_request", "path is required")
+    if not os.path.isfile(path):
+        raise HelperError("file_not_found", f"no file at {path}")
+
+    from .live_set import NotALiveSet, read_live_set
+
+    try:
+        return read_live_set(path)
+    except NotALiveSet as e:
+        raise HelperError("unreadable_live_set", str(e)) from e
+
+
 METHODS: dict[str, Handler] = {
+    "liveset.read": liveset_read,
     "helper.info": helper_info,
     "audio.probe": audio_probe,
     "stems.split": stems_split,

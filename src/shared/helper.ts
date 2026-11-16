@@ -1,4 +1,5 @@
 import type { TrackAnalysis } from './analysis'
+import type { LiveSet } from './live-set'
 
 /**
  * The calls the app can make to the Python helper, and what comes back.
@@ -63,6 +64,8 @@ export interface StemSplit {
 export interface HelperMethods {
   /** Track analysis (V1). Errors: file_not_found, unreadable_audio, silent_audio, no_beat. Takes seconds to a minute. */
   'track.analyze': { params: { path: string }; result: TrackAnalysis }
+  /** The Live Set reader (M1). Errors: file_not_found, unreadable_live_set. Never fails on a missing element. */
+  'liveset.read': { params: { path: string }; result: LiveSet }
   'helper.info': { params: Record<string, never>; result: HelperInfo }
   /** Reads an audio file's header. `path` is as the helper sees it (a WSL path under WSL2). */
   'audio.probe': { params: { path: string }; result: AudioProbe }

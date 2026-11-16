@@ -4,6 +4,7 @@ import type { TrackAnalysis, TrackAnalysisState } from './analysis'
 import type { AudioProbe, HelperStatus } from './helper'
 import type { KeyName, KeyStatus, KeyTestResult } from './keys'
 import type { BackupStatus } from './backup'
+import type { LiveSet } from './live-set'
 import type { MixSetup } from './mix-setup'
 import type { ArtistProfile } from './profile'
 import type { SplitJob, Stem } from './stems'
@@ -89,6 +90,11 @@ export interface ElyntApi {
     /** The path on disk of a file dropped onto the window. */
     pathForDroppedFile(file: File): string
   }
+  /** The Live Set reader (M1). */
+  liveSet: {
+    /** Opens a file picker for an .als and reads it in the helper. Null if cancelled. */
+    pickAndRead(): Promise<LiveSet | null>
+  }
   /** Track analysis (V1): tempo, beats, sections, energy and mood, saved on the track. */
   analysis: {
     /** Null until the track has been queued for analysis. */
@@ -135,6 +141,7 @@ export const channels = {
   getMixSetup: 'mix-setup:get',
   saveMixSetup: 'mix-setup:save',
   pickReferenceTracks: 'mix-setup:pick-reference-tracks',
+  pickAndReadLiveSet: 'live-set:pick-and-read',
   getAnalysis: 'analysis:get',
   rerunAnalysis: 'analysis:rerun',
   saveAnalysisCorrection: 'analysis:save-correction',

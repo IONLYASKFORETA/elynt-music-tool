@@ -147,6 +147,14 @@ h2 { font-size: 12px; letter-spacing: 0.3em; text-transform: uppercase; color: v
 .dropzone { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 18px 16px; border: 1px dashed #3a3a46; border-radius: 6px; color: var(--muted); }
 .dropzone.over { border-color: #3db8ff; color: var(--text); background: #0d1620; }
 .hint.rough { color: #ffb13d; }
+.live-set { margin-bottom: 32px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+.live-set-head { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+.live-set .hint { word-break: break-all; }
+.tree { margin: 4px 0; padding-left: 18px; font-size: 13px; line-height: 1.6; }
+.tree summary { cursor: pointer; }
+.tree .muted { color: var(--muted); font-size: 12px; }
+.tree .tag { margin-left: 8px; padding: 0 6px; border: 1px solid var(--line); border-radius: 4px; font-size: 11px; color: #ffb13d; }
+.tree.params { font: 12px ui-monospace, monospace; color: var(--muted); }
 .stems { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); font-size: 12px; }
 .stems-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .stems-label { font-weight: 700; letter-spacing: 0.2em; text-transform: uppercase; color: var(--muted); margin-right: 6px; display: inline-flex; align-items: center; gap: 8px; }

@@ -64,7 +64,7 @@ export function VisualizerTrack({ track, onRenamed }: { track: Track; onRenamed:
         </button>
       )}
       <Preview track={track} analysis={analysis} vision={credited} />
-      <ScenePanel vision={credited} onChange={setVision} />
+      <ScenePanel vision={credited} trackId={track.id} onChange={setVision} />
     </>
   )
 }

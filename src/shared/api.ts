@@ -7,6 +7,7 @@ import type { BackupStatus } from './backup'
 import type { MixSetup } from './mix-setup'
 import type { ArtistProfile } from './profile'
 import type { SplitJob, Stem } from './stems'
+import type { SubjectImage, SubjectImageRequest, SubjectJob } from './subject-images'
 import type { Track } from './track'
 
 /** What the preload script exposes to the UI as `window.elynt`. */
@@ -102,6 +103,22 @@ export interface ElyntApi {
     /** Calls back whenever any track's analysis changes. Returns a function that stops listening. */
     onChange(listener: (state: TrackAnalysisState) => void): () => void
   }
+  /**
+   * Subject images (V9): options for a track's Subject layers, made ahead of time by the helper's
+   * local image model. Show one with mediaUrl(image.path) from shared/subject-images.
+   */
+  subjectImages: {
+    list(trackId: number): Promise<SubjectImage[]>
+    /** Generates `count` options of one motif, one after another. Resolves to the new ones. */
+    generate(trackId: number, request: SubjectImageRequest, count: number): Promise<SubjectImage[]>
+    /** A new option from the same prompt with a fresh seed. */
+    regenerate(imageId: number): Promise<SubjectImage>
+    /** Drops an option and deletes its file. */
+    remove(imageId: number): Promise<void>
+    jobs(): Promise<SubjectJob[]>
+    /** Calls back as a generation starts, reports progress, finishes ('done') or fails. */
+    onJob(listener: (job: SubjectJob | { trackId: number; state: 'done' }) => void): () => void
+  }
   helper: {
     status(): Promise<HelperStatus>
     /** Calls back on every status change. Returns a function that stops listening. */
@@ -151,5 +168,11 @@ export const channels = {
   revealExport: 'exports:reveal',
   benchConfig: 'bench:config',
   benchCheckFile: 'bench:check-file',
-  benchReport: 'bench:report'
+  benchReport: 'bench:report',
+  listSubjectImages: 'subject-images:list',
+  generateSubjectImages: 'subject-images:generate',
+  regenerateSubjectImage: 'subject-images:regenerate',
+  removeSubjectImage: 'subject-images:remove',
+  subjectJobs: 'subject-images:jobs',
+  subjectJobChanged: 'subject-images:job-changed'
 } as const

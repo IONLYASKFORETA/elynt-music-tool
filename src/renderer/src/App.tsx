@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { AudioProbe, HelperStatus } from '../../shared/helper'
 import type { Track } from '../../shared/track'
+import type { BenchConfig } from '../../shared/bench'
+import { BenchRunner } from './visualizer/BenchRunner'
 import { Preview } from './visualizer/Preview'
 import { AnalysisStrip } from './visualizer/AnalysisStrip'
 import { ApiKeysPanel } from './ApiKeysPanel'
@@ -22,6 +24,16 @@ type View = ToolId | 'profile' | 'settings'
 const PICKS_A_TRACK: readonly View[] = ['visualizer', 'mix-master']
 
 export function App() {
+  const [bench, setBench] = useState<BenchConfig | null | undefined>(undefined)
+  useEffect(() => {
+    window.elynt.bench.config().then(setBench, () => setBench(null))
+  }, [])
+  if (bench === undefined) return null
+  if (bench) return <BenchRunner config={bench} />
+  return <Suite />
+}
+
+function Suite() {
   const [active, setActive] = useState<View>('visualizer')
   const [tracks, setTracks] = useState<Track[]>([])
   const [error, setError] = useState<string | null>(null)

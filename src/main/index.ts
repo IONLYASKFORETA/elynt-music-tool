@@ -1,6 +1,13 @@
-import { app, BrowserWindow, dialog, ipcMain } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron'
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { tmpdir } from 'node:os'
+import { dirname, join, resolve } from 'node:path'
+import type { BenchConfig, BenchReport } from '../shared/bench'
+import { EXPORT_FORMATS, isExportFormatId, type ExportRequest } from '../shared/export'
+import { benchPassed, formatBenchReport, lumaPsnr, parseBenchArgs } from './export/bench'
+import { createVideoExports } from './export/exports'
+import { decodeFrame, probeExport, resolveFfmpegPath } from './export/ffmpeg'
 import { channels } from '../shared/api'
 import { createAnalysisQueue, createTrackAnalysisStore } from './analysis'
 import { createBackups } from './backup'
@@ -49,6 +56,10 @@ function createWindow(): BrowserWindow {
   }
   return win
 }
+
+// The export benchmark runs against a throwaway library, never the owner's own database.
+const bench = parseBenchArgs(process.argv)
+if (bench) app.setPath('userData', mkdtempSync(join(tmpdir(), 'elynt-bench-')))
 
 app.whenReady().then(start).catch((error: unknown) => {
   dialog.showErrorBox('Elynt Music Tool could not start', error instanceof Error ? error.message : String(error))
@@ -152,6 +163,69 @@ function start(): void {
     const track = tracks.get(trackId)
     if (!track) throw new Error(`No track with id ${trackId}.`)
     return readFile(track.mixdownPath)
+  })
+
+  // Video export (ADR 0001): the window renders frames, FFmpeg here encodes them with the mixdown.
+  const ffmpegPath = resolveFfmpegPath()
+  const exports = createVideoExports({ ffmpegPath, tracks })
+  const finishedExports = new Set<string>()
+  ipcMain.handle(channels.chooseExportOutput, async (event, trackTitle: unknown, format: unknown) => {
+    if (!isExportFormatId(format)) throw new Error(`Unknown export format: ${String(format)}`)
+    const parent = BrowserWindow.fromWebContents(event.sender)
+    const safeTitle = String(trackTitle).replace(/[<>:"/\\|?*]+/g, ' ').trim() || 'Export'
+    const options: Electron.SaveDialogOptions = {
+      title: 'Export video',
+      defaultPath: join(app.getPath('videos'), `${safeTitle} ${EXPORT_FORMATS[format].height}p${EXPORT_FORMATS[format].fps}.mp4`),
+      filters: [{ name: 'MP4 video', extensions: ['mp4'] }]
+    }
+    const result = parent ? await dialog.showSaveDialog(parent, options) : await dialog.showSaveDialog(options)
+    return result.canceled || !result.filePath ? null : result.filePath
+  })
+  ipcMain.handle(channels.startExport, (_event, request: ExportRequest) => exports.start(request))
+  ipcMain.handle(channels.writeExportFrame, (_event, jobId: string, frame: Uint8Array) => exports.writeFrame(jobId, frame))
+  ipcMain.handle(channels.finishExport, async (_event, jobId: string) => {
+    const result = await exports.finish(jobId)
+    finishedExports.add(result.outputPath)
+    return result
+  })
+  ipcMain.handle(channels.cancelExport, (_event, jobId: string) => exports.cancel(jobId))
+  // Only videos this run exported can be shown, never an arbitrary path from the UI.
+  ipcMain.handle(channels.revealExport, (_event, path: string) => {
+    if (finishedExports.has(path)) shell.showItemInFolder(path)
+  })
+
+  const benchConfig: BenchConfig | null = bench && {
+    ...(() => {
+      const track = tracks.addFromMixdown(resolve(bench.trackPath))
+      return { trackId: track.id, trackTitle: track.title }
+    })(),
+    encoder: bench.encoder,
+    formats: bench.formats,
+    limitSeconds: bench.limitSeconds,
+    outDir: mkdtempSync(join(tmpdir(), 'elynt-bench-videos-'))
+  }
+  ipcMain.handle(channels.benchConfig, () => benchConfig)
+  ipcMain.handle(channels.benchCheckFile, async (_event, path: string, frame: number, renders: Uint8Array[], width: number, height: number) => {
+    if (!benchConfig || !finishedExports.has(path)) throw new Error('Only the benchmark can check its own videos.')
+    const facts = await probeExport(ffmpegPath, path)
+    const decoded = await decodeFrame(ffmpegPath, path, frame, width, height)
+    return {
+      videoBitrate: facts.videoBitrate,
+      audioSeconds: facts.audio.seconds,
+      videoSeconds: facts.video.seconds,
+      frames: facts.video.frames,
+      psnr: renders.map((rgba) => lumaPsnr(decoded, rgba))
+    }
+  })
+  ipcMain.handle(channels.benchReport, (_event, report: BenchReport) => {
+    if (!bench) return
+    const out = resolve(bench.outPath)
+    mkdirSync(dirname(out), { recursive: true })
+    writeFileSync(out, formatBenchReport(report))
+    writeFileSync(out.replace(/\.md$/i, '') + '.json', JSON.stringify(report, null, 2))
+    const passed = benchPassed(report)
+    console.log(`Export benchmark ${passed ? 'passed' : 'FAILED'}; report at ${out}`)
+    app.exit(passed ? 0 : 1)
   })
 
   // Keys stay in the Windows credential vault (ADR 0001). The Claude client is

@@ -1,7 +1,8 @@
+import type { FormatTweaks } from '../../../../shared/formats'
 import { toKatakana } from '../katakana'
 import type { Reactivity } from '../reactivity'
 import type { Credits } from '../scene'
-import { POSTER_ANCHORS, TYPE_BLOCKS, typeReveals, type TypeText } from '../type-layout'
+import { anchorsInFormat, TYPE_BLOCKS, typeReveals, type AnchorTweaks, type TypeText } from '../type-layout'
 import { clamp01, type FramedLayerKindDef } from './kind'
 
 /**
@@ -21,6 +22,8 @@ export interface PosterTypeLayer {
   chrome: number
   /** How hard the type slices sideways as it snaps in, 0 to 1. */
   glitch: number
+  /** The owner's moves of single blocks in a format, over that format's own layout (V16). */
+  formats?: FormatTweaks<{ anchors?: AnchorTweaks }>
 }
 
 /** The katakana a Poster Type shows: the owner's edit, or what the title reads as. */
@@ -43,15 +46,18 @@ export const POSTER_TYPE: FramedLayerKindDef<PosterTypeLayer> = {
     slow: (l, a) => ({ ...l, chrome: clamp01(l.chrome + 0.3 * a) })
   },
   /**
-   * p0 = each block's reveal in TYPE_BLOCKS order, p1 = (chrome, glitch). The picture is the text
-   * and the anchors it hangs from, which the renderer rasterizes at the frame's size.
+   * p0 = each block's reveal in TYPE_BLOCKS order, p1 = (chrome, glitch). The picture is the text,
+   * the format's anchors it hangs from and the safe zone it stays in, which the renderer
+   * rasterizes at the frame's size.
    */
   pass: (l, { context, signals, t }) => {
     const text = posterTypeText(l, context.credits)
     const reveals = typeReveals(text, signals.events.downbeat, context.sectionStart, t)
+    const { format, safe } = context.layout
+    const anchors = anchorsInFormat(format, safe, l.formats?.[format]?.anchors)
     return {
       params: [...TYPE_BLOCKS.map((id) => reveals[id]), l.chrome, l.glitch],
-      image: { kind: 'type', key: JSON.stringify([text, POSTER_ANCHORS]), text, anchors: POSTER_ANCHORS }
+      image: { kind: 'type', key: JSON.stringify([text, anchors, safe]), text, anchors, bounds: safe }
     }
   }
 }

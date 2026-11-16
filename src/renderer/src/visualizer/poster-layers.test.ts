@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Section } from '../../../shared/analysis'
+import { WIDE_LAYOUT } from '../../../shared/formats'
 import { BAND_COUNT } from './audio-features'
 import { DEFAULT_PALETTE } from './palette'
 import { DEFAULT_REACTIVITY } from './reactivity'
@@ -20,7 +21,7 @@ import { addSectionLayer, defaultVision, planVisionFrame, visionImages, type Vis
 const features = { bands: new Float32Array(BAND_COUNT).fill(0.5), energy: 0.5 }
 const size = { width: 1920, height: 1080 }
 const credits = { title: 'Neon Drive', artist: 'Elynt' }
-const context = (sectionIndex = 0, sectionStart = 0): FrameContext => ({ sectionIndex, sectionStart, credits })
+const context = (sectionIndex = 0, sectionStart = 0): FrameContext => ({ sectionIndex, sectionStart, credits, layout: WIDE_LAYOUT })
 const signals: TrackSignals = {
   ...NO_SIGNALS,
   events: { ...NO_SIGNALS.events, kick: [3], downbeat: [0, 2, 4, 6, 8, 10] }

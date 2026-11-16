@@ -1,3 +1,4 @@
+import type { FormatLayout } from '../../../../shared/formats'
 import type { Reactivity } from '../reactivity'
 import type { FrameContext, PassImage } from '../scene'
 import type { Tier, TrackSignals } from '../signals'
@@ -28,6 +29,11 @@ export interface FrameInput {
  * in the vision, the signals, and a picture to draw from.
  */
 export interface FramedLayerKindDef<L extends { kind: string; reactivity: Reactivity }> extends Omit<LayerKindDef<L>, 'params'> {
+  /**
+   * Re-flows the layer for the frame's format (V16), before it reacts: where it sits and how big,
+   * with the owner's tweaks for that format. Kinds without it look the same in every format.
+   */
+  place?(layer: L, layout: FormatLayout): L
   /** Up to 8 floats (p0 then p1), and the picture the shader reads as layerTex, if any. */
   pass(layer: L, frame: FrameInput): { params: number[]; image?: PassImage }
 }

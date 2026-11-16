@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import type { FormatId } from '../../../shared/formats'
 import type { Track } from '../../../shared/track'
 import { useTrackAnalysis } from './AnalysisStrip'
 import { HeardCheck } from './HeardCheck'
@@ -28,6 +29,8 @@ export function VisualizerTrack({ track, onRenamed }: { track: Track; onRenamed:
   const sectionsKey = JSON.stringify([sections.map((s) => [s.label, s.start, s.end]), grid.beats.length, grid.downbeats[0], analysis?.bpm])
   const [vision, setVision] = useState(() => defaultVision(sections, duration, grid))
   const [section, setSection] = useState(0)
+  // The format the preview shows and the scene panel tweaks (V16). Edits to the vision apply to every format.
+  const [format, setFormat] = useState<FormatId>('wide')
   useEffect(() => {
     setVision(defaultVision(sections, duration, grid))
   }, [track.id, sectionsKey])
@@ -73,8 +76,10 @@ export function VisualizerTrack({ track, onRenamed }: { track: Track; onRenamed:
         onVisionChange={setVision}
         section={section}
         onSection={setSection}
+        format={format}
+        onFormatChange={setFormat}
       />
-      <ScenePanel vision={credited} trackId={track.id} onChange={setVision} section={section} onSection={setSection} />
+      <ScenePanel vision={credited} trackId={track.id} format={format} onChange={setVision} section={section} onSection={setSection} />
     </>
   )
 }

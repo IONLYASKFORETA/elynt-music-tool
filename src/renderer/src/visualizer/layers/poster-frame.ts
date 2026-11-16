@@ -1,3 +1,4 @@
+import type { FormatTweaks } from '../../../../shared/formats'
 import type { Reactivity } from '../reactivity'
 import { clamp01, type FramedLayerKindDef } from './kind'
 
@@ -20,6 +21,8 @@ export interface PosterFrameLayer {
   logo: number
   /** How bright the whole frame is over the picture, 0 to 1. */
   opacity: number
+  /** The owner's own grid in a format, over the automatic one (V16). */
+  formats?: FormatTweaks<Partial<Pick<PosterFrameLayer, 'columns' | 'rows'>>>
 }
 
 /** Where the logo mark sits, clockwise from top left. */
@@ -46,6 +49,17 @@ export const POSTER_FRAME: FramedLayerKindDef<PosterFrameLayer> = {
     hard: (l, a) => ({ ...l, opacity: clamp01(l.opacity + 0.45 * a), weight: clamp01(l.weight + 0.3 * a) }),
     medium: (l, a) => ({ ...l, opacity: clamp01(l.opacity + 0.15 * a) }),
     slow: (l, a) => ({ ...l, opacity: clamp01(l.opacity + 0.1 * a) })
+  },
+  /** Into the format: the grid turns on its side for 9:16 and squares up for 1:1, unless the owner set it there. */
+  place: (l, { format }) => {
+    const most = Math.max(l.columns, l.rows)
+    const auto =
+      format === 'vertical'
+        ? { columns: l.rows, rows: l.columns }
+        : format === 'square'
+          ? { columns: most, rows: most }
+          : { columns: l.columns, rows: l.rows }
+    return { ...l, ...auto, ...l.formats?.[format] }
   },
   /** p0 = (columns, rows, weight, marks), p1 = (logo, opacity, logo corner). */
   pass: (l, { context }) => {

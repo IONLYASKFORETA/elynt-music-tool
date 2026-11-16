@@ -1,3 +1,5 @@
+import type { FormatId } from '../../../shared/formats'
+import { FormatTweakControls } from './FormatTweakControls'
 import { PosterLayerControls } from './PosterLayerControls'
 import { MAX_COLORS, MIN_COLORS } from './palette'
 import { PICKABLE_SIGNALS, signalLabel, type Reactivity } from './reactivity'
@@ -19,11 +21,13 @@ const ADDABLE_KINDS = (Object.keys(LAYER_NAMES) as LayerKind[]).filter((k) => !E
 
 /**
  * A basic scene panel: pick a section, then for each of its layers what it reacts to and how
- * strongly. Active layers can be added (up to the limit) and removed.
+ * strongly. Active layers can be added (up to the limit) and removed. Poster layers also take
+ * tweaks for the format the preview shows (V16).
  */
 export function ScenePanel({
   vision,
   trackId,
+  format,
   onChange,
   section: picked,
   onSection: setPicked
@@ -31,6 +35,8 @@ export function ScenePanel({
   vision: Vision
   /** The track the vision is for: its Subject layers offer its generated images. */
   trackId?: number
+  /** The format the preview shows, which the poster layers' tweaks apply to. */
+  format: FormatId
   onChange(vision: Vision): void
   /** The picked section; the timeline picks it too. */
   section: number
@@ -126,6 +132,7 @@ export function ScenePanel({
               palette={vision.palette}
               onChange={(patch) => onChange(updateSectionLayer(vision, index, i, patch))}
             />
+            <FormatTweakControls vision={vision} sectionIndex={index} layerIndex={i} format={format} onChange={onChange} />
             {countsTowardLimit(layer.kind) && (
               <button className="link" onClick={() => onChange(removeSectionLayer(vision, index, i))}>
                 Remove
